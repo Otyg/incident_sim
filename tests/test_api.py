@@ -5,6 +5,7 @@ import pytest
 
 from src import api as api_module
 from src.main import app
+from src.services.llm_provider import OpenAIProvider
 from tests.mock_llm_provider import MockLLMProvider
 
 
@@ -145,7 +146,7 @@ def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
         '/sessions',
         {'scenario_id': 'scenario-001', 'audience': 'krisledning'},
     )
-    monkeypatch.setenv('INCIDENT_SIM_LLM_PROVIDER', 'openai')
+    monkeypatch.setattr(api_module, 'get_llm_provider', lambda: OpenAIProvider({}))
 
     status, body = request_json(
         'POST',
