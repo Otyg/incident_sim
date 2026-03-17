@@ -1,3 +1,10 @@
+"""Deterministic session state transitions for participant actions.
+
+The rules engine applies a small set of explicit rules to the current session
+state based on an already interpreted participant action. It does not perform
+LLM work; it only updates metrics, flags, consequences, logs and focus items.
+"""
+
 from copy import deepcopy
 
 from src.models.session import ExerciseLogItem, ParticipantActionLog, SessionState
@@ -7,10 +14,31 @@ from src.schemas.interpreted_action import InterpretedAction
 class RulesEngine:
     @staticmethod
     def _add_focus_item(state: SessionState, item: str) -> None:
+        """Append a focus item only if it is not already present.
+
+        Args:
+            state: Session state being updated.
+            item: Focus item text to preserve once in the list.
+
+        Returns:
+            None: The state object is mutated in place.
+        """
+
         if item not in state.focus_items:
             state.focus_items.append(item)
 
     def apply(self, state: SessionState, interpreted_action: InterpretedAction, raw_input: str) -> SessionState:
+        """Apply deterministic rules to a session state.
+
+        Args:
+            state: Current session state before rule processing.
+            interpreted_action: Structured action created by the provider layer.
+            raw_input: Original participant input used for audit logging.
+
+        Returns:
+            SessionState: A copied and updated session state.
+        """
+
         updated = deepcopy(state)
         updated.turn_number += 1
 

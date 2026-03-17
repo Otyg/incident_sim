@@ -1,3 +1,11 @@
+"""FastAPI routes for the incident exercise application.
+
+The module exposes the HTTP entrypoints used by the browser client and tests.
+It wires together scenario/session repositories, session bootstrap logic,
+timeline retrieval and turn processing through the rules engine and LLM
+provider layer.
+"""
+
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -27,15 +35,39 @@ session_repository = InMemorySessionRepository()
 
 
 class CreateSessionRequest(BaseModel):
+    """Request body for starting a new session from an existing scenario.
+
+    Attributes:
+        scenario_id: Identifier of the stored scenario to start from.
+        audience: Audience profile used when the session state is initialized.
+    """
+
     scenario_id: str = Field(min_length=1)
     audience: Audience
 
 
 class TurnRequest(BaseModel):
+    """Request body for posting a participant action.
+
+    Attributes:
+        participant_input: Free-text description of the participant action.
+    """
+
     participant_input: str = Field(min_length=3)
 
 
 def build_session_state(session_id: str, scenario: Scenario, audience: Audience) -> SessionState:
+    """Create the initial session state for a stored scenario.
+
+    Args:
+        session_id: Generated identifier for the session.
+        scenario: Scenario used as the source for the initial state.
+        audience: Audience profile selected for the exercise session.
+
+    Returns:
+        SessionState: Initialized session state ready to be saved.
+    """
+
     return SessionState(
         session_id=session_id,
         scenario_id=scenario.id,
@@ -60,21 +92,58 @@ def build_session_state(session_id: str, scenario: Scenario, audience: Audience)
 
 @app.get('/health')
 async def health() -> dict:
+    """Return a simple liveness response for backend health checks.
+
+    Returns:
+        dict: Static health payload with status information.
+    """
+
     return {'status': 'ok'}
 
 
 @app.get('/', include_in_schema=False)
 async def frontend() -> FileResponse:
+    """Serve the static browser client entrypoint.
+
+    Returns:
+        FileResponse: The frontend HTML file.
+
+    Raises:
+        RuntimeError: Indirectly if the frontend file cannot be read by the
+            underlying file response implementation.
+    """
+
     return FileResponse(FRONTEND_INDEX)
 
 
 @app.post('/scenarios', response_model=Scenario)
 async def create_scenario(scenario: Scenario) -> Scenario:
+    """Store a scenario in the in-memory repository.
+
+    Args:
+        scenario: Validated scenario payload to persist.
+
+    Returns:
+        Scenario: The stored scenario.
+    """
+
     return scenario_repository.save(scenario)
 
 
 @app.get('/scenarios/{scenario_id}', response_model=Scenario)
 async def get_scenario(scenario_id: str) -> Scenario:
+    """Fetch a stored scenario by identifier.
+
+    Args:
+        scenario_id: Identifier of the scenario to fetch.
+
+    Returns:
+        Scenario: The stored scenario.
+
+    Raises:
+        HTTPException: If the scenario does not exist.
+    """
+
     scenario = scenario_repository.get(scenario_id)
     if not scenario:
         raise HTTPException(status_code=404, detail='Scenario not found')
@@ -84,6 +153,18 @@ async def get_scenario(scenario_id: str) -> Scenario:
 
 @app.post('/sessions', response_model=SessionState)
 async def create_session(request: CreateSessionRequest) -> SessionState:
+    """Start a new session from a stored scenario.
+
+    Args:
+        request: Session creation payload containing scenario and audience.
+
+    Returns:
+        SessionState: Persisted initial session state.
+
+    Raises:
+        HTTPException: If the referenced scenario does not exist.
+    """
+
     scenario = scenario_repository.get(request.scenario_id)
     if not scenario:
         raise HTTPException(status_code=404, detail='Scenario not found')
@@ -95,6 +176,18 @@ async def create_session(request: CreateSessionRequest) -> SessionState:
 
 @app.get('/sessions/{session_id}', response_model=SessionState)
 async def get_session(session_id: str) -> SessionState:
+    """Fetch the latest stored state for a session.
+
+    Args:
+        session_id: Identifier of the session to fetch.
+
+    Returns:
+        SessionState: Latest persisted session state.
+
+    Raises:
+        HTTPException: If the session does not exist.
+    """
+
     state = session_repository.get(session_id)
     if not state:
         raise HTTPException(status_code=404, detail='Session not found')
@@ -104,6 +197,18 @@ async def get_session(session_id: str) -> SessionState:
 
 @app.get('/sessions/{session_id}/timeline', response_model=list[Turn])
 async def get_timeline(session_id: str) -> list[Turn]:
+    """Return the stored turn timeline for a session.
+
+    Args:
+        session_id: Identifier of the session whose timeline should be read.
+
+    Returns:
+        list[Turn]: Stored turns in insertion order.
+
+    Raises:
+        HTTPException: If the session does not exist.
+    """
+
     state = session_repository.get(session_id)
     if not state:
         raise HTTPException(status_code=404, detail='Session not found')
@@ -113,6 +218,21 @@ async def get_timeline(session_id: str) -> list[Turn]:
 
 @app.post('/sessions/{session_id}/turns', response_model=Turn)
 async def post_turn(session_id: str, request: TurnRequest) -> Turn:
+    """Process a participant action and append it to the session timeline.
+
+    Args:
+        session_id: Identifier of the session to update.
+        request: Turn payload containing the participant action text.
+
+    Returns:
+        Turn: Persisted turn containing interpreted action, state snapshot and
+            generated narration.
+
+    Raises:
+        HTTPException: If the session is missing, provider output is invalid,
+            or the selected provider is unavailable.
+    """
+
     state = session_repository.get(session_id)
     if not state:
         raise HTTPException(status_code=404, detail='Session not found')

@@ -514,21 +514,23 @@ Definition av klart:
 
 ---
 
-## Steg 8 — Docker, config och utvecklarupplevelse
+## Steg 8 — Utvecklarupplevelse
 
 ### Mål
 Gör projektet enkelt att köra och förstå för andra utvecklare.
 
 ### Uppgift till Codex
 Lägg till:
-
-- `Dockerfile`
-- `docker-compose.yml`
-- `.env.example`
+- pydoc docstrings
 - förbättrad `README.md`
 
-README ska beskriva:
+pydoc docstrings ska beskriva:
+- Vad modulen, klassen eller funktionen har för syfte
+- Vilka parametrar som tas emot samt vad de representerar
+- Vad som returneras
+- Eventuella exceptions
 
+README ska beskriva:
 - installation
 - körning
 - tester
@@ -536,7 +538,6 @@ README ska beskriva:
 - hur mock-provider respektive riktig provider används
 
 ### Definition av klart
-- Projektet går att starta med ett fåtal kommandon.
 - README räcker för att en ny utvecklare ska komma igång.
 
 ### Validering
@@ -548,13 +549,14 @@ README ska beskriva:
 Du arbetar i ett projekt för en incidentövningsapp.
 
 Uppgift:
-Förbättra developer experience med Docker och dokumentation.
+Förbättra developer experience med dokumentation.
+Uppdatera, eller lägg till, pydoc docstrings med:
+- Vad modulen, klassen eller funktionen har för syfte
+- Vilka parametrar som tas emot samt vad de representerar
+- Vad som returneras
+- Eventuella exceptions
 
-Gör följande:
-1. Lägg till Dockerfile.
-2. Lägg till docker-compose.yml.
-3. Lägg till .env.example.
-4. Uppdatera README med:
+Uppdatera README med:
    - installation
    - lokal körning
    - tester
@@ -562,7 +564,6 @@ Gör följande:
    - byte mellan mock-provider och riktig provider
 
 Begränsningar:
-- Håll konfigurationen enkel.
 - Dokumentera endast det som faktiskt stöds av projektet.
 
 Definition av klart:
