@@ -4,7 +4,14 @@ from pydantic import BaseModel, Field
 from src.models.scenario import Audience, Scenario
 from src.models.session import SessionMetrics, SessionState
 from src.models.turn import Turn
-from src.services.prototype_llm import PrototypeInterpreter, PrototypeNarrator
+from src.services.llm_provider import (
+    LLMProviderError,
+    ProviderConfigurationError,
+    ProviderOutputValidationError,
+    get_llm_provider,
+    validate_interpreted_action,
+    validate_narration,
+)
 from src.services.rules_engine import RulesEngine
 from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
 
@@ -92,13 +99,28 @@ async def post_turn(session_id: str, request: TurnRequest) -> Turn:
     if not state:
         raise HTTPException(status_code=404, detail='Session not found')
 
-    interpreter = PrototypeInterpreter()
-    narrator = PrototypeNarrator()
     engine = RulesEngine()
+    provider = get_llm_provider()
 
-    interpreted = interpreter.interpret(request.participant_input)
+    try:
+        interpreted = validate_interpreted_action(provider.interpret_action(request.participant_input))
+    except ProviderOutputValidationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     updated = engine.apply(state, interpreted, request.participant_input)
-    response = narrator.narrate(updated)
+
+    try:
+        response = validate_narration(provider.generate_narration(updated))
+    except ProviderOutputValidationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     session_repository.save(updated)
 

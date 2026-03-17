@@ -1,0 +1,1 @@
+Genererar en strukturerad lagebild baserad pa session state med key_points, injects, consequences och decisions_to_consider.

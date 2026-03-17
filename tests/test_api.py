@@ -1,7 +1,11 @@
 import asyncio
 import json
 
+import pytest
+
+from src import api as api_module
 from src.main import app
+from tests.mock_llm_provider import MockLLMProvider
 
 
 def request_json(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
@@ -108,7 +112,9 @@ def test_create_and_get_session_from_existing_scenario():
     assert get_body['session_id'] == create_body['session_id']
 
 
-def test_post_turn_returns_basic_turn_response():
+def test_post_turn_returns_basic_turn_response(monkeypatch):
+    monkeypatch.setattr(api_module, 'get_llm_provider', lambda: MockLLMProvider())
+
     scenario = sample_scenario_payload()
     request_json('POST', '/scenarios', scenario)
     _, session = request_json(
@@ -129,3 +135,51 @@ def test_post_turn_returns_basic_turn_response():
     assert body['interpreted_action']['priority'] == 'high'
     assert body['state_snapshot']['session_id'] == session['session_id']
     assert body['narrator_response']['key_points']
+
+
+def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
+    scenario = sample_scenario_payload()
+    request_json('POST', '/scenarios', scenario)
+    _, session = request_json(
+        'POST',
+        '/sessions',
+        {'scenario_id': 'scenario-001', 'audience': 'krisledning'},
+    )
+    monkeypatch.setenv('INCIDENT_SIM_LLM_PROVIDER', 'openai')
+
+    status, body = request_json(
+        'POST',
+        f"/sessions/{session['session_id']}/turns",
+        {'participant_input': 'Vi stänger extern VPN.'},
+    )
+
+    assert status == 503
+    assert 'not implemented yet' in body['detail']
+
+
+def test_post_turn_returns_502_for_invalid_provider_output(monkeypatch):
+    class BadProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            return {'action_summary': 'x'}
+
+        def generate_narration(self, state) -> dict:
+            return {}
+
+    monkeypatch.setattr(api_module, 'get_llm_provider', lambda: BadProvider())
+
+    scenario = sample_scenario_payload()
+    request_json('POST', '/scenarios', scenario)
+    _, session = request_json(
+        'POST',
+        '/sessions',
+        {'scenario_id': 'scenario-001', 'audience': 'krisledning'},
+    )
+
+    status, body = request_json(
+        'POST',
+        f"/sessions/{session['session_id']}/turns",
+        {'participant_input': 'Vi stänger extern VPN.'},
+    )
+
+    assert status == 502
+    assert body['detail'] == 'Invalid interpreted action payload'
