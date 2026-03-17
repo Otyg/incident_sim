@@ -1,21 +1,24 @@
-from typing import Dict, List, Literal
-from pydantic import BaseModel, Field
+from typing import Annotated, Dict, List, Literal
+
+from pydantic import BaseModel, Field, StringConstraints
 
 from src.models.scenario import Audience
 
 
 SessionStatus = Literal['active', 'paused', 'completed']
+NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
+ShortText = Annotated[str, StringConstraints(min_length=2)]
 
 
 class ParticipantActionLog(BaseModel):
     turn: int = Field(ge=1)
-    summary: str
+    summary: ShortText
 
 
 class ExerciseLogItem(BaseModel):
     turn: int = Field(ge=1)
-    type: str
-    text: str
+    type: ShortText
+    text: ShortText
 
 
 class SessionMetrics(BaseModel):
@@ -35,23 +38,23 @@ class SessionFlags(BaseModel):
 
 
 class SessionState(BaseModel):
-    session_id: str
-    scenario_id: str
-    scenario_version: str
+    session_id: NonEmptyStr
+    scenario_id: NonEmptyStr
+    scenario_version: NonEmptyStr
     audience: Audience
     status: SessionStatus = 'active'
-    current_time: str
+    current_time: Annotated[str, StringConstraints(min_length=4)]
     turn_number: int = Field(ge=0)
-    phase: str
-    known_facts: List[str] = Field(default_factory=list)
-    unknowns: List[str] = Field(default_factory=list)
+    phase: ShortText
+    known_facts: List[NonEmptyStr] = Field(default_factory=list)
+    unknowns: List[NonEmptyStr] = Field(default_factory=list)
     participant_actions: List[ParticipantActionLog] = Field(default_factory=list)
-    decisions: List[str] = Field(default_factory=list)
-    consequences: List[str] = Field(default_factory=list)
-    active_injects: List[str] = Field(default_factory=list)
-    resolved_injects: List[str] = Field(default_factory=list)
+    decisions: List[NonEmptyStr] = Field(default_factory=list)
+    consequences: List[NonEmptyStr] = Field(default_factory=list)
+    active_injects: List[NonEmptyStr] = Field(default_factory=list)
+    resolved_injects: List[NonEmptyStr] = Field(default_factory=list)
     metrics: SessionMetrics
     flags: SessionFlags = Field(default_factory=SessionFlags)
-    focus_items: List[str] = Field(default_factory=list)
+    focus_items: List[NonEmptyStr] = Field(default_factory=list)
     exercise_log: List[ExerciseLogItem] = Field(default_factory=list)
     no_communication_turns: int = Field(default=0, ge=0)
