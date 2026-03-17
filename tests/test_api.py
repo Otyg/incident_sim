@@ -183,3 +183,59 @@ def test_post_turn_returns_502_for_invalid_provider_output(monkeypatch):
 
     assert status == 502
     assert body['detail'] == 'Invalid interpreted action payload'
+
+
+def test_get_timeline_returns_turns_in_order(monkeypatch):
+    monkeypatch.setattr(api_module, 'get_llm_provider', lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json('POST', '/scenarios', scenario)
+    _, session = request_json(
+        'POST',
+        '/sessions',
+        {'scenario_id': 'scenario-001', 'audience': 'krisledning'},
+    )
+
+    request_json(
+        'POST',
+        f"/sessions/{session['session_id']}/turns",
+        {'participant_input': 'Vi stänger extern VPN.'},
+    )
+    request_json(
+        'POST',
+        f"/sessions/{session['session_id']}/turns",
+        {'participant_input': 'Vi går ut med ett första uttalande.'},
+    )
+
+    status, body = request_json('GET', f"/sessions/{session['session_id']}/timeline")
+
+    assert status == 200
+    assert [turn['turn_number'] for turn in body] == [1, 2]
+    assert body[0]['participant_input'] == 'Vi stänger extern VPN.'
+    assert body[1]['participant_input'] == 'Vi går ut med ett första uttalande.'
+
+
+def test_get_timeline_includes_complete_turn_data(monkeypatch):
+    monkeypatch.setattr(api_module, 'get_llm_provider', lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json('POST', '/scenarios', scenario)
+    _, session = request_json(
+        'POST',
+        '/sessions',
+        {'scenario_id': 'scenario-001', 'audience': 'krisledning'},
+    )
+
+    request_json(
+        'POST',
+        f"/sessions/{session['session_id']}/turns",
+        {'participant_input': 'Vi stänger extern VPN och samlar incidentledningsgruppen.'},
+    )
+
+    status, body = request_json('GET', f"/sessions/{session['session_id']}/timeline")
+
+    assert status == 200
+    assert len(body) == 1
+    assert body[0]['interpreted_action']['action_types']
+    assert body[0]['state_snapshot']['session_id'] == session['session_id']
+    assert body[0]['narrator_response']['facilitator_notes']

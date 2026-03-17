@@ -93,6 +93,15 @@ async def get_session(session_id: str) -> SessionState:
     return state
 
 
+@app.get('/sessions/{session_id}/timeline', response_model=list[Turn])
+async def get_timeline(session_id: str) -> list[Turn]:
+    state = session_repository.get(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail='Session not found')
+
+    return session_repository.get_timeline(session_id)
+
+
 @app.post('/sessions/{session_id}/turns', response_model=Turn)
 async def post_turn(session_id: str, request: TurnRequest) -> Turn:
     state = session_repository.get(session_id)
@@ -123,11 +132,12 @@ async def post_turn(session_id: str, request: TurnRequest) -> Turn:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     session_repository.save(updated)
-
-    return Turn(
+    turn = Turn(
         turn_number=updated.turn_number,
         participant_input=request.participant_input,
         interpreted_action=interpreted,
         state_snapshot=updated,
         narrator_response=response,
     )
+    session_repository.append_turn(session_id, turn)
+    return turn
