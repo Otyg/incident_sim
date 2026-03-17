@@ -1,7 +1,7 @@
 from copy import deepcopy
 
-from app.models.session import ExerciseLogItem, ParticipantActionLog, SessionState
-from app.schemas.interpreted_action import InterpretedAction
+from src.models.session import ExerciseLogItem, ParticipantActionLog, SessionState
+from src.schemas.interpreted_action import InterpretedAction
 
 
 class RulesEngine:

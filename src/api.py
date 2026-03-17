@@ -1,10 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.models.scenario import Scenario
-from app.models.session import SessionMetrics, SessionState
-from app.services.prototype_llm import PrototypeInterpreter, PrototypeNarrator
-from app.services.rules_engine import RulesEngine
+from src.models.scenario import Scenario
+from src.models.session import SessionMetrics, SessionState
+from src.services.prototype_llm import PrototypeInterpreter, PrototypeNarrator
+from src.services.rules_engine import RulesEngine
 
 
 app = FastAPI(title='Incident Exercise Prototype')
@@ -23,7 +23,7 @@ class TurnRequest(BaseModel):
 
 
 @app.get('/health')
-def health() -> dict:
+async def health() -> dict:
     return {'status': 'ok'}
 
 

@@ -1,6 +1,6 @@
-from app.models.session import SessionState
-from app.schemas.interpreted_action import InterpretedAction
-from app.schemas.narrator_response import NarratorInject, NarratorResponse
+from src.models.session import SessionState
+from src.schemas.interpreted_action import InterpretedAction
+from src.schemas.narrator_response import NarratorInject, NarratorResponse
 
 
 class PrototypeInterpreter:
