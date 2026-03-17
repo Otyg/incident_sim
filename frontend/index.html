@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Incident Exercise Prototype</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe5;
+        --panel: #fffdf8;
+        --panel-alt: #f7f1e7;
+        --ink: #1d2a2e;
+        --muted: #5f6c6f;
+        --accent: #0f766e;
+        --accent-soft: #cfece6;
+        --danger: #9f1239;
+        --border: #d8cec0;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 28%),
+          linear-gradient(180deg, #f7f2e8 0%, var(--bg) 100%);
+      }
+
+      .page {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      .hero {
+        background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(255, 253, 248, 0.96));
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 16px 40px rgba(29, 42, 46, 0.08);
+      }
+
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 3vw, 3.2rem);
+        line-height: 1;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 62ch;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        background: var(--ink);
+        color: white;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      button.secondary {
+        background: var(--accent-soft);
+        color: var(--ink);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(29, 42, 46, 0.06);
+      }
+
+      .panel.alt { background: var(--panel-alt); }
+
+      .panel h2, .panel h3 {
+        margin-top: 0;
+      }
+
+      .meta, .list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .meta-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(216, 206, 192, 0.7);
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tag {
+        border-radius: 999px;
+        background: var(--accent-soft);
+        padding: 6px 10px;
+        font-size: 0.95rem;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        padding: 14px;
+        font: inherit;
+        background: white;
+      }
+
+      .status {
+        margin-top: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(15, 118, 110, 0.08);
+        color: var(--ink);
+      }
+
+      .error {
+        background: rgba(159, 18, 57, 0.08);
+        color: var(--danger);
+      }
+
+      .timeline-item {
+        padding: 14px 0;
+        border-top: 1px solid rgba(216, 206, 192, 0.7);
+      }
+
+      .timeline-item:first-child { border-top: none; padding-top: 0; }
+
+      .small {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 900px) {
+        .grid { grid-template-columns: 1fr; }
+        .page { width: min(100vw - 20px, 1180px); padding-top: 20px; }
+        .hero { padding: 22px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useEffect, useState } = React;
+
+      const sampleScenario = {
+        id: "scenario-001",
+        title: "Ransomware mot kommunal verksamhet",
+        version: "1.0",
+        description: "Ett kommunalt driftteam ser tilltagande störningar, inloggningsproblem och osäker påverkan på externa tjänster.",
+        audiences: ["krisledning", "it-ledning"],
+        training_goals: ["Öva initial lägesuppfattning", "Träna kommunikation under osäkerhet"],
+        difficulty: "medium",
+        timebox_minutes: 90,
+        background: {
+          organization_type: "kommun",
+          context: "Måndag morgon med hög belastning i ordinarie verksamhet.",
+          threat_actor: "okänd angripare",
+          assumptions: []
+        },
+        initial_state: {
+          time: "08:15",
+          phase: "initial-detection",
+          known_facts: ["Inloggningsproblem", "Rapporter om otillgängliga resurser"],
+          unknowns: ["Angreppets omfattning", "Om backup påverkas"],
+          affected_systems: ["AD", "Fildelning"],
+          business_impact: ["Intern påverkan"],
+          impact_level: 2
+        },
+        actors: [],
+        inject_catalog: [],
+        rules: [],
+        presentation_guidelines: {
+          krisledning: { focus: ["beslut"], tone: "strategisk" },
+          "it-ledning": { focus: ["system"], tone: "operativ" }
+        }
+      };
+
+      async function apiRequest(path, options = {}) {
+        const response = await fetch(path, {
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+          ...options,
+        });
+
+        const isJson = response.headers.get("content-type")?.includes("application/json");
+        const body = isJson ? await response.json() : null;
+
+        if (!response.ok) {
+          throw new Error(body?.detail || `Request failed: ${response.status}`);
+        }
+
+        return body;
+      }
+
+      function App() {
+        const [scenario, setScenario] = useState(null);
+        const [session, setSession] = useState(null);
+        const [timeline, setTimeline] = useState([]);
+        const [latestNarration, setLatestNarration] = useState(null);
+        const [participantInput, setParticipantInput] = useState("");
+        const [loading, setLoading] = useState(false);
+        const [status, setStatus] = useState("");
+        const [error, setError] = useState("");
+
+        const loadTimeline = async (sessionId) => {
+          const items = await apiRequest(`/sessions/${sessionId}/timeline`);
+          setTimeline(items);
+        };
+
+        const loadScenario = async () => {
+          setLoading(true);
+          setError("");
+          setStatus("Laddar exempelscenario...");
+
+          try {
+            const created = await apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(sampleScenario),
+            });
+            setScenario(created);
+            setStatus("Scenario klart att starta.");
+          } catch (err) {
+            try {
+              const existing = await apiRequest(`/scenarios/${sampleScenario.id}`);
+              setScenario(existing);
+              setStatus("Befintligt scenario laddat.");
+            } catch {
+              setError(err.message);
+              setStatus("");
+            }
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const startSession = async () => {
+          if (!scenario) return;
+          setLoading(true);
+          setError("");
+          setStatus("Startar session...");
+
+          try {
+            const created = await apiRequest("/sessions", {
+              method: "POST",
+              body: JSON.stringify({
+                scenario_id: scenario.id,
+                audience: "krisledning",
+              }),
+            });
+            setSession(created);
+            setTimeline([]);
+            setLatestNarration(null);
+            setStatus("Session startad.");
+            await loadTimeline(created.session_id);
+          } catch (err) {
+            setError(err.message);
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const submitTurn = async (event) => {
+          event.preventDefault();
+          if (!session || !participantInput.trim()) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Skickar deltagaråtgärd...");
+
+          try {
+            const turn = await apiRequest(`/sessions/${session.session_id}/turns`, {
+              method: "POST",
+              body: JSON.stringify({ participant_input: participantInput }),
+            });
+            setSession(turn.state_snapshot);
+            setLatestNarration(turn.narrator_response);
+            setParticipantInput("");
+            setStatus("Turn sparad och lägesbild uppdaterad.");
+            await loadTimeline(session.session_id);
+          } catch (err) {
+            setError(err.message);
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          loadScenario();
+        }, []);
+
+        return (
+          <div className="page">
+            <section className="hero">
+              <h1>Incidentövning</h1>
+              <p>
+                En enkel browserklient för att starta en session, spela turns och följa scenario-state,
+                senaste lägesbild och tidslinje i samma vy.
+              </p>
+              <div className="actions">
+                <button onClick={loadScenario} disabled={loading}>Ladda scenario</button>
+                <button className="secondary" onClick={startSession} disabled={loading || !scenario}>
+                  Starta session
+                </button>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Scenarioöversikt</h2>
+                {scenario ? (
+                  <div className="list">
+                    <div>
+                      <strong>{scenario.title}</strong>
+                      <div className="small">{scenario.description}</div>
+                    </div>
+                    <div className="meta">
+                      <div className="meta-item"><span>Version</span><strong>{scenario.version}</strong></div>
+                      <div className="meta-item"><span>Svårighet</span><strong>{scenario.difficulty}</strong></div>
+                      <div className="meta-item"><span>Tidsram</span><strong>{scenario.timebox_minutes} min</strong></div>
+                    </div>
+                    <div>
+                      <div className="small">Mål</div>
+                      <div className="tag-row">
+                        {scenario.training_goals.map((goal) => <span key={goal} className="tag">{goal}</span>)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Inget scenario laddat ännu.</div>
+                )}
+              </article>
+
+              <article className="panel alt">
+                <h2>Aktuell session</h2>
+                {session ? (
+                  <div className="meta">
+                    <div className="meta-item"><span>Session</span><strong>{session.session_id}</strong></div>
+                    <div className="meta-item"><span>Fas</span><strong>{session.phase}</strong></div>
+                    <div className="meta-item"><span>Tid</span><strong>{session.current_time}</strong></div>
+                    <div className="meta-item"><span>Turn</span><strong>{session.turn_number}</strong></div>
+                    <div className="meta-item"><span>Påverkansnivå</span><strong>{session.metrics.impact_level}</strong></div>
+                    <div className="meta-item"><span>Medietryck</span><strong>{session.metrics.media_pressure}</strong></div>
+                    <div className="meta-item"><span>Störning</span><strong>{session.metrics.service_disruption}</strong></div>
+                  </div>
+                ) : (
+                  <div className="small">Starta en session för att se state.</div>
+                )}
+              </article>
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Deltagaråtgärd</h2>
+                <form onSubmit={submitTurn}>
+                  <textarea
+                    value={participantInput}
+                    onChange={(event) => setParticipantInput(event.target.value)}
+                    placeholder="Beskriv nästa åtgärd, till exempel: Vi stänger extern VPN och förbereder ett första uttalande."
+                  />
+                  <div className="actions">
+                    <button type="submit" disabled={loading || !session || !participantInput.trim()}>
+                      Skicka turn
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="panel alt">
+                <h2>Senaste lägesbild</h2>
+                {latestNarration ? (
+                  <div className="list">
+                    <div>{latestNarration.situation_update}</div>
+                    <div>
+                      <div className="small">Nyckelpunkter</div>
+                      <div className="tag-row">
+                        {latestNarration.key_points.map((point) => <span key={point} className="tag">{point}</span>)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="small">Beslut att överväga</div>
+                      <div className="list">
+                        {latestNarration.decisions_to_consider.map((item) => <div key={item}>- {item}</div>)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Ingen lägesbild ännu. Spela en turn för att uppdatera.</div>
+                )}
+              </article>
+            </section>
+
+            <section className="panel">
+              <h2>Tidslinje</h2>
+              {timeline.length ? (
+                timeline.map((turn) => (
+                  <div className="timeline-item" key={turn.turn_number}>
+                    <strong>Turn {turn.turn_number}</strong>
+                    <div>{turn.participant_input}</div>
+                    <div className="small">
+                      Prioritet: {turn.interpreted_action.priority} | Fas: {turn.state_snapshot.phase}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="small">Ingen historik ännu.</div>
+              )}
+            </section>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
