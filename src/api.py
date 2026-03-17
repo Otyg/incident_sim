@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.models.scenario import Audience, Scenario
@@ -17,6 +20,7 @@ from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRep
 
 
 app = FastAPI(title='Incident Exercise Prototype')
+FRONTEND_INDEX = Path(__file__).resolve().parents[1] / 'frontend' / 'index.html'
 
 scenario_repository = InMemoryScenarioRepository()
 session_repository = InMemorySessionRepository()
@@ -57,6 +61,11 @@ def build_session_state(session_id: str, scenario: Scenario, audience: Audience)
 @app.get('/health')
 async def health() -> dict:
     return {'status': 'ok'}
+
+
+@app.get('/', include_in_schema=False)
+async def frontend() -> FileResponse:
+    return FileResponse(FRONTEND_INDEX)
 
 
 @app.post('/scenarios', response_model=Scenario)
