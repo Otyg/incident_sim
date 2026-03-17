@@ -1,7 +1,7 @@
 from typing import Dict, List, Literal
 from pydantic import BaseModel, Field
 
-from app.models.scenario import Audience
+from src.models.scenario import Audience
 
 
 SessionStatus = Literal['active', 'paused', 'completed']

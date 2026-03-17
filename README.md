@@ -13,7 +13,7 @@ En liten FastAPI-prototyp för scenario- och incidentövning med:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn src.main:app --reload
 ```
 
 ## Tester
