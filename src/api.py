@@ -206,6 +206,19 @@ async def create_scenario(scenario: Scenario) -> Scenario:
     return scenario_repository.save(scenario)
 
 
+@app.get("/scenarios", response_model=list[Scenario])
+async def list_scenarios() -> list[Scenario]:
+    """List stored scenarios.
+
+    Returns:
+        list[Scenario]: All stored scenarios.
+    """
+
+    scenarios = scenario_repository.list()
+    logger.info("Listed scenarios count=%s", len(scenarios))
+    return scenarios
+
+
 @app.get("/scenarios/{scenario_id}", response_model=Scenario)
 async def get_scenario(scenario_id: str) -> Scenario:
     """Fetch a stored scenario by identifier.

@@ -104,6 +104,25 @@ def test_create_and_get_scenario():
     assert get_body["title"] == scenario["title"]
 
 
+def test_list_scenarios_returns_saved_scenarios_in_id_order():
+    scenario_b = sample_scenario_payload()
+    scenario_b["id"] = "scenario-002"
+    scenario_b["title"] = "Scenario B"
+
+    scenario_a = sample_scenario_payload()
+    scenario_a["id"] = "scenario-001"
+    scenario_a["title"] = "Scenario A"
+
+    request_json("POST", "/scenarios", scenario_b)
+    request_json("POST", "/scenarios", scenario_a)
+
+    status, body = request_json("GET", "/scenarios")
+
+    assert status == 200
+    assert [item["id"] for item in body] == ["scenario-001", "scenario-002"]
+    assert [item["title"] for item in body] == ["Scenario A", "Scenario B"]
+
+
 def test_create_and_get_session_from_existing_scenario():
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)

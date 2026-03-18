@@ -1,0 +1,402 @@
+{
+  "$defs": {
+    "Actor": {
+      "properties": {
+        "id": {
+          "description": "Stabilt unikt id för aktören, till exempel actor-ciso.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Visningsnamn för aktören.",
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "description": "Kort beskrivning av aktörens ansvar eller funktion i övningen.",
+          "minLength": 2,
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role"
+      ],
+      "title": "Actor",
+      "type": "object"
+    },
+    "Background": {
+      "properties": {
+        "organization_type": {
+          "description": "Typ av organisation som övningen utgår från, till exempel kommun eller myndighet.",
+          "minLength": 2,
+          "title": "Organization Type",
+          "type": "string"
+        },
+        "context": {
+          "description": "Bakgrundsbeskrivning som sätter scenen inför övningen.",
+          "minLength": 3,
+          "title": "Context",
+          "type": "string"
+        },
+        "threat_actor": {
+          "description": "Kort beskrivning av aktören bakom hotet eller incidenten.",
+          "minLength": 2,
+          "title": "Threat Actor",
+          "type": "string"
+        },
+        "assumptions": {
+          "description": "Antaganden som gäller när scenariot startar, till exempel tekniska eller organisatoriska förutsättningar.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "organization_type",
+        "context",
+        "threat_actor"
+      ],
+      "title": "Background",
+      "type": "object"
+    },
+    "InitialState": {
+      "properties": {
+        "time": {
+          "description": "Starttid för scenariot, normalt i formatet HH:MM.",
+          "minLength": 4,
+          "title": "Time",
+          "type": "string"
+        },
+        "phase": {
+          "description": "Maskinläsbart namn på startfasen, till exempel initial-detection, containment eller recovery. Fasen är idag författningsmetadata och används inte för dynamisk faslogik i backend.",
+          "minLength": 2,
+          "title": "Phase",
+          "type": "string"
+        },
+        "known_facts": {
+          "description": "Det deltagarna känner till när övningen startar.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Known Facts",
+          "type": "array"
+        },
+        "unknowns": {
+          "description": "Viktiga osäkerheter som fortfarande behöver utredas.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Unknowns",
+          "type": "array"
+        },
+        "affected_systems": {
+          "description": "System eller tjänster som redan bedöms vara påverkade vid start.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Affected Systems",
+          "type": "array"
+        },
+        "business_impact": {
+          "description": "Beskrivning av verksamhetspåverkan i scenariots initiala läge.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Business Impact",
+          "type": "array"
+        },
+        "impact_level": {
+          "description": "Övergripande påverkan i startläget på en femgradig skala där 1 är mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Impact Level",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "time",
+        "phase",
+        "impact_level"
+      ],
+      "title": "InitialState",
+      "type": "object"
+    },
+    "InjectDefinition": {
+      "properties": {
+        "id": {
+          "description": "Stabilt unikt id för injectet, till exempel inject-media-001.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Vilken typ av inject det är, till exempel media eller operations.",
+          "enum": [
+            "media",
+            "executive",
+            "operations",
+            "technical",
+            "stakeholder"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "description": "Kort rubrik för injectet.",
+          "minLength": 2,
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "description": "Beskrivning av vad injectet tillför till övningen.",
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "trigger_conditions": {
+          "description": "Mänskligt läsbara villkor eller signaler som beskriver när injectet är tänkt att användas. Dessa utvärderas inte dynamiskt av backend idag.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Trigger Conditions",
+          "type": "array"
+        },
+        "audience_relevance": {
+          "description": "Vilka målgrupper injectet främst är relevant för.",
+          "items": {
+            "enum": [
+              "krisledning",
+              "it-ledning",
+              "kommunikation"
+            ],
+            "type": "string"
+          },
+          "title": "Audience Relevance",
+          "type": "array"
+        },
+        "severity": {
+          "description": "Hur skarpt injectet är på en femgradig skala där 1 är låg störning och 5 är mycket kritiskt eller omedelbart handlingsdrivande.",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Severity",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "title",
+        "description",
+        "severity"
+      ],
+      "title": "InjectDefinition",
+      "type": "object"
+    },
+    "PresentationGuideline": {
+      "properties": {
+        "focus": {
+          "description": "Vilka aspekter som bör betonas för målgruppen.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Focus",
+          "type": "array"
+        },
+        "tone": {
+          "description": "Vilken tonalitet eller nivå presentationen bör ha för målgruppen.",
+          "minLength": 2,
+          "title": "Tone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tone"
+      ],
+      "title": "PresentationGuideline",
+      "type": "object"
+    },
+    "RuleDefinition": {
+      "properties": {
+        "id": {
+          "description": "Stabilt unikt id för regeln, till exempel rule-escalation.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Kort namn på regeln.",
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "conditions": {
+          "description": "Mänskligt läsbara villkor för när regeln borde slå till. Fälten dokumenterar scenariots avsikt och exekveras inte generiskt av backend idag.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "effects": {
+          "description": "Mänskligt läsbar beskrivning av regelns tänkta effekt i scenariot.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Effects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RuleDefinition",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "id": {
+      "description": "Globalt unikt scenario-id som används vid lagring och hämtning.",
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "title": {
+      "description": "Scenarioets visningsnamn.",
+      "minLength": 2,
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "description": "Scenarioets versionsbeteckning, till exempel 1.0.",
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    },
+    "description": {
+      "description": "Kort sammanfattning av scenarioets upplägg och kontext.",
+      "minLength": 3,
+      "title": "Description",
+      "type": "string"
+    },
+    "audiences": {
+      "description": "Vilka målgrupper scenariot är avsett för.",
+      "items": {
+        "enum": [
+          "krisledning",
+          "it-ledning",
+          "kommunikation"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Audiences",
+      "type": "array"
+    },
+    "training_goals": {
+      "description": "Vilka förmågor eller lärandemål scenariot ska öva.",
+      "items": {
+        "minLength": 3,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Training Goals",
+      "type": "array"
+    },
+    "difficulty": {
+      "description": "Övergripande svårighetsgrad för scenariot.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "timebox_minutes": {
+      "description": "Planerad maximal övningstid i minuter.",
+      "maximum": 480,
+      "minimum": 1,
+      "title": "Timebox Minutes",
+      "type": "integer"
+    },
+    "background": {
+      "$ref": "#/$defs/Background",
+      "description": "Bakgrund och grundförutsättningar för scenariot."
+    },
+    "initial_state": {
+      "$ref": "#/$defs/InitialState",
+      "description": "Vilket läge övningen startar i."
+    },
+    "actors": {
+      "description": "Viktiga aktörer eller roller i scenariot.",
+      "items": {
+        "$ref": "#/$defs/Actor"
+      },
+      "title": "Actors",
+      "type": "array"
+    },
+    "inject_catalog": {
+      "description": "Katalog över möjliga injects som kan användas under övningen.",
+      "items": {
+        "$ref": "#/$defs/InjectDefinition"
+      },
+      "title": "Inject Catalog",
+      "type": "array"
+    },
+    "rules": {
+      "description": "Dokumenterade scenarioregler och samband. Dessa är idag i första hand författningsstöd och exekveras inte generiskt från scenariot.",
+      "items": {
+        "$ref": "#/$defs/RuleDefinition"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "presentation_guidelines": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PresentationGuideline"
+      },
+      "description": "Hur scenariot bör presenteras för respektive målgrupp.",
+      "propertyNames": {
+        "enum": [
+          "krisledning",
+          "it-ledning",
+          "kommunikation"
+        ]
+      },
+      "title": "Presentation Guidelines",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "version",
+    "description",
+    "audiences",
+    "training_goals",
+    "difficulty",
+    "timebox_minutes",
+    "background",
+    "initial_state",
+    "presentation_guidelines"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

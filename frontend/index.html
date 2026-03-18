@@ -141,6 +141,17 @@
         background: white;
       }
 
+      select,
+      input[type="file"] {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        padding: 12px 14px;
+        font: inherit;
+        background: white;
+        color: var(--ink);
+      }
+
       .status {
         margin-top: 12px;
         padding: 12px 14px;
@@ -164,6 +175,11 @@
       .small {
         color: var(--muted);
         font-size: 0.95rem;
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
       }
 
       @media (max-width: 900px) {
@@ -192,6 +208,16 @@
         return new Promise((resolve) => window.setTimeout(resolve, ms));
       }
 
+      async function readJsonFile(file) {
+        const content = await file.text();
+
+        try {
+          return JSON.parse(content);
+        } catch {
+          throw new Error("Filen innehåller inte giltig JSON.");
+        }
+      }
+
       async function apiRequest(path, options = {}) {
         const response = await fetch(path, {
           headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -213,6 +239,8 @@
 
       function App() {
         const [scenario, setScenario] = useState(null);
+        const [availableScenarios, setAvailableScenarios] = useState([]);
+        const [selectedScenarioId, setSelectedScenarioId] = useState("");
         const [session, setSession] = useState(null);
         const [timeline, setTimeline] = useState([]);
         const [latestNarration, setLatestNarration] = useState(null);
@@ -226,6 +254,41 @@
           setTimeline(items);
         };
 
+        const refreshScenarioList = async (options = {}) => {
+          const items = await apiRequest("/scenarios");
+          setAvailableScenarios(items);
+
+          if (items.length === 0) {
+            setSelectedScenarioId("");
+            return items;
+          }
+
+          if (options.preferredScenarioId) {
+            const matchingScenario = items.find((item) => item.id === options.preferredScenarioId);
+            if (matchingScenario) {
+              setSelectedScenarioId(matchingScenario.id);
+              return items;
+            }
+          }
+
+          setSelectedScenarioId((currentValue) => {
+            if (currentValue && items.some((item) => item.id === currentValue)) {
+              return currentValue;
+            }
+
+            return items[0].id;
+          });
+
+          return items;
+        };
+
+        const resetSessionView = () => {
+          setSession(null);
+          setTimeline([]);
+          setLatestNarration(null);
+          setParticipantInput("");
+        };
+
         const loadScenario = async () => {
           setLoading(true);
           setError("");
@@ -233,22 +296,76 @@
 
           try {
             const sampleScenario = await apiRequest("/sample-scenarios/default");
-            const created = await apiRequest("/scenarios", {
+            const savedScenario = await apiRequest("/scenarios", {
               method: "POST",
               body: JSON.stringify(sampleScenario),
             });
-            setScenario(created);
-            setStatus("Scenario klart att starta.");
+            setScenario(savedScenario);
+            resetSessionView();
+            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
+            setStatus("Exempelscenario laddat och sparat.");
           } catch (err) {
             try {
               const fallbackScenario = await apiRequest("/sample-scenarios/default");
               const existing = await apiRequest(`/scenarios/${fallbackScenario.id}`);
               setScenario(existing);
-              setStatus("Befintligt scenario laddat.");
+              resetSessionView();
+              await refreshScenarioList({ preferredScenarioId: existing.id });
+              setStatus("Befintligt exempelscenario laddat från databasen.");
             } catch {
               setError(err.message);
               setStatus("");
             }
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const loadScenarioFromDatabase = async () => {
+          if (!selectedScenarioId) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Laddar scenario från databasen...");
+
+          try {
+            const loadedScenario = await apiRequest(`/scenarios/${selectedScenarioId}`);
+            setScenario(loadedScenario);
+            resetSessionView();
+            setStatus(`Scenario "${loadedScenario.title}" laddat från databasen.`);
+          } catch (err) {
+            setError(err.message);
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const handleScenarioUpload = async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+
+          if (!file) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus(`Läser in ${file.name}...`);
+
+          try {
+            const payload = await readJsonFile(file);
+            const savedScenario = await apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(payload),
+            });
+            setScenario(savedScenario);
+            resetSessionView();
+            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
+            setStatus(`Scenario "${savedScenario.title}" uppladdat och sparat.`);
+          } catch (err) {
+            setError(err.message);
+            setStatus("");
           } finally {
             setLoading(false);
           }
@@ -359,7 +476,28 @@
         };
 
         useEffect(() => {
-          loadScenario();
+          const initialize = async () => {
+            setLoading(true);
+            setError("");
+            setStatus("Hämtar scenarion...");
+
+            try {
+              const items = await refreshScenarioList();
+              if (items.length > 0) {
+                setScenario(items[0]);
+                setStatus(`Hittade ${items.length} sparade scenarion i databasen.`);
+              } else {
+                setStatus("Inga sparade scenarion hittades. Ladda exempelscenario eller ladda upp en JSON-fil.");
+              }
+            } catch (err) {
+              setError(err.message);
+              setStatus("");
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          initialize();
         }, []);
 
         return (
@@ -372,9 +510,45 @@
               </p>
               <div className="actions">
                 <button onClick={loadScenario} disabled={loading}>Ladda scenario</button>
+                <button
+                  className="secondary"
+                  onClick={loadScenarioFromDatabase}
+                  disabled={loading || !selectedScenarioId}
+                >
+                  Ladda från databasen
+                </button>
                 <button className="secondary" onClick={startSession} disabled={loading || !scenario}>
                   Starta session
                 </button>
+              </div>
+              <div className="stack">
+                <div>
+                  <div className="small">Sparade scenarion</div>
+                  <select
+                    value={selectedScenarioId}
+                    onChange={(event) => setSelectedScenarioId(event.target.value)}
+                    disabled={loading || availableScenarios.length === 0}
+                  >
+                    {availableScenarios.length === 0 ? (
+                      <option value="">Inga sparade scenarion</option>
+                    ) : (
+                      availableScenarios.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} ({item.id})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <div className="small">Ladda upp scenario i JSON-format</div>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleScenarioUpload}
+                    disabled={loading}
+                  />
+                </div>
               </div>
               {status && <div className="status">{status}</div>}
               {error && <div className="status error">{error}</div>}

@@ -34,7 +34,7 @@ Ett typiskt användarflöde ser ut så här:
 
 1. Starta applikationen lokalt med `uvicorn src.main:app --reload`.
 2. Öppna startsidan i webbläsaren.
-3. Klicka på `Ladda scenario` för att läsa in exempelscenariot.
+3. Välj ett sparat scenario från databasen, klicka på `Ladda scenario` för exempelscenariot eller ladda upp ett eget scenario i JSON-format.
 4. Läs scenarioöversikten för att förstå kontext, mål och svårighetsgrad.
 5. Klicka på `Starta session` för att skapa en ny övningssession från scenariot.
 6. Följ panelen `Aktuell session` för att se nuvarande fas, tid, turn-nummer och centrala metrics.
@@ -48,6 +48,7 @@ Ett typiskt användarflöde ser ut så här:
 Gränssnittet består av fem huvuddelar:
 
 - `Scenarioöversikt`: visar vilket scenario som är inläst, dess beskrivning, mål och tidsram.
+- `Scenariokontroller`: visar sparade scenarion i databasen och låter användaren ladda upp nya scenarion i JSON-format.
 - `Aktuell session`: visar det senaste session-state som backend har sparat.
 - `Deltagaråtgärd`: ett fritextfält där användaren beskriver nästa åtgärd i övningen.
 - `Senaste lägesbild`: visar den senaste narrationen och de viktigaste punkterna efter en turn.
@@ -113,6 +114,16 @@ För storage gäller just nu:
 
 För TinyDB kan du konfigurera:
 - `storage.tinydb.path`: sökväg till JSON-filen som ska användas för lagring
+
+## Scenarioformat
+
+Scenarioformatet är nu dokumenterat separat:
+
+- JSON Schema: [data/scenarios/scenario.schema.json](/home/maves/projects/incident_sim/data/scenarios/scenario.schema.json)
+- Scenarioguide: [data/scenarios/README.md](/home/maves/projects/incident_sim/data/scenarios/README.md)
+
+Guiden beskriver vad fälten betyder, hur nivåer som `impact_level` och
+`severity` bör tolkas, och hur du bör lägga till faser, triggers och regler.
 
 ## Loggning
 

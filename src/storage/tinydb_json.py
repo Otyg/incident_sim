@@ -68,6 +68,12 @@ class TinyDBScenarioRepository:
         payload = self._table.get(query.id == scenario_id)
         return Scenario.model_validate(payload) if payload else None
 
+    def list(self) -> list[Scenario]:
+        """List all stored scenarios in stable identifier order."""
+
+        rows = sorted(self._table.all(), key=lambda item: item["id"])
+        return [Scenario.model_validate(row) for row in rows]
+
     def clear(self) -> None:
         """Remove all stored scenarios."""
 

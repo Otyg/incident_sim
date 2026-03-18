@@ -72,6 +72,15 @@ class InMemoryScenarioRepository:
 
         return self._items.get(scenario_id)
 
+    def list(self) -> list[Scenario]:
+        """List all stored scenarios in stable identifier order.
+
+        Returns:
+            list[Scenario]: Stored scenarios sorted by identifier.
+        """
+
+        return [self._items[key] for key in sorted(self._items)]
+
     def clear(self) -> None:
         """Remove all stored scenarios.
 
