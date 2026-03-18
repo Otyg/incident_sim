@@ -47,6 +47,7 @@ from src.storage.tinydb_json import (
 
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
+DIST_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml.dist"
 logger = get_logger(__name__)
 
 
@@ -71,8 +72,22 @@ def load_storage_config(path: Path | None = None) -> dict[str, Any]:
 
     config_path = path or CONFIG_PATH
     if not config_path.exists():
-        logger.error("Storage configuration file was not found: %s", config_path)
-        raise StorageConfigurationError(f"Configuration file not found: {config_path}")
+        fallback_path = None
+        if path is None and DIST_CONFIG_PATH.exists():
+            fallback_path = DIST_CONFIG_PATH
+
+        if not fallback_path:
+            logger.error("Storage configuration file was not found: %s", config_path)
+            raise StorageConfigurationError(
+                f"Configuration file not found: {config_path}"
+            )
+
+        logger.warning(
+            "Storage configuration file was not found at %s, falling back to %s",
+            config_path,
+            fallback_path,
+        )
+        config_path = fallback_path
 
     try:
         with config_path.open("r", encoding="utf-8") as handle:
