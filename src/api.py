@@ -47,7 +47,7 @@ from pydantic import BaseModel, Field
 
 from src.logging_utils import configure_logging, get_logger
 from src.models.scenario import Audience, Scenario
-from src.models.session import SessionMetrics, SessionState
+from src.models.session import ExerciseLogItem, SessionMetrics, SessionState
 from src.models.turn import Turn
 from src.schemas.debrief_response import DebriefResponse
 from src.schemas.narrator_response import NarratorResponse
@@ -102,6 +102,12 @@ class TurnRequest(BaseModel):
     """
 
     participant_input: str = Field(min_length=3)
+
+
+class ManualPhaseChangeRequest(BaseModel):
+    """Request body for manually changing the active scenario phase."""
+
+    phase: str = Field(min_length=2)
 
 
 class CreateSessionResponse(BaseModel):
@@ -363,6 +369,80 @@ async def get_session(session_id: str) -> SessionState:
         "Fetched session session_id=%s turn_number=%s", session_id, state.turn_number
     )
     return state
+
+
+@app.post("/sessions/{session_id}/phase", response_model=SessionState)
+async def update_session_phase(
+    session_id: str, request: ManualPhaseChangeRequest
+) -> SessionState:
+    """Manually change the active phase for an ongoing session."""
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Manual phase change failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if state.status != "active":
+        logger.warning(
+            "Manual phase change rejected because session was not active session_id=%s status=%s",
+            session_id,
+            state.status,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="Session is not active and phase cannot be changed",
+        )
+
+    scenario = scenario_repository.get(state.scenario_id)
+    if not scenario:
+        logger.error(
+            "Manual phase change failed because scenario was missing session_id=%s scenario_id=%s",
+            session_id,
+            state.scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    available_phases = scenario_engine.get_defined_phases(scenario)
+    if request.phase not in available_phases:
+        logger.warning(
+            "Manual phase change rejected because phase was not defined session_id=%s phase=%s",
+            session_id,
+            request.phase,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Phase is not defined in the scenario",
+        )
+
+    if request.phase == state.phase:
+        logger.info(
+            "Manual phase change skipped because phase was already active session_id=%s phase=%s",
+            session_id,
+            request.phase,
+        )
+        return state
+
+    updated = state.model_copy(deep=True)
+    previous_phase = updated.phase
+    updated.phase = request.phase
+    updated.exercise_log.append(
+        ExerciseLogItem(
+            turn=updated.turn_number,
+            type="phase_change",
+            text=f"Manuellt fasbyte: {previous_phase} -> {request.phase}",
+        )
+    )
+    session_repository.save(updated)
+    logger.info(
+        "Manual phase change applied session_id=%s from_phase=%s to_phase=%s",
+        session_id,
+        previous_phase,
+        request.phase,
+    )
+    return updated
 
 
 @app.get("/sessions/{session_id}/timeline", response_model=list[Turn])

@@ -308,6 +308,7 @@ def test_post_turn_returns_basic_turn_response(monkeypatch):
     assert body["turn_number"] == 1
     assert body["participant_input"].startswith("Vi stänger extern VPN")
     assert body["interpreted_action"]["priority"] == "high"
+    assert body["state_snapshot"]["current_time"] == "08:30"
     assert (
         body["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
     )
@@ -331,6 +332,48 @@ def test_post_turn_applies_datadriven_phase_change(monkeypatch):
 
     assert status == 200
     assert body["state_snapshot"]["phase"] == "containment"
+
+
+def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/phase",
+        {"phase": "containment"},
+    )
+
+    assert status == 200
+    assert body["phase"] == "containment"
+    assert any(
+        item["text"] == "Manuellt fasbyte: initial-detection -> containment"
+        for item in body["exercise_log"]
+    )
+
+
+def test_manual_phase_change_rejects_undefined_phase(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/phase",
+        {"phase": "recovery"},
+    )
+
+    assert status == 400
+    assert body["detail"] == "Phase is not defined in the scenario"
 
 
 def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):

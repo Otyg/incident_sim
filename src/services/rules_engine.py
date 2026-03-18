@@ -38,6 +38,7 @@ LLM work; it only updates metrics, flags, consequences, logs and focus items.
 """
 
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 from src.models.scenario import Scenario
 from src.models.session import ExerciseLogItem, ParticipantActionLog, SessionState
@@ -64,6 +65,17 @@ class RulesEngine:
         if item not in state.focus_items:
             state.focus_items.append(item)
 
+    @staticmethod
+    def _advance_time(current_time: str, minutes: int = 15) -> str:
+        """Advance a HH:MM timestamp by a fixed number of minutes."""
+
+        try:
+            parsed = datetime.strptime(current_time, "%H:%M")
+        except ValueError:
+            return current_time
+
+        return (parsed + timedelta(minutes=minutes)).strftime("%H:%M")
+
     def apply(
         self,
         scenario: Scenario,
@@ -85,6 +97,7 @@ class RulesEngine:
 
         updated = deepcopy(state)
         updated.turn_number += 1
+        updated.current_time = self._advance_time(updated.current_time)
 
         updated.participant_actions.append(
             ParticipantActionLog(

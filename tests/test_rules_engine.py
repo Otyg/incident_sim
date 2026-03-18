@@ -180,6 +180,7 @@ def test_rules_engine_updates_containment_effects():
     )
 
     assert updated.turn_number == 1
+    assert updated.current_time == "08:30"
     assert updated.metrics.attack_surface == 2
     assert updated.metrics.service_disruption == 2
     assert updated.flags.external_access_restricted is True
@@ -251,3 +252,14 @@ def test_rules_engine_marks_executive_escalation():
     )
 
     assert updated.flags.executive_escalation is True
+
+
+def test_rules_engine_advances_session_time_each_turn():
+    updated = RulesEngine().apply(
+        make_legacy_scenario(),
+        make_state(),
+        make_action(["monitoring"], [], "Följer upp läget."),
+        "Vi följer upp läget.",
+    )
+
+    assert updated.current_time == "08:30"
