@@ -178,39 +178,6 @@
     <script type="text/babel">
       const { useEffect, useState } = React;
 
-      const sampleScenario = {
-        id: "scenario-001",
-        title: "Ransomware mot kommunal verksamhet",
-        version: "1.0",
-        description: "Ett kommunalt driftteam ser tilltagande störningar, inloggningsproblem och osäker påverkan på externa tjänster.",
-        audiences: ["krisledning", "it-ledning"],
-        training_goals: ["Öva initial lägesuppfattning", "Träna kommunikation under osäkerhet"],
-        difficulty: "medium",
-        timebox_minutes: 90,
-        background: {
-          organization_type: "kommun",
-          context: "Måndag morgon med hög belastning i ordinarie verksamhet.",
-          threat_actor: "okänd angripare",
-          assumptions: []
-        },
-        initial_state: {
-          time: "08:15",
-          phase: "initial-detection",
-          known_facts: ["Inloggningsproblem", "Rapporter om otillgängliga resurser"],
-          unknowns: ["Angreppets omfattning", "Om backup påverkas"],
-          affected_systems: ["AD", "Fildelning"],
-          business_impact: ["Intern påverkan"],
-          impact_level: 2
-        },
-        actors: [],
-        inject_catalog: [],
-        rules: [],
-        presentation_guidelines: {
-          krisledning: { focus: ["beslut"], tone: "strategisk" },
-          "it-ledning": { focus: ["system"], tone: "operativ" }
-        }
-      };
-
       async function apiRequest(path, options = {}) {
         const response = await fetch(path, {
           headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -248,6 +215,7 @@
           setStatus("Laddar exempelscenario...");
 
           try {
+            const sampleScenario = await apiRequest("/sample-scenarios/default");
             const created = await apiRequest("/scenarios", {
               method: "POST",
               body: JSON.stringify(sampleScenario),
@@ -256,7 +224,8 @@
             setStatus("Scenario klart att starta.");
           } catch (err) {
             try {
-              const existing = await apiRequest(`/scenarios/${sampleScenario.id}`);
+              const fallbackScenario = await apiRequest("/sample-scenarios/default");
+              const existing = await apiRequest(`/scenarios/${fallbackScenario.id}`);
               setScenario(existing);
               setStatus("Befintligt scenario laddat.");
             } catch {

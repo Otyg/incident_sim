@@ -1,1 +1,0 @@
-Tolkar deltagarnas fritext till en strukturerad incidentatgard med action_types, targets, intent, priority och confidence.

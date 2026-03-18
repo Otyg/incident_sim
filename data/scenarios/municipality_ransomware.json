@@ -1,0 +1,188 @@
+{
+  "id": "scenario-municipality-ransomware-001",
+  "title": "Ransomware mot kommunal verksamhet under skolstart",
+  "version": "1.0",
+  "description": "En medelstor kommun drabbas av ett pågående ransomwareangrepp under första arbetsveckan efter sommaren. Flera verksamheter rapporterar inloggningsproblem, långsamma system och otillgängliga filytor. Händelsen påverkar både centrala IT-tjänster och verksamhetsnära funktioner som skola, hemtjänst och medborgarkontakt.",
+  "audiences": [
+    "krisledning",
+    "it-ledning",
+    "kommunikation"
+  ],
+  "training_goals": [
+    "Öva initial lägesuppfattning under osäkerhet",
+    "Träna prioritering mellan tekniska och verksamhetsmässiga behov",
+    "Öva samordning mellan IT, ledning och kommunikation",
+    "Öva extern kommunikation under högt medietryck"
+  ],
+  "difficulty": "high",
+  "timebox_minutes": 120,
+  "background": {
+    "organization_type": "kommun",
+    "context": "Det är måndag 08:15 under skolstartveckan. IT-enheten har begränsad bemanning efter semesterperioden och flera nyckelpersoner är upptagna i andra planerade aktiviteter.",
+    "threat_actor": "kriminell ransomwaregrupp",
+    "assumptions": [
+      "Kommunen använder central identitetshantering och gemensamma filytor",
+      "Viss backup finns men återläsningstiderna är osäkra",
+      "Extern e-post och vissa molntjänster fungerar fortfarande initialt"
+    ]
+  },
+  "initial_state": {
+    "time": "08:15",
+    "phase": "initial-detection",
+    "known_facts": [
+      "Flera användare kan inte logga in",
+      "Gemensamma filytor beter sig instabilt",
+      "Servicedesk får snabbt in många felanmälningar",
+      "En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå"
+    ],
+    "unknowns": [
+      "Om angriparen fortfarande har aktiv åtkomst",
+      "Hur många system som faktiskt är krypterade",
+      "Om personuppgifter eller känslig information har exfiltrerats",
+      "Hur snabbt kritiska verksamheter påverkas fullt ut"
+    ],
+    "affected_systems": [
+      "AD",
+      "Fildelning",
+      "Klienthantering",
+      "Ärendehanteringsstöd"
+    ],
+    "business_impact": [
+      "Intern administration försvåras",
+      "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
+      "Kontaktcenter får längre handläggningstider"
+    ],
+    "impact_level": 3
+  },
+  "actors": [
+    {
+      "id": "actor-it-ops",
+      "name": "Driftledare IT",
+      "role": "koordinerar teknisk felsökning och isolering"
+    },
+    {
+      "id": "actor-ciso",
+      "name": "Säkerhetsansvarig",
+      "role": "bedömer hotbild, incidentklassning och externa kontakter"
+    },
+    {
+      "id": "actor-comms",
+      "name": "Kommunikationschef",
+      "role": "leder intern och extern kommunikation"
+    },
+    {
+      "id": "actor-municipal-manager",
+      "name": "Kommundirektör",
+      "role": "fattar övergripande verksamhets- och krisledningsbeslut"
+    }
+  ],
+  "inject_catalog": [
+    {
+      "id": "inject-media-001",
+      "type": "media",
+      "title": "Frågor från lokalmedia",
+      "description": "En journalist har fått tips om stora IT-störningar och begär en kommentar inom 20 minuter.",
+      "trigger_conditions": [
+        "Utebliven extern kommunikation",
+        "Medietryck över tröskelvärde"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "kommunikation"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-ops-001",
+      "type": "operations",
+      "title": "Verksamhetssystem slutar fungera",
+      "description": "En förvaltningschef rapporterar att ett verksamhetskritiskt system inte längre kan användas i det dagliga arbetet.",
+      "trigger_conditions": [
+        "Ökad störningsnivå",
+        "Begränsad extern åtkomst eller ökade sidoeffekter"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-executive-001",
+      "type": "executive",
+      "title": "Politisk uppföljning krävs",
+      "description": "Kommunstyrelsens presidium vill ha en första lägesbild och preliminär åtgärdsplan.",
+      "trigger_conditions": [
+        "Eskalering till ledning",
+        "Ökad samhällspåverkan"
+      ],
+      "audience_relevance": [
+        "krisledning"
+      ],
+      "severity": 3
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule-containment-external-access",
+      "name": "Containment mot extern åtkomst",
+      "conditions": [
+        "containment",
+        "external_access eller vpn"
+      ],
+      "effects": [
+        "minska attackyta",
+        "öka tjänstepåverkan kortsiktigt"
+      ]
+    },
+    {
+      "id": "rule-missing-comms",
+      "name": "Utebliven kommunikation ökar trycket",
+      "conditions": [
+        "ingen communication under flera turns"
+      ],
+      "effects": [
+        "öka medietryck",
+        "öka offentlig osäkerhet"
+      ]
+    },
+    {
+      "id": "rule-escalation",
+      "name": "Eskalering till ledning",
+      "conditions": [
+        "escalation",
+        "executive_team"
+      ],
+      "effects": [
+        "sätt executive_escalation",
+        "lägg till fokus på ledningsbeslut"
+      ]
+    }
+  ],
+  "presentation_guidelines": {
+    "krisledning": {
+      "focus": [
+        "verksamhetspåverkan",
+        "beslutsbehov",
+        "extern kommunikation"
+      ],
+      "tone": "strategisk"
+    },
+    "it-ledning": {
+      "focus": [
+        "isolering",
+        "felsökning",
+        "återställning"
+      ],
+      "tone": "operativ"
+    },
+    "kommunikation": {
+      "focus": [
+        "budskap",
+        "målgrupper",
+        "mediehantering"
+      ],
+      "tone": "samordnande"
+    }
+  }
+}
