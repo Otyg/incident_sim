@@ -24,28 +24,39 @@ def sample_scenario_dict():
             "threat_actor": "okänd angripare",
             "assumptions": [],
         },
-        "initial_state": {
-            "time": "08:15",
-            "phase": "initial-detection",
-            "known_facts": ["Inloggningsproblem"],
-            "unknowns": ["Omfattning oklar"],
-            "affected_systems": ["AD"],
-            "business_impact": ["Intern påverkan"],
-            "impact_level": 2,
-            "initial_narration": {
-                "default": {
-                    "situation_update": "Läget är fortsatt osäkert men tillräckligt beskrivet för att starta övningen.",
-                    "key_points": [
-                        "Flera system påverkas.",
-                        "Omfattningen är fortfarande oklar.",
-                    ],
-                    "new_consequences": [],
-                    "injects": [],
-                    "decisions_to_consider": ["Behöver vi eskalera läget nu?"],
-                    "facilitator_notes": "Fördefinierat startnarrativ.",
-                }
+        "states": [
+            {
+                "id": "state-initial-detection",
+                "phase": "initial-detection",
+                "title": "Initial detection",
+                "description": "De första indikationerna på incidenten samlas in.",
+                "time": "08:15",
+                "known_facts": ["Inloggningsproblem"],
+                "unknowns": ["Omfattning oklar"],
+                "affected_systems": ["AD"],
+                "business_impact": ["Intern påverkan"],
+                "impact_level": 2,
+                "narration": {
+                    "default": {
+                        "situation_update": "Läget är fortsatt osäkert men tillräckligt beskrivet för att starta övningen.",
+                        "key_points": [
+                            "Flera system påverkas.",
+                            "Omfattningen är fortfarande oklar.",
+                        ],
+                        "new_consequences": [],
+                        "injects": [],
+                        "decisions_to_consider": ["Behöver vi eskalera läget nu?"],
+                        "facilitator_notes": "Fördefinierat startnarrativ.",
+                    }
+                },
             },
-        },
+            {
+                "id": "state-containment",
+                "phase": "containment",
+                "title": "Containment",
+                "description": "Åtgärder för att begränsa vidare påverkan pågår.",
+            },
+        ],
         "actors": [],
         "inject_catalog": [],
         "rules": [],
@@ -112,24 +123,25 @@ def sample_narrator_response_dict():
 def test_scenario_validation_accepts_valid_payload():
     scenario = Scenario(**sample_scenario_dict())
     assert scenario.id == "scenario-001"
-    assert scenario.initial_state.impact_level == 2
+    assert scenario.states[0].impact_level == 2
     assert scenario.executable_rules == []
+    assert scenario.states[0].phase == "initial-detection"
 
 
 def test_scenario_validation_accepts_audience_specific_initial_narration():
     payload = sample_scenario_dict()
-    payload["initial_state"]["initial_narration"]["by_audience"] = {
+    payload["states"][0]["narration"]["by_audience"] = {
         "krisledning": sample_narrator_response_dict()
     }
 
     scenario = Scenario(**payload)
 
-    assert "krisledning" in scenario.initial_state.initial_narration.by_audience
+    assert "krisledning" in scenario.states[0].narration.by_audience
 
 
 def test_scenario_validation_rejects_missing_initial_narration_sources():
     payload = sample_scenario_dict()
-    payload["initial_state"]["initial_narration"] = {}
+    payload["states"][0]["narration"] = {}
 
     with pytest.raises(ValidationError):
         Scenario(**payload)
@@ -175,6 +187,29 @@ def test_scenario_validation_accepts_executable_rules():
 
     assert scenario.executable_rules[0].trigger == "turn_processed"
     assert scenario.executable_rules[0].effects[0].type == "set_phase"
+
+
+def test_scenario_validation_rejects_duplicate_state_phases():
+    payload = sample_scenario_dict()
+    payload["states"][1]["phase"] = "initial-detection"
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_set_phase_not_in_phase_list():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-phase-change",
+            "name": "Byt till escalation",
+            "trigger": "turn_processed",
+            "effects": [{"type": "set_phase", "phase": "escalation"}],
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
 
 
 def test_scenario_validation_rejects_invalid_executable_rule_operator():

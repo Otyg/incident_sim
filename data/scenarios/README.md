@@ -28,8 +28,8 @@ Alla scenariofält valideras och lagras, men backend exekverar inte alla delar d
 
 Nuvarande läge:
 
-- `initial_state.phase` lagras och visas, men styr inte någon automatisk fasmaskin i backend.
-- `initial_state.initial_narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
+- `states[0]` används dynamiskt som startläge när en session skapas.
+- `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
 - Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
@@ -125,17 +125,44 @@ Kort beskrivning av den som orsakar incidenten eller hotet.
 
 Lista över antaganden som gäller i scenariot. Dessa hjälper deltagarna att förstå vad de får utgå ifrån utan att behöva fråga om allt.
 
-## `initial_state`
+## `states`
 
-Detta beskriver läget när övningen startar.
+`states` är den ordnade listan över scenariots definierade state-lägen. Första posten är alltid startläget som backend använder när en session skapas.
+
+Ett scenario kan alltså beskriva en tänkt statekedja som:
+
+- `initial-detection`
+- `escalation`
+- `containment`
+- `recovery`
+
+Varje state måste ha:
+
+- `id`: stabilt unikt state-id
+- `phase`: maskinläsbart fas-id
+- `title`: kort visningsnamn
+- `description`: vad state-läget betyder i scenariot
+
+Första state-posten, `states[0]`, måste dessutom ha:
+
+- `time`
+- `impact_level`
+- `narration`
+
+Övriga states kan vara:
+
+- kompletta states med full state-data
+- lätta states med bara metadata och eventuellt narrativ
 
 ### `time`
 
-Starttid. Rekommenderat format är `HH:MM`.
+Tid för state-läget. Rekommenderat format är `HH:MM`.
+
+Detta krävs för `states[0]` och är valfritt för senare states.
 
 ### `phase`
 
-Namn på startfasen. Det här är i dag ett scenariobegrepp, inte en dynamisk motorstyrd fasväxel i backend.
+Maskinläsbart namn på state-läget.
 
 Rekommenderad skrivregel:
 
@@ -145,48 +172,34 @@ Rekommenderad skrivregel:
 Bra exempel:
 
 - `initial-detection`
-- `triage`
+- `escalation`
 - `containment`
-- `service-disruption`
 - `recovery`
-- `post-incident`
 
-Praktiskt råd:
+Viktigt:
 
-- om ni inför egna faser, håll er till samma namn genom hela scenariot, dokumentationen och eventuell framtida kod
+- alla `phase`-värden i `states` måste vara unika
+- alla `set_phase`-effekter i `executable_rules` måste peka på en `phase` som finns i `states`
 
 ### `known_facts`
 
-Det deltagarna vet när övningen startar.
-
-Bra innehåll:
-
-- observerade symptom
-- inkomna rapporter
-- verifierade fakta
+Det deltagarna vet i detta state-läge.
 
 ### `unknowns`
 
-Det deltagarna ännu inte vet men behöver utreda.
-
-Bra innehåll:
-
-- omfattning
-- angriparens närvaro
-- dataförlust eller exfiltration
-- tid till återställning
+Det deltagarna ännu inte vet men behöver utreda i detta state-läge.
 
 ### `affected_systems`
 
-System eller tjänster som redan bedöms påverkade i startläget.
+System eller tjänster som bedöms vara påverkade i detta state-läge.
 
 ### `business_impact`
 
-Hur verksamheten påverkas när scenariot startar.
+Hur verksamheten påverkas i detta state-läge.
 
 ### `impact_level`
 
-Övergripande påverkan i startläget på en femgradig skala.
+Övergripande påverkan i state-läget på en femgradig skala.
 
 Rekommenderad tolkning:
 
@@ -196,22 +209,18 @@ Rekommenderad tolkning:
 - `4`: allvarlig påverkan på kritiska verksamheter, hög tidspress
 - `5`: extrem påverkan, långvarig eller samhällskritisk störning
 
-Exempel:
+### `narration`
 
-- `impact_level: 3` betyder ungefär att läget redan är tydligt allvarligt, påverkar flera delar av verksamheten och kräver samordning, men att hela organisationen ännu inte nödvändigtvis står stilla.
+Fördefinierat narrativ för detta state-läge.
 
-### `initial_narration`
-
-Fördefinierat startnarrativ som skickas tillbaka från backend när en session startas.
-
-Detta fält används nu i stället för att generera initial lägesbild via LLM.
+För `states[0]` används detta som initial lägesbild när sessionen startas.
 
 Struktur:
 
-- `default`: gemensamt startnarrativ för alla målgrupper
+- `default`: gemensamt narrativ för alla målgrupper
 - `by_audience`: valfria målgruppsspecifika narrativ
 
-Prioritetsregel vid sessionsstart:
+Prioritetsregel:
 
 - backend använder först `by_audience` för vald målgrupp om den finns
 - annars används `default`
@@ -224,11 +233,6 @@ Varje narrativ följer samma struktur som en vanlig narration i API:t:
 - `injects`
 - `decisions_to_consider`
 - `facilitator_notes`
-
-Praktiskt råd:
-
-- lägg alltid in ett `default`-narrativ även om ni också använder `by_audience`
-- använd `by_audience` när olika målgrupper ska få olika fokus redan i startläget
 
 ## `actors`
 
@@ -441,9 +445,10 @@ Faser är fria strängar, men används nu också av den datadrivna scenariomotor
 För att lägga till en ny fas:
 
 1. välj ett kort fas-id i kebab-case
-2. sätt det som `initial_state.phase` om det är startläget
-3. använd samma fasnamn konsekvent i scenario, dokumentation och regler
-4. lägg till en `set_phase`-effekt i `executable_rules` när en senare fas ska aktiveras
+2. lägg till ett state i `states`
+3. placera det först i listan om det är startläget
+4. använd samma fasnamn konsekvent i scenario, dokumentation och regler
+5. lägg till en `set_phase`-effekt i `executable_rules` när en senare fas ska aktiveras
 
 Bra uppsättning:
 

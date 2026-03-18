@@ -144,18 +144,20 @@ def build_session_state(
         SessionState: Initialized session state ready to be saved.
     """
 
+    initial_state = scenario.states[0]
+
     return SessionState(
         session_id=session_id,
         scenario_id=scenario.id,
         scenario_version=scenario.version,
         audience=audience,
-        current_time=scenario.initial_state.time,
+        current_time=initial_state.time or "00:00",
         turn_number=0,
-        phase=scenario.initial_state.phase,
-        known_facts=list(scenario.initial_state.known_facts),
-        unknowns=list(scenario.initial_state.unknowns),
+        phase=initial_state.phase,
+        known_facts=list(initial_state.known_facts or []),
+        unknowns=list(initial_state.unknowns or []),
         metrics=SessionMetrics(
-            impact_level=scenario.initial_state.impact_level,
+            impact_level=initial_state.impact_level or 1,
             media_pressure=0,
             service_disruption=0,
             leadership_pressure=0,
@@ -171,7 +173,12 @@ def resolve_initial_narration(
 ) -> NarratorResponse:
     """Resolve the scenario-authored initial narration for the selected audience."""
 
-    configured = scenario.initial_state.initial_narration
+    configured = scenario.states[0].narration
+    if configured is None:
+        raise ValueError(
+            f"Scenario {scenario.id} is missing narration for initial state"
+        )
+
     audience_specific = configured.by_audience.get(audience)
     if audience_specific:
         return audience_specific

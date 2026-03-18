@@ -18,7 +18,7 @@ def test_checked_in_scenario_schema_matches_model_schema():
 def test_scenario_schema_includes_level_descriptions():
     schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
 
-    impact_level_description = schema["$defs"]["InitialState"]["properties"][
+    impact_level_description = schema["$defs"]["ScenarioStateDefinition"]["properties"][
         "impact_level"
     ]["description"]
     severity_description = schema["$defs"]["InjectDefinition"]["properties"][

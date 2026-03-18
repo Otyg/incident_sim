@@ -23,26 +23,37 @@ def make_legacy_scenario() -> Scenario:
                 "threat_actor": "okänd angripare",
                 "assumptions": [],
             },
-            "initial_state": {
-                "time": "08:15",
-                "phase": "initial-detection",
-                "impact_level": 3,
-                "initial_narration": {
-                    "default": {
-                        "situation_update": "Testscenariot startar i ett osäkert men hanterbart läge.",
-                        "key_points": [
-                            "Flera symptom behöver följas upp.",
-                            "Deltagarna behöver snabbt skapa lägesbild.",
-                        ],
-                        "new_consequences": [],
-                        "injects": [],
-                        "decisions_to_consider": [
-                            "Vilken åtgärd ska prioriteras först?"
-                        ],
-                        "facilitator_notes": "Fördefinierat startnarrativ för testscenario.",
-                    }
+            "states": [
+                {
+                    "id": "state-initial-detection",
+                    "phase": "initial-detection",
+                    "title": "Initial detection",
+                    "description": "Det första state-läget för rules engine-testet.",
+                    "time": "08:15",
+                    "impact_level": 3,
+                    "narration": {
+                        "default": {
+                            "situation_update": "Testscenariot startar i ett osäkert men hanterbart läge.",
+                            "key_points": [
+                                "Flera symptom behöver följas upp.",
+                                "Deltagarna behöver snabbt skapa lägesbild.",
+                            ],
+                            "new_consequences": [],
+                            "injects": [],
+                            "decisions_to_consider": [
+                                "Vilken åtgärd ska prioriteras först?"
+                            ],
+                            "facilitator_notes": "Fördefinierat startnarrativ för testscenario.",
+                        }
+                    },
                 },
-            },
+                {
+                    "id": "state-containment",
+                    "phase": "containment",
+                    "title": "Containment",
+                    "description": "Containment-läget för rules engine-testet.",
+                },
+            ],
             "actors": [],
             "inject_catalog": [],
             "rules": [],
@@ -55,7 +66,7 @@ def make_legacy_scenario() -> Scenario:
 
 
 def make_datadriven_scenario() -> Scenario:
-    payload = make_legacy_scenario().model_dump()
+    payload = make_legacy_scenario().model_dump(exclude_none=True)
     payload["executable_rules"] = [
         {
             "id": "rule-activate-ops-inject",

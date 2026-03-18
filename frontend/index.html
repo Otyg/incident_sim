@@ -327,13 +327,9 @@
               .reverse()
           : [];
         const availableScenarioPhases = scenario
-          ? [
-              scenario.initial_state?.phase,
-              ...(scenario.executable_rules || [])
-                .flatMap((rule) => rule.effects || [])
-                .filter((effect) => effect.type === "set_phase" && effect.phase)
-                .map((effect) => effect.phase),
-            ].filter((phase, index, items) => phase && items.indexOf(phase) === index)
+          ? (scenario.states || [])
+              .map((state) => state.phase)
+              .filter((phase, index, items) => phase && items.indexOf(phase) === index)
           : [];
         const availableManualInjects = scenario?.inject_catalog || [];
         const activeInjectDetails = session

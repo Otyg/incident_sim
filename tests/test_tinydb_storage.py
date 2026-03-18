@@ -23,26 +23,31 @@ def make_scenario() -> Scenario:
                 "threat_actor": "okänd angripare",
                 "assumptions": [],
             },
-            "initial_state": {
-                "time": "08:15",
-                "phase": "initial-detection",
-                "impact_level": 2,
-                "initial_narration": {
-                    "default": {
-                        "situation_update": "TinyDB-testscenariot startar med en enkel fördefinierad lägesbild.",
-                        "key_points": [
-                            "Scenario ska kunna sparas utan extra fältförlust.",
-                            "Initialt narrativ ska följa med i valideringen.",
-                        ],
-                        "new_consequences": [],
-                        "injects": [],
-                        "decisions_to_consider": [
-                            "Kan scenariot round-trippas korrekt?"
-                        ],
-                        "facilitator_notes": "Fördefinierat startnarrativ för TinyDB-test.",
-                    }
-                },
-            },
+            "states": [
+                {
+                    "id": "state-initial-detection",
+                    "phase": "initial-detection",
+                    "title": "Initial detection",
+                    "description": "Det första state-läget för TinyDB-testet.",
+                    "time": "08:15",
+                    "impact_level": 2,
+                    "narration": {
+                        "default": {
+                            "situation_update": "TinyDB-testscenariot startar med en enkel fördefinierad lägesbild.",
+                            "key_points": [
+                                "Scenario ska kunna sparas utan extra fältförlust.",
+                                "Initialt narrativ ska följa med i valideringen.",
+                            ],
+                            "new_consequences": [],
+                            "injects": [],
+                            "decisions_to_consider": [
+                                "Kan scenariot round-trippas korrekt?"
+                            ],
+                            "facilitator_notes": "Fördefinierat startnarrativ för TinyDB-test.",
+                        }
+                    },
+                }
+            ],
             "actors": [],
             "inject_catalog": [],
             "rules": [],

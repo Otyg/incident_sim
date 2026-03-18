@@ -51,16 +51,7 @@ class ScenarioEngine:
     def get_defined_phases(scenario: Scenario) -> list[str]:
         """Return stable scenario phase ids derived from initial state and rules."""
 
-        phases = [scenario.initial_state.phase]
-        for rule in scenario.executable_rules:
-            for effect in rule.effects:
-                if (
-                    effect.type == "set_phase"
-                    and effect.phase
-                    and effect.phase not in phases
-                ):
-                    phases.append(effect.phase)
-        return phases
+        return [state.phase for state in scenario.states]
 
     @staticmethod
     def _get_fact_value(

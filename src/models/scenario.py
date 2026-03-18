@@ -142,66 +142,78 @@ class Background(BaseModel):
     )
 
 
-class InitialState(BaseModel):
+class StateNarrationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    default: NarratorResponse | None = Field(
+        default=None,
+        description="Gemensamt narrativ som används när ingen audience-specifik variant finns.",
+    )
+    by_audience: dict[str, NarratorResponse] = Field(
+        default_factory=dict,
+        description="Valfria audience-specifika narrativ som prioriteras före default.",
+    )
+
+    @model_validator(mode="after")
+    def ensure_narrative_available(self) -> "StateNarrationConfig":
+        """Require at least one narrative source."""
+
+        if self.default is None and not self.by_audience:
+            raise ValueError(
+                "narration must define default or at least one by_audience entry"
+            )
+        return self
+
+
+class ScenarioStateDefinition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    class InitialNarrationConfig(BaseModel):
-        model_config = ConfigDict(extra="forbid")
-
-        default: NarratorResponse | None = Field(
-            default=None,
-            description="Gemensamt startnarrativ som används när ingen audience-specifik variant finns.",
-        )
-        by_audience: dict[str, NarratorResponse] = Field(
-            default_factory=dict,
-            description="Valfria audience-specifika startnarrativ som prioriteras före default.",
-        )
-
-        @model_validator(mode="after")
-        def ensure_narrative_available(self) -> "InitialState.InitialNarrationConfig":
-            """Require at least one narrative source."""
-
-            if self.default is None and not self.by_audience:
-                raise ValueError(
-                    "initial_narration must define default or at least one by_audience entry"
-                )
-            return self
-
-    time: str = Field(description="Starttid för scenariot, normalt i formatet HH:MM.")
+    id: str = Field(
+        description="Stabilt unikt state-id, till exempel state-initial-detection."
+    )
     phase: str = Field(
         description=(
-            "Maskinläsbart namn på startfasen, till exempel initial-detection, "
-            "containment eller recovery. Fasen är idag författningsmetadata och "
-            "används inte för dynamisk faslogik i backend."
+            "Maskinläsbart namn på fasen eller state-läget, till exempel "
+            "initial-detection, escalation eller containment."
         )
     )
-    known_facts: list[str] = Field(
-        default_factory=list,
-        description="Det deltagarna känner till när övningen startar.",
+    title: str = Field(description="Kort visningsnamn för state-läget.")
+    description: str = Field(
+        description="Beskrivning av vad state-läget representerar i scenariot."
     )
-    unknowns: list[str] = Field(
-        default_factory=list,
-        description="Viktiga osäkerheter som fortfarande behöver utredas.",
+    time: str | None = Field(
+        default=None,
+        description="Tid för state-läget när det används som komplett state-definition.",
     )
-    affected_systems: list[str] = Field(
-        default_factory=list,
-        description="System eller tjänster som redan bedöms vara påverkade vid start.",
+    known_facts: list[str] | None = Field(
+        default=None,
+        description="Det deltagarna känner till i detta state-läge.",
     )
-    business_impact: list[str] = Field(
-        default_factory=list,
-        description="Beskrivning av verksamhetspåverkan i scenariots initiala läge.",
+    unknowns: list[str] | None = Field(
+        default=None,
+        description="Viktiga osäkerheter i detta state-läge.",
     )
-    impact_level: int = Field(
+    affected_systems: list[str] | None = Field(
+        default=None,
+        description="System eller tjänster som bedöms vara påverkade i detta state-läge.",
+    )
+    business_impact: list[str] | None = Field(
+        default=None,
+        description="Beskrivning av verksamhetspåverkan i detta state-läge.",
+    )
+    impact_level: int | None = Field(
+        default=None,
         description=(
-            "Övergripande påverkan i startläget på en femgradig skala där 1 är "
+            "Övergripande påverkan i state-läget på en femgradig skala där 1 är "
             "mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan."
         ),
     )
-    initial_narration: InitialNarrationConfig = Field(
+    narration: StateNarrationConfig | None = Field(
+        default=None,
         description=(
-            "Fördefinierat startnarrativ för scenariot. Audience-specifika varianter "
-            "prioriteras före default när sessionen startas."
-        )
+            "Fördefinierat narrativ för state-läget. Audience-specifika varianter "
+            "prioriteras före default."
+        ),
     )
 
 
@@ -391,7 +403,10 @@ class Scenario(BaseModel):
     background: Background = Field(
         description="Bakgrund och grundförutsättningar för scenariot."
     )
-    initial_state: InitialState = Field(description="Vilket läge övningen startar i.")
+    states: list[ScenarioStateDefinition] = Field(
+        min_length=1,
+        description="Ordnad lista över scenariots definierade state-lägen där första posten är startläget.",
+    )
     actors: list[Actor] = Field(
         default_factory=list, description="Viktiga aktörer eller roller i scenariot."
     )
@@ -423,6 +438,39 @@ class Scenario(BaseModel):
         """Use the checked-in JSON Schema as the source of truth."""
 
         return validate_scenario_payload(value)
+
+    @model_validator(mode="after")
+    def validate_phase_timeline(self) -> "Scenario":
+        """Ensure state timeline is internally consistent."""
+
+        state_ids = [state.id for state in self.states]
+        if len(state_ids) != len(set(state_ids)):
+            raise ValueError("Scenario states must use unique ids")
+
+        phase_ids = [state.phase for state in self.states]
+        if len(phase_ids) != len(set(phase_ids)):
+            raise ValueError("Scenario states must use unique phases")
+
+        initial_state = self.states[0]
+        if initial_state.time is None:
+            raise ValueError("states[0] must define time")
+        if initial_state.impact_level is None:
+            raise ValueError("states[0] must define impact_level")
+        if initial_state.narration is None:
+            raise ValueError("states[0] must define narration")
+
+        for rule in self.executable_rules:
+            for effect in rule.effects:
+                if (
+                    effect.type == "set_phase"
+                    and effect.phase
+                    and effect.phase not in phase_ids
+                ):
+                    raise ValueError(
+                        f"Executable rule {rule.id} references undefined phase {effect.phase}"
+                    )
+
+        return self
 
     @classmethod
     def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:

@@ -63,28 +63,39 @@ def sample_scenario_payload():
             "threat_actor": "okänd angripare",
             "assumptions": [],
         },
-        "initial_state": {
-            "time": "08:15",
-            "phase": "initial-detection",
-            "known_facts": ["Inloggningsproblem"],
-            "unknowns": ["Omfattning oklar"],
-            "affected_systems": ["AD"],
-            "business_impact": ["Intern påverkan"],
-            "impact_level": 2,
-            "initial_narration": {
-                "default": {
-                    "situation_update": "Läget är fortsatt osäkert och flera verksamheter rapporterar störningar.",
-                    "key_points": [
-                        "Inloggningsproblem påverkar flera användare.",
-                        "Omfattningen är fortfarande oklar.",
-                    ],
-                    "new_consequences": [],
-                    "injects": [],
-                    "decisions_to_consider": ["Behöver läget eskaleras direkt?"],
-                    "facilitator_notes": "Fördefinierat startnarrativ för testsessionen.",
-                }
+        "states": [
+            {
+                "id": "state-initial-detection",
+                "phase": "initial-detection",
+                "title": "Initial detection",
+                "description": "Det första scenläget för API-testet.",
+                "time": "08:15",
+                "known_facts": ["Inloggningsproblem"],
+                "unknowns": ["Omfattning oklar"],
+                "affected_systems": ["AD"],
+                "business_impact": ["Intern påverkan"],
+                "impact_level": 2,
+                "narration": {
+                    "default": {
+                        "situation_update": "Läget är fortsatt osäkert och flera verksamheter rapporterar störningar.",
+                        "key_points": [
+                            "Inloggningsproblem påverkar flera användare.",
+                            "Omfattningen är fortfarande oklar.",
+                        ],
+                        "new_consequences": [],
+                        "injects": [],
+                        "decisions_to_consider": ["Behöver läget eskaleras direkt?"],
+                        "facilitator_notes": "Fördefinierat startnarrativ för testsessionen.",
+                    }
+                },
             },
-        },
+            {
+                "id": "state-containment",
+                "phase": "containment",
+                "title": "Containment",
+                "description": "Containment-läget för API-testet.",
+            },
+        ],
         "actors": [],
         "inject_catalog": [],
         "rules": [],
@@ -224,7 +235,7 @@ def test_create_and_get_session_from_existing_scenario(monkeypatch):
 def test_create_session_prefers_audience_specific_initial_narration(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     scenario = sample_scenario_payload()
-    scenario["initial_state"]["initial_narration"]["by_audience"] = {
+    scenario["states"][0]["narration"]["by_audience"] = {
         "krisledning": {
             "situation_update": "Krisledningen möter ett snabbt eskalerande läge med tydlig verksamhetspåverkan.",
             "key_points": [
@@ -254,7 +265,7 @@ def test_create_session_prefers_audience_specific_initial_narration(monkeypatch)
 def test_create_session_falls_back_to_default_initial_narration(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     scenario = sample_scenario_payload()
-    scenario["initial_state"]["initial_narration"]["by_audience"] = {
+    scenario["states"][0]["narration"]["by_audience"] = {
         "krisledning": {
             "situation_update": "Krisledningens variant.",
             "key_points": [

@@ -255,6 +255,120 @@
         "initial_narration"
       ]
     },
+    "ScenarioStateDefinition": {
+      "type": "object",
+      "title": "ScenarioStateDefinition",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt unikt state-id, till exempel state-initial-detection."
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 2,
+          "title": "Phase",
+          "description": "Maskinläsbart namn på fasen eller state-läget, till exempel initial-detection, escalation eller containment."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "title": "Title",
+          "description": "Kort visningsnamn för state-läget."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 3,
+          "title": "Description",
+          "description": "Beskrivning av vad state-läget representerar i scenariot."
+        },
+        "time": {
+          "type": "string",
+          "minLength": 4,
+          "title": "Time",
+          "description": "Tid för state-läget när det används som komplett state-definition."
+        },
+        "known_facts": {
+          "type": "array",
+          "title": "Known Facts",
+          "description": "Det deltagarna känner till i detta state-läge.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "title": "Unknowns",
+          "description": "Viktiga osäkerheter i detta state-läge.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "affected_systems": {
+          "type": "array",
+          "title": "Affected Systems",
+          "description": "System eller tjänster som bedöms vara påverkade i detta state-läge.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "business_impact": {
+          "type": "array",
+          "title": "Business Impact",
+          "description": "Beskrivning av verksamhetspåverkan i detta state-läge.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "impact_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "title": "Impact Level",
+          "description": "Övergripande påverkan i state-läget på en femgradig skala där 1 är mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan."
+        },
+        "narration": {
+          "$ref": "#/$defs/InitialNarrationConfig",
+          "description": "Fördefinierat narrativ för state-läget. Audience-specifika varianter prioriteras före default."
+        }
+      },
+      "required": [
+        "id",
+        "phase",
+        "title",
+        "description"
+      ]
+    },
+    "PhaseDefinition": {
+      "type": "object",
+      "title": "PhaseDefinition",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt maskinläsbart fas-id, till exempel initial-detection eller escalation."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "title": "Title",
+          "description": "Kort visningsnamn för fasen."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 3,
+          "title": "Description",
+          "description": "Beskrivning av vad fasen representerar i scenariots tänkta utveckling."
+        }
+      },
+      "required": ["id", "title", "description"]
+    },
     "InjectDefinition": {
       "type": "object",
       "title": "InjectDefinition",
@@ -658,9 +772,14 @@
       "$ref": "#/$defs/Background",
       "description": "Bakgrund och grundförutsättningar för scenariot."
     },
-    "initial_state": {
-      "$ref": "#/$defs/InitialState",
-      "description": "Vilket läge övningen startar i."
+    "states": {
+      "description": "Ordnad lista över scenariots definierade state-lägen där första posten är startläget.",
+      "items": {
+        "$ref": "#/$defs/ScenarioStateDefinition"
+      },
+      "title": "States",
+      "type": "array",
+      "minItems": 1
     },
     "actors": {
       "type": "array",
@@ -708,7 +827,7 @@
     "difficulty",
     "timebox_minutes",
     "background",
-    "initial_state",
+    "states",
     "presentation_guidelines"
   ]
 }

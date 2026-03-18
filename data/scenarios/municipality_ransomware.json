@@ -26,55 +26,72 @@
       "Extern e-post och vissa molntjänster fungerar fortfarande initialt"
     ]
   },
-  "initial_state": {
-    "time": "08:15",
-    "phase": "initial-detection",
-    "known_facts": [
-      "Flera användare kan inte logga in",
-      "Gemensamma filytor beter sig instabilt",
-      "Servicedesk får snabbt in många felanmälningar",
-      "En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå"
-    ],
-    "unknowns": [
-      "Om angriparen fortfarande har aktiv åtkomst",
-      "Hur många system som faktiskt är krypterade",
-      "Om personuppgifter eller känslig information har exfiltrerats",
-      "Hur snabbt kritiska verksamheter påverkas fullt ut"
-    ],
-    "affected_systems": [
-      "AD",
-      "Fildelning",
-      "Klienthantering",
-      "Ärendehanteringsstöd"
-    ],
-    "business_impact": [
-      "Intern administration försvåras",
-      "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
-      "Kontaktcenter får längre handläggningstider"
-    ],
-    "impact_level": 3,
-    "initial_narration": {
-      "default": {
-        "situation_update": "Kl. 08:15 har ni en växlande bild av allvarliga IT-störningar. Flera användare kan inte logga in, gemensamma filyter beter sig instabilt och servicedesk får snabbt in många felanmälningar. En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå. Ännu är det oklart om detta är en antagonistisk verksamhet eller naturliga störningar, men tecken pekar mot ett koordinerat angrepp. Ni vet inte om en eventuell angripare fortfarande har aktiv åtkomst eller hur omfattande skadan är.",
-        "key_points": [
-          "Indikation på koordinerad attack mot IT-infrastrukturen",
-          "Servicedesk översvämmas av felanmälningar - personalen är orolig",
-          "Verksamhetschefens rapport tyder på att kritiska funktioner påverkas",
-          "Ingen extern kommunikation har gått ut än",
-          "Ingen teknisk analys har påbörjats"
-        ],
-        "new_consequences": [],
-        "injects": [],
-        "decisions_to_consider": [
-          "Ska extern åtkomst stängas av direkt, och vilka konsekvenser får det?",
-          "Vem ska leda det tekniska arbetet och vem ansvarar för kommunikationen?",
-          "Ska en inledande lägesuppfattning begäras in från IT, och när?",
-          "Hur hanterar vi oron hos verksamhetscheferna?"
-        ],
-        "facilitator_notes": "Detta är scenariots fördefinierade startnarrativ för initial fas."
+  "states": [
+    {
+      "id": "state-initial-detection",
+      "phase": "initial-detection",
+      "title": "Initial detektion",
+      "description": "Tidiga indikationer på allvarliga IT-störningar samlas in och verifieras.",
+      "time": "08:15",
+      "known_facts": [
+        "Flera användare kan inte logga in",
+        "Gemensamma filytor beter sig instabilt",
+        "Servicedesk får snabbt in många felanmälningar",
+        "En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå"
+      ],
+      "unknowns": [
+        "Om angriparen fortfarande har aktiv åtkomst",
+        "Hur många system som faktiskt är krypterade",
+        "Om personuppgifter eller känslig information har exfiltrerats",
+        "Hur snabbt kritiska verksamheter påverkas fullt ut"
+      ],
+      "affected_systems": [
+        "AD",
+        "Fildelning",
+        "Klienthantering",
+        "Ärendehanteringsstöd"
+      ],
+      "business_impact": [
+        "Intern administration försvåras",
+        "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
+        "Kontaktcenter får längre handläggningstider"
+      ],
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Kl. 08:15 har ni en växlande bild av allvarliga IT-störningar. Flera användare kan inte logga in, gemensamma filyter beter sig instabilt och servicedesk får snabbt in många felanmälningar. En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå. Ännu är det oklart om detta är en antagonistisk verksamhet eller naturliga störningar, men tecken pekar mot ett koordinerat angrepp. Ni vet inte om en eventuell angripare fortfarande har aktiv åtkomst eller hur omfattande skadan är.",
+          "key_points": [
+            "Indikation på koordinerad attack mot IT-infrastrukturen",
+            "Servicedesk översvämmas av felanmälningar - personalen är orolig",
+            "Verksamhetschefens rapport tyder på att kritiska funktioner påverkas",
+            "Ingen extern kommunikation har gått ut än",
+            "Ingen teknisk analys har påbörjats"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Ska extern åtkomst stängas av direkt, och vilka konsekvenser får det?",
+            "Vem ska leda det tekniska arbetet och vem ansvarar för kommunikationen?",
+            "Ska en inledande lägesuppfattning begäras in från IT, och när?",
+            "Hur hanterar vi oron hos verksamhetscheferna?"
+          ],
+          "facilitator_notes": "Detta är scenariots fördefinierade startnarrativ för initial fas."
+        }
       }
+    },
+    {
+      "id": "state-escalation",
+      "phase": "escalation",
+      "title": "Eskalering",
+      "description": "Spridning av malware eller tydligt ökande påverkan konstateras och läget behöver eskaleras."
+    },
+    {
+      "id": "state-containment",
+      "phase": "containment",
+      "title": "Containment",
+      "description": "Fokus ligger på att begränsa angriparens åtkomst och minska fortsatt påverkan."
     }
-  },
+  ],
   "actors": [
     {
       "id": "actor-it-ops",

@@ -21,24 +21,35 @@ def make_scenario(executable_rules: list[dict]) -> Scenario:
                 "threat_actor": "okänd",
                 "assumptions": [],
             },
-            "initial_state": {
-                "time": "08:15",
-                "phase": "initial-detection",
-                "impact_level": 3,
-                "initial_narration": {
-                    "default": {
-                        "situation_update": "Scenario engine-testet startar i ett tidigt detektionsläge.",
-                        "key_points": [
-                            "Regelutvärdering ska kunna ske från start.",
-                            "State transition ska vara deterministisk.",
-                        ],
-                        "new_consequences": [],
-                        "injects": [],
-                        "decisions_to_consider": ["Vilken regel ska slå först?"],
-                        "facilitator_notes": "Fördefinierat startnarrativ för scenario engine-test.",
-                    }
+            "states": [
+                {
+                    "id": "state-initial-detection",
+                    "phase": "initial-detection",
+                    "title": "Initial detection",
+                    "description": "Det första state-läget för scenario engine-testet.",
+                    "time": "08:15",
+                    "impact_level": 3,
+                    "narration": {
+                        "default": {
+                            "situation_update": "Scenario engine-testet startar i ett tidigt detektionsläge.",
+                            "key_points": [
+                                "Regelutvärdering ska kunna ske från start.",
+                                "State transition ska vara deterministisk.",
+                            ],
+                            "new_consequences": [],
+                            "injects": [],
+                            "decisions_to_consider": ["Vilken regel ska slå först?"],
+                            "facilitator_notes": "Fördefinierat startnarrativ för scenario engine-test.",
+                        }
+                    },
                 },
-            },
+                {
+                    "id": "state-containment",
+                    "phase": "containment",
+                    "title": "Containment",
+                    "description": "Containment-läget för scenario engine-testet.",
+                },
+            ],
             "actors": [],
             "inject_catalog": [],
             "rules": [],
