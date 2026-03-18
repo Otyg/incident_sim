@@ -124,6 +124,12 @@ def test_scenario_engine_triggers_contains_rule_on_action_type():
     )
 
     assert updated.phase == "containment"
+    assert any(
+        item.type == "scenario_event"
+        and item.text
+        == "Regel triggad: rule-containment-phase (Containment byter fas)"
+        for item in updated.exercise_log
+    )
 
 
 def test_scenario_engine_triggers_metric_threshold_rule():
@@ -250,4 +256,9 @@ def test_scenario_engine_applies_multiple_rules_in_priority_order():
         item.text for item in updated.exercise_log if item.type == "scenario_event"
     ]
 
-    assert scenario_events[:2] == ["high", "medium"]
+    assert scenario_events[:4] == [
+        "high",
+        "Regel triggad: rule-high (High priority)",
+        "medium",
+        "Regel triggad: rule-medium (Medium priority)",
+    ]

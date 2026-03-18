@@ -115,6 +115,23 @@ def datadriven_scenario_payload():
             "unknowns": ["Om angriparen har alternativ åtkomst."],
             "affected_systems": ["VPN", "Federerade inloggningar"],
             "business_impact": ["Extern serviceleverans påverkas."],
+            "narration": {
+                "default": {
+                    "situation_update": "Kl. 08:30 har ni gått in i en tydlig containmentfas. Extern åtkomst har begränsats för att minska angriparens handlingsutrymme, men åtgärden skapar omedelbart följdeffekter i verksamheten.",
+                    "key_points": [
+                        "Extern åtkomst har begränsats för att minska fortsatt spridning.",
+                        "Verksamhetspåverkan ökar när externa tjänster och fjärrarbete störs.",
+                    ],
+                    "new_consequences": [
+                        "Externa användare och leverantörer får svårare att nå systemen."
+                    ],
+                    "injects": [],
+                    "decisions_to_consider": [
+                        "Hur länge kan begränsningarna ligga kvar?"
+                    ],
+                    "facilitator_notes": "Fördefinierat containmentnarrativ för API-testet.",
+                }
+            },
         }
     )
     payload["inject_catalog"] = [
@@ -515,6 +532,43 @@ def test_post_turn_handles_partial_state_without_optional_runtime_fields(monkeyp
     assert body["narrator_response"]["key_points"]
 
 
+def test_post_turn_trims_provider_narration_lists_instead_of_returning_502(
+    monkeypatch,
+):
+    class OverlongNarrationProvider(MockLLMProvider):
+        def generate_narration(self, state):
+            payload = super().generate_narration(state)
+            payload["key_points"] = ["A", "B", "C", "D", "E", "F"]
+            payload["injects"] = [
+                {"type": "media", "title": "I1", "message": "Inject ett."},
+                {"type": "operations", "title": "I2", "message": "Inject tva."},
+                {"type": "executive", "title": "I3", "message": "Inject tre."},
+            ]
+            return payload
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: OverlongNarrationProvider(),
+    )
+    request_json("POST", "/scenarios", sample_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi fortsatter att overvaka laget."},
+    )
+
+    assert status == 200
+    assert body["narrator_response"]["key_points"] == ["A", "B", "C", "D", "E"]
+    assert len(body["narrator_response"]["injects"]) == 2
+
+
 def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     request_json("POST", "/scenarios", datadriven_scenario_payload())
@@ -531,11 +585,14 @@ def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
     )
 
     assert status == 200
-    assert body["phase"] == "containment"
-    assert body["affected_systems"] == ["VPN", "Federerade inloggningar"]
+    assert body["session_state"]["phase"] == "containment"
+    assert body["session_state"]["affected_systems"] == ["VPN", "Federerade inloggningar"]
+    assert body["narration"]["situation_update"].startswith(
+        "Kl. 08:30 har ni gått in i en tydlig containmentfas."
+    )
     assert any(
         item["text"] == "Manuellt fasbyte: initial-detection -> containment"
-        for item in body["exercise_log"]
+        for item in body["session_state"]["exercise_log"]
     )
 
 

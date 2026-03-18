@@ -279,6 +279,13 @@ class ScenarioEngine:
             updated.exercise_log.append(
                 ExerciseLogItem(
                     turn=updated.turn_number,
+                    type="scenario_event",
+                    text=f"Regel triggad: {rule.id} ({rule.name})",
+                )
+            )
+            updated.exercise_log.append(
+                ExerciseLogItem(
+                    turn=updated.turn_number,
                     type="scenario_rule_applied",
                     text=rule.id,
                 )

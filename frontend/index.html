@@ -521,12 +521,13 @@
           setStatus("Byter fas manuellt...");
 
           try {
-            const updatedSession = await apiRequest(`/sessions/${session.session_id}/phase`, {
+            const updated = await apiRequest(`/sessions/${session.session_id}/phase`, {
               method: "POST",
               body: JSON.stringify({ phase: selectedManualPhase }),
             });
-            setSession(updatedSession);
-            setStatus(`Fasen är nu ${updatedSession.phase}.`);
+            setSession(updated.session_state);
+            setLatestNarration(updated.narration);
+            setStatus(`Fasen är nu ${updated.session_state.phase}. Lägesbilden är uppdaterad.`);
           } catch (err) {
             setError(getErrorMessage(err));
             setStatus("");

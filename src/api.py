@@ -123,6 +123,13 @@ class CreateSessionResponse(BaseModel):
     initial_narration: NarratorResponse
 
 
+class PhaseChangeResponse(BaseModel):
+    """Response body for manual phase change plus refreshed narration."""
+
+    session_state: SessionState
+    narration: NarratorResponse
+
+
 class CompleteSessionResponse(BaseModel):
     """Response body for session completion and debrief material."""
 
@@ -197,6 +204,20 @@ def resolve_initial_narration(
     """Resolve the scenario-authored initial narration for the selected audience."""
 
     return resolve_state_narration(scenario.states[0], audience)
+
+
+def build_phase_narration(
+    state: SessionState, target_state: "ScenarioStateDefinition"
+) -> NarratorResponse:
+    """Build a narration snapshot for a manual phase change."""
+
+    if target_state.narration is not None:
+        return validate_narration(
+            resolve_state_narration(target_state, state.audience).model_dump()
+        )
+
+    provider = get_llm_provider()
+    return validate_narration(provider.generate_narration(state))
 
 
 def load_sample_scenario() -> Scenario:
@@ -392,89 +413,122 @@ async def get_session(session_id: str) -> SessionState:
     return state
 
 
-@app.post("/sessions/{session_id}/phase", response_model=SessionState)
+@app.post("/sessions/{session_id}/phase", response_model=PhaseChangeResponse)
 async def update_session_phase(
     session_id: str, request: ManualPhaseChangeRequest
-) -> SessionState:
+) -> PhaseChangeResponse:
     """Manually change the active phase for an ongoing session."""
+    try:
+        state = session_repository.get(session_id)
+        if not state:
+            logger.warning(
+                "Manual phase change failed because session was missing session_id=%s",
+                session_id,
+            )
+            raise HTTPException(status_code=404, detail="Session not found")
 
-    state = session_repository.get(session_id)
-    if not state:
-        logger.warning(
-            "Manual phase change failed because session was missing session_id=%s",
-            session_id,
-        )
-        raise HTTPException(status_code=404, detail="Session not found")
+        if state.status != "active":
+            logger.warning(
+                "Manual phase change rejected because session was not active session_id=%s status=%s",
+                session_id,
+                state.status,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Session is not active and phase cannot be changed",
+            )
 
-    if state.status != "active":
-        logger.warning(
-            "Manual phase change rejected because session was not active session_id=%s status=%s",
-            session_id,
-            state.status,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail="Session is not active and phase cannot be changed",
-        )
+        scenario = scenario_repository.get(state.scenario_id)
+        if not scenario:
+            logger.error(
+                "Manual phase change failed because scenario was missing session_id=%s scenario_id=%s",
+                session_id,
+                state.scenario_id,
+            )
+            raise HTTPException(status_code=404, detail="Scenario not found")
 
-    scenario = scenario_repository.get(state.scenario_id)
-    if not scenario:
-        logger.error(
-            "Manual phase change failed because scenario was missing session_id=%s scenario_id=%s",
-            session_id,
-            state.scenario_id,
-        )
-        raise HTTPException(status_code=404, detail="Scenario not found")
+        available_phases = scenario_engine.get_defined_phases(scenario)
+        if request.phase not in available_phases:
+            logger.warning(
+                "Manual phase change rejected because phase was not defined session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Phase is not defined in the scenario",
+            )
 
-    available_phases = scenario_engine.get_defined_phases(scenario)
-    if request.phase not in available_phases:
-        logger.warning(
-            "Manual phase change rejected because phase was not defined session_id=%s phase=%s",
-            session_id,
-            request.phase,
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="Phase is not defined in the scenario",
-        )
+        target_state = scenario_engine.get_state_definition(scenario, request.phase)
+        if target_state is None:
+            logger.error(
+                "Manual phase change failed because phase definition lookup returned nothing session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            raise HTTPException(
+                status_code=400, detail="Phase is not defined in the scenario"
+            )
 
-    if request.phase == state.phase:
+        if request.phase == state.phase:
+            logger.info(
+                "Manual phase change skipped because phase was already active session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            return PhaseChangeResponse(
+                session_state=state,
+                narration=build_phase_narration(state, target_state),
+            )
+
+        updated = state.model_copy(deep=True)
+        previous_phase = updated.phase
+        updated = scenario_engine.apply_state_definition(updated, target_state)
+        updated.exercise_log.append(
+            ExerciseLogItem(
+                turn=updated.turn_number,
+                type="phase_change",
+                text=f"Manuellt fasbyte: {previous_phase} -> {request.phase}",
+            )
+        )
+        narration = build_phase_narration(updated, target_state)
+        session_repository.save(updated)
         logger.info(
-            "Manual phase change skipped because phase was already active session_id=%s phase=%s",
+            "Manual phase change applied session_id=%s from_phase=%s to_phase=%s",
             session_id,
+            previous_phase,
             request.phase,
         )
-        return state
-
-    updated = state.model_copy(deep=True)
-    previous_phase = updated.phase
-    target_state = scenario_engine.get_state_definition(scenario, request.phase)
-    if target_state is None:
+        return PhaseChangeResponse(
+            session_state=updated,
+            narration=narration,
+        )
+    except HTTPException:
+        raise
+    except ProviderOutputValidationError as exc:
+        logger.warning(
+            "Provider output validation failed during manual phase change session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        logger.warning(
+            "Provider configuration error during manual phase change session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
         logger.error(
-            "Manual phase change failed because phase definition lookup returned nothing session_id=%s phase=%s",
+            "Provider runtime error during manual phase change session_id=%s detail=%s",
             session_id,
-            request.phase,
+            exc,
+            exc_info=True,
         )
-        raise HTTPException(
-            status_code=400, detail="Phase is not defined in the scenario"
-        )
-
-    updated = scenario_engine.apply_state_definition(updated, target_state)
-    updated.exercise_log.append(
-        ExerciseLogItem(
-            turn=updated.turn_number,
-            type="phase_change",
-            text=f"Manuellt fasbyte: {previous_phase} -> {request.phase}",
-        )
-    )
-    session_repository.save(updated)
-    logger.info(
-        "Manual phase change applied session_id=%s from_phase=%s to_phase=%s",
-        session_id,
-        previous_phase,
-        request.phase,
-    )
-    return updated
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/sessions/{session_id}/injects", response_model=SessionState)
