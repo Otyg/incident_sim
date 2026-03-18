@@ -708,6 +708,12 @@
                 <h2>Senaste lägesbild</h2>
                 {latestNarration ? (
                   <div className="list">
+                    {session?.turn_number === 0 && scenario?.background?.context && (
+                      <div>
+                        <div className="small">Bakgrundskontext</div>
+                        <div>{scenario.background.context}</div>
+                      </div>
+                    )}
                     <div>{latestNarration.situation_update}</div>
                     <div>
                       <div className="small">Nyckelpunkter</div>

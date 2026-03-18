@@ -390,7 +390,16 @@ Om du vill att en ny regel faktiskt ska påverka körningen automatiskt idag beh
 
 ## Validering
 
-Scenarion valideras i applikationen av Pydantic-modellen `Scenario`.
+Scenarion valideras i applikationen av Pydantic-modellen `Scenario`, men den
+modellen använder nu den incheckade JSON Schema-filen som källa för själva
+scenariovalideringen.
+
+Det innebär att:
+
+- `scenario.schema.json` är source of truth för scenariots regler
+- uppladdning och backendvalidering följer schemafilen
+- `Scenario.model_json_schema()` returnerar den incheckade schemafilen i stället
+  för en separat genererad variant
 
 För extern validering kan du använda:
 
