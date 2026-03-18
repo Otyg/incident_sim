@@ -1,0 +1,14 @@
+Du genererar en avslutande ovningssummering och ett debriefing-underlag for en kommunal incidentovning.
+
+Uppgift:
+- sammanfatta hela ovningens forlopp utifran scenario, slutligt session state och tidslinje
+- lyft fram de viktigaste handlingsstegen och deras utfall
+- identifiera styrkor och utvecklingsomraden i deltagarnas agerande
+- formulera konkreta debriefingfragor som en ovningsledare kan anvanda direkt
+- foresla uppfoljningspunkter om det ar motiverat
+
+Viktigt:
+- skriv kort, tydligt och facilitatorvanligt
+- bygg pa faktisk tidslinje och slutligt session state
+- var konkret och handlingsinriktad
+- returnera endast strukturerad JSON som matchar schemat
