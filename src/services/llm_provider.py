@@ -56,6 +56,9 @@ import yaml
 
 from src.logging_utils import get_logger
 from src.models.session import SessionState
+from src.models.turn import Turn
+from src.models.scenario import Scenario
+from src.schemas.debrief_response import DebriefResponse
 from src.schemas.interpreted_action import InterpretedAction
 from src.schemas.narrator_response import NarratorResponse
 
@@ -144,6 +147,14 @@ class LLMProvider(ABC):
             dict[str, Any]: Raw structured payload to validate as a
                 ``NarratorResponse``.
         """
+
+        raise NotImplementedError
+
+    @abstractmethod
+    def generate_debrief(
+        self, scenario: Scenario, state: SessionState, timeline: list[Turn]
+    ) -> dict[str, Any]:
+        """Generate a debrief from scenario, final state and timeline."""
 
         raise NotImplementedError
 
@@ -289,6 +300,20 @@ def validate_narration(payload: dict[str, Any]) -> NarratorResponse:
         raise ProviderOutputValidationError("Invalid narration payload") from exc
 
 
+def validate_debrief(payload: dict[str, Any]) -> DebriefResponse:
+    """Validate raw provider output as a debrief payload."""
+
+    try:
+        return DebriefResponse.model_validate(payload)
+    except ValidationError as exc:
+        logger.warning(
+            "Provider output did not validate as debrief payload: %s",
+            payload,
+            exc_info=True,
+        )
+        raise ProviderOutputValidationError("Invalid debrief payload") from exc
+
+
 class OllamaProvider(LLMProvider):
     """Runtime provider backed by the official Ollama Python client.
 
@@ -311,6 +336,7 @@ class OllamaProvider(LLMProvider):
 
         self.interpret_prompt = load_prompt("interpret_action.txt")
         self.narration_prompt = load_prompt("generate_narration.txt")
+        self.debrief_prompt = load_prompt("generate_debrief.txt")
         self.host = str(config.get("host") or "http://localhost:11434")
         self.default_model = str(config.get("model") or "llama3.2")
         self.interpret_model = str(config.get("interpret_model") or self.default_model)
@@ -575,6 +601,42 @@ class OllamaProvider(LLMProvider):
             provider_stage="generate_narration",
         )
 
+    def generate_debrief(
+        self, scenario: Scenario, state: SessionState, timeline: list[Turn]
+    ) -> dict[str, Any]:
+        """Generate a structured debrief from the finished session."""
+
+        expected_shape = {
+            "exercise_summary": "string",
+            "timeline_summary": [
+                {
+                    "turn_number": "integer >= 1",
+                    "summary": "string",
+                    "outcome": "string",
+                }
+            ],
+            "strengths": ["string"],
+            "development_areas": ["string"],
+            "debrief_questions": ["string"],
+            "recommended_follow_ups": ["string"],
+            "facilitator_notes": "string",
+        }
+        payload = {
+            "scenario": scenario.model_dump(),
+            "final_state": state.model_dump(),
+            "timeline": [turn.model_dump() for turn in timeline],
+        }
+        return self._chat_json(
+            model=self.narration_model,
+            system_prompt=(
+                f"{self.debrief_prompt}\n"
+                "Return only a single JSON object and no surrounding prose.\n"
+                f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
+            ),
+            user_prompt=f"Ovningsunderlag:\n{json.dumps(payload, ensure_ascii=True)}",
+            provider_stage="generate_debrief",
+        )
+
 
 class OpenAIProvider(LLMProvider):
     """Stub implementation for a future OpenAI-backed provider.
@@ -594,6 +656,7 @@ class OpenAIProvider(LLMProvider):
 
         self.interpret_prompt = load_prompt("interpret_action.txt")
         self.narration_prompt = load_prompt("generate_narration.txt")
+        self.debrief_prompt = load_prompt("generate_debrief.txt")
         self.config = config or {}
         logger.info("Initialized OpenAIProvider stub")
 
@@ -626,6 +689,13 @@ class OpenAIProvider(LLMProvider):
             ProviderConfigurationError: Always, because the provider is not yet
                 implemented.
         """
+
+        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
+
+    def generate_debrief(
+        self, scenario: Scenario, state: SessionState, timeline: list[Turn]
+    ) -> dict[str, Any]:
+        """Attempt to generate a debrief with the OpenAI provider."""
 
         raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
 

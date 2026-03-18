@@ -1,4 +1,6 @@
+from src.models.scenario import Scenario
 from src.models.session import SessionState
+from src.models.turn import Turn
 from src.services.llm_provider import LLMProvider
 
 
@@ -89,4 +91,47 @@ class MockLLMProvider(LLMProvider):
                 "Behöver extern kommunikation skickas nu?",
             ],
             "facilitator_notes": "Responsen bygger pa aktuella metrics, flags och aktiva injects i session state.",
+        }
+
+    def generate_debrief(
+        self, scenario: Scenario, state: SessionState, timeline: list[Turn]
+    ) -> dict:
+        timeline_summary = [
+            {
+                "turn_number": turn.turn_number,
+                "summary": turn.interpreted_action.action_summary,
+                "outcome": turn.narrator_response.situation_update,
+            }
+            for turn in timeline[:8]
+        ]
+
+        return {
+            "exercise_summary": (
+                f"Ovningen for {scenario.title} avslutades efter {len(timeline)} turns med slutstatus {state.status}."
+            ),
+            "timeline_summary": timeline_summary or [
+                {
+                    "turn_number": 1,
+                    "summary": "Ingen turn spelades",
+                    "outcome": "Ingen tidslinje finns att sammanfatta.",
+                }
+            ],
+            "strengths": [
+                "Deltagarna tog incidenten pa allvar och agerade strukturerat.",
+                "Ovningen skapade underlag for diskussion om prioriteringar och kommunikation.",
+            ],
+            "development_areas": [
+                "Tydligare ansvarsfordelning kan etableras tidigare.",
+                "Beslut om kommunikation och eskalering kan formaliseras snabbare.",
+            ],
+            "debrief_questions": [
+                "Vilket beslut skapade mest effekt i ovningen?",
+                "Var uppstod osakerhet eller otydligt ansvar?",
+                "Vad skulle ni vilja gora annorlunda i en verklig incident?",
+            ],
+            "recommended_follow_ups": [
+                "Ga igenom roller och kontaktvagar for ledning och drift.",
+                "Verifiera hur extern kommunikation ska samordnas i ett tidigt skede.",
+            ],
+            "facilitator_notes": "Anvand tidslinjen som grund och borja med de viktigaste besluten innan detaljer diskuteras.",
         }

@@ -123,7 +123,8 @@ def test_list_scenarios_returns_saved_scenarios_in_id_order():
     assert [item["title"] for item in body] == ["Scenario A", "Scenario B"]
 
 
-def test_create_and_get_session_from_existing_scenario():
+def test_create_and_get_session_from_existing_scenario(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
 
@@ -132,13 +133,16 @@ def test_create_and_get_session_from_existing_scenario():
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
-    get_status, get_body = request_json("GET", f"/sessions/{create_body['session_id']}")
+    get_status, get_body = request_json(
+        "GET", f"/sessions/{create_body['session_state']['session_id']}"
+    )
 
     assert create_status == 200
-    assert create_body["scenario_id"] == "scenario-001"
-    assert create_body["audience"] == "krisledning"
+    assert create_body["session_state"]["scenario_id"] == "scenario-001"
+    assert create_body["session_state"]["audience"] == "krisledning"
+    assert create_body["initial_narration"]["key_points"]
     assert get_status == 200
-    assert get_body["session_id"] == create_body["session_id"]
+    assert get_body["session_id"] == create_body["session_state"]["session_id"]
 
 
 def test_post_turn_returns_basic_turn_response(monkeypatch):
@@ -154,7 +158,7 @@ def test_post_turn_returns_basic_turn_response(monkeypatch):
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {
             "participant_input": "Vi stänger extern VPN och samlar incidentledningsgruppen."
         },
@@ -164,13 +168,14 @@ def test_post_turn_returns_basic_turn_response(monkeypatch):
     assert body["turn_number"] == 1
     assert body["participant_input"].startswith("Vi stänger extern VPN")
     assert body["interpreted_action"]["priority"] == "high"
-    assert body["state_snapshot"]["session_id"] == session["session_id"]
+    assert body["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
     assert body["narrator_response"]["key_points"]
 
 
 def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
@@ -180,7 +185,7 @@ def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -196,19 +201,19 @@ def test_post_turn_returns_502_for_invalid_provider_output(monkeypatch):
         def generate_narration(self, state) -> dict:
             return {}
 
-    monkeypatch.setattr(api_module, "get_llm_provider", lambda: BadProvider())
-
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: BadProvider())
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -229,19 +234,19 @@ def test_post_turn_returns_retry_metadata_for_retryable_provider_500(monkeypatch
         def generate_narration(self, state) -> dict:
             return {}
 
-    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
-
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -268,19 +273,19 @@ def test_post_turn_returns_retry_metadata_for_retryable_provider_503(monkeypatch
                 retryable=True,
             )
 
-    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
-
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -304,19 +309,19 @@ def test_post_turn_returns_retry_metadata_for_retryable_provider_504(monkeypatch
         def generate_narration(self, state) -> dict:
             return {}
 
-    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
-
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -339,19 +344,19 @@ def test_post_turn_returns_non_retryable_metadata_for_provider_400(monkeypatch):
         def generate_narration(self, state) -> dict:
             return {}
 
-    monkeypatch.setattr(api_module, "get_llm_provider", lambda: ClientErrorProvider())
-
     scenario = sample_scenario_payload()
     request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     _, session = request_json(
         "POST",
         "/sessions",
         {"scenario_id": "scenario-001", "audience": "krisledning"},
     )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: ClientErrorProvider())
 
     status, body = request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
 
@@ -375,16 +380,18 @@ def test_get_timeline_returns_turns_in_order(monkeypatch):
 
     request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi stänger extern VPN."},
     )
     request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {"participant_input": "Vi går ut med ett första uttalande."},
     )
 
-    status, body = request_json("GET", f"/sessions/{session['session_id']}/timeline")
+    status, body = request_json(
+        "GET", f"/sessions/{session['session_state']['session_id']}/timeline"
+    )
 
     assert status == 200
     assert [turn["turn_number"] for turn in body] == [1, 2]
@@ -405,16 +412,98 @@ def test_get_timeline_includes_complete_turn_data(monkeypatch):
 
     request_json(
         "POST",
-        f"/sessions/{session['session_id']}/turns",
+        f"/sessions/{session['session_state']['session_id']}/turns",
         {
             "participant_input": "Vi stänger extern VPN och samlar incidentledningsgruppen."
         },
     )
 
-    status, body = request_json("GET", f"/sessions/{session['session_id']}/timeline")
+    status, body = request_json(
+        "GET", f"/sessions/{session['session_state']['session_id']}/timeline"
+    )
 
     assert status == 200
     assert len(body) == 1
     assert body[0]["interpreted_action"]["action_types"]
-    assert body[0]["state_snapshot"]["session_id"] == session["session_id"]
+    assert body[0]["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
     assert body[0]["narrator_response"]["facilitator_notes"]
+
+
+def test_complete_session_returns_debrief_and_marks_session_completed(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    assert status == 200
+    assert body["session_state"]["status"] == "completed"
+    assert body["debrief"]["exercise_summary"]
+    assert body["debrief"]["timeline_summary"]
+    assert body["debrief"]["debrief_questions"]
+
+
+def test_complete_session_rejects_empty_timeline(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    assert status == 400
+    assert "at least one turn" in body["detail"]
+
+
+def test_post_turn_rejects_completed_session(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi går ut med ett uttalande."},
+    )
+
+    assert status == 409
+    assert "not active" in body["detail"]
