@@ -24,11 +24,11 @@ from src.services.llm_provider import (
     validate_narration,
 )
 from src.services.rules_engine import RulesEngine
-from src.storage.factory import StorageConfigurationError, create_storage_repositories
+from src.storage.factory import create_storage_repositories
 
 
-app = FastAPI(title='Incident Exercise Prototype')
-FRONTEND_INDEX = Path(__file__).resolve().parents[1] / 'frontend' / 'index.html'
+app = FastAPI(title="Incident Exercise Prototype")
+FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
 
 scenario_repository, session_repository = create_storage_repositories()
 
@@ -55,7 +55,9 @@ class TurnRequest(BaseModel):
     participant_input: str = Field(min_length=3)
 
 
-def build_session_state(session_id: str, scenario: Scenario, audience: Audience) -> SessionState:
+def build_session_state(
+    session_id: str, scenario: Scenario, audience: Audience
+) -> SessionState:
     """Create the initial session state for a stored scenario.
 
     Args:
@@ -89,7 +91,7 @@ def build_session_state(session_id: str, scenario: Scenario, audience: Audience)
     )
 
 
-@app.get('/health')
+@app.get("/health")
 async def health() -> dict:
     """Return a simple liveness response for backend health checks.
 
@@ -97,10 +99,10 @@ async def health() -> dict:
         dict: Static health payload with status information.
     """
 
-    return {'status': 'ok'}
+    return {"status": "ok"}
 
 
-@app.get('/', include_in_schema=False)
+@app.get("/", include_in_schema=False)
 async def frontend() -> FileResponse:
     """Serve the static browser client entrypoint.
 
@@ -115,7 +117,7 @@ async def frontend() -> FileResponse:
     return FileResponse(FRONTEND_INDEX)
 
 
-@app.post('/scenarios', response_model=Scenario)
+@app.post("/scenarios", response_model=Scenario)
 async def create_scenario(scenario: Scenario) -> Scenario:
     """Store a scenario in the in-memory repository.
 
@@ -133,7 +135,7 @@ async def create_scenario(scenario: Scenario) -> Scenario:
     return scenario_repository.save(scenario)
 
 
-@app.get('/scenarios/{scenario_id}', response_model=Scenario)
+@app.get("/scenarios/{scenario_id}", response_model=Scenario)
 async def get_scenario(scenario_id: str) -> Scenario:
     """Fetch a stored scenario by identifier.
 
@@ -149,12 +151,12 @@ async def get_scenario(scenario_id: str) -> Scenario:
 
     scenario = scenario_repository.get(scenario_id)
     if not scenario:
-        raise HTTPException(status_code=404, detail='Scenario not found')
+        raise HTTPException(status_code=404, detail="Scenario not found")
 
     return scenario
 
 
-@app.post('/sessions', response_model=SessionState)
+@app.post("/sessions", response_model=SessionState)
 async def create_session(request: CreateSessionRequest) -> SessionState:
     """Start a new session from a stored scenario.
 
@@ -170,14 +172,14 @@ async def create_session(request: CreateSessionRequest) -> SessionState:
 
     scenario = scenario_repository.get(request.scenario_id)
     if not scenario:
-        raise HTTPException(status_code=404, detail='Scenario not found')
+        raise HTTPException(status_code=404, detail="Scenario not found")
 
-    session_id = f'sess-{session_repository.count() + 1}'
+    session_id = f"sess-{session_repository.count() + 1}"
     state = build_session_state(session_id, scenario, request.audience)
     return session_repository.save(state)
 
 
-@app.get('/sessions/{session_id}', response_model=SessionState)
+@app.get("/sessions/{session_id}", response_model=SessionState)
 async def get_session(session_id: str) -> SessionState:
     """Fetch the latest stored state for a session.
 
@@ -193,12 +195,12 @@ async def get_session(session_id: str) -> SessionState:
 
     state = session_repository.get(session_id)
     if not state:
-        raise HTTPException(status_code=404, detail='Session not found')
+        raise HTTPException(status_code=404, detail="Session not found")
 
     return state
 
 
-@app.get('/sessions/{session_id}/timeline', response_model=list[Turn])
+@app.get("/sessions/{session_id}/timeline", response_model=list[Turn])
 async def get_timeline(session_id: str) -> list[Turn]:
     """Return the stored turn timeline for a session.
 
@@ -214,12 +216,12 @@ async def get_timeline(session_id: str) -> list[Turn]:
 
     state = session_repository.get(session_id)
     if not state:
-        raise HTTPException(status_code=404, detail='Session not found')
+        raise HTTPException(status_code=404, detail="Session not found")
 
     return session_repository.get_timeline(session_id)
 
 
-@app.post('/sessions/{session_id}/turns', response_model=Turn)
+@app.post("/sessions/{session_id}/turns", response_model=Turn)
 async def post_turn(session_id: str, request: TurnRequest) -> Turn:
     """Process a participant action and append it to the session timeline.
 
@@ -238,13 +240,15 @@ async def post_turn(session_id: str, request: TurnRequest) -> Turn:
 
     state = session_repository.get(session_id)
     if not state:
-        raise HTTPException(status_code=404, detail='Session not found')
+        raise HTTPException(status_code=404, detail="Session not found")
 
     engine = RulesEngine()
     provider = get_llm_provider()
 
     try:
-        interpreted = validate_interpreted_action(provider.interpret_action(request.participant_input))
+        interpreted = validate_interpreted_action(
+            provider.interpret_action(request.participant_input)
+        )
     except ProviderOutputValidationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ProviderConfigurationError as exc:

@@ -3,9 +3,9 @@ from typing import Annotated, Dict, List, Literal
 from pydantic import BaseModel, Field, StringConstraints
 
 
-Difficulty = Literal['low', 'medium', 'high']
-Audience = Literal['krisledning', 'it-ledning', 'kommunikation']
-InjectType = Literal['media', 'executive', 'operations', 'technical', 'stakeholder']
+Difficulty = Literal["low", "medium", "high"]
+Audience = Literal["krisledning", "it-ledning", "kommunikation"]
+InjectType = Literal["media", "executive", "operations", "technical", "stakeholder"]
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 ShortText = Annotated[str, StringConstraints(min_length=2)]
 TextBlock = Annotated[str, StringConstraints(min_length=3)]

@@ -1,11 +1,11 @@
-from typing import Annotated, Dict, List, Literal
+from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
 from src.models.scenario import Audience
 
 
-SessionStatus = Literal['active', 'paused', 'completed']
+SessionStatus = Literal["active", "paused", "completed"]
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 ShortText = Annotated[str, StringConstraints(min_length=2)]
 
@@ -42,7 +42,7 @@ class SessionState(BaseModel):
     scenario_id: NonEmptyStr
     scenario_version: NonEmptyStr
     audience: Audience
-    status: SessionStatus = 'active'
+    status: SessionStatus = "active"
     current_time: Annotated[str, StringConstraints(min_length=4)]
     turn_number: int = Field(ge=0)
     phase: ShortText

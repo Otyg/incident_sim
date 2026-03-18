@@ -9,7 +9,7 @@ from src.models.session import SessionState
 from src.models.turn import Turn
 
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / 'data' / 'incident_sim.json'
+DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "incident_sim.json"
 
 
 class TinyDBScenarioRepository:
@@ -19,7 +19,7 @@ class TinyDBScenarioRepository:
         self.db_path = db_path or DEFAULT_DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = TinyDB(self.db_path)
-        self._table = self._db.table('scenarios')
+        self._table = self._db.table("scenarios")
 
     def save(self, scenario: Scenario) -> Scenario:
         """Store or replace a scenario by identifier."""
@@ -49,8 +49,8 @@ class TinyDBSessionRepository:
         self.db_path = db_path or DEFAULT_DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = TinyDB(self.db_path)
-        self._sessions = self._db.table('sessions')
-        self._timeline = self._db.table('timeline')
+        self._sessions = self._db.table("sessions")
+        self._timeline = self._db.table("timeline")
 
     def save(self, session: SessionState) -> SessionState:
         """Store or replace the latest state for a session."""
@@ -71,7 +71,7 @@ class TinyDBSessionRepository:
         """Append a turn to the session timeline."""
 
         payload = turn.model_dump()
-        payload['session_id'] = session_id
+        payload["session_id"] = session_id
         self._timeline.insert(payload)
         return turn
 
@@ -80,8 +80,11 @@ class TinyDBSessionRepository:
 
         query = Query()
         rows = self._timeline.search(query.session_id == session_id)
-        ordered = sorted(rows, key=lambda item: item['turn_number'])
-        return [Turn.model_validate({k: v for k, v in row.items() if k != 'session_id'}) for row in ordered]
+        ordered = sorted(rows, key=lambda item: item["turn_number"])
+        return [
+            Turn.model_validate({k: v for k, v in row.items() if k != "session_id"})
+            for row in ordered
+        ]
 
     def count(self) -> int:
         """Count stored sessions."""

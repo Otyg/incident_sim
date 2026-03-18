@@ -4,18 +4,18 @@ from pydantic import BaseModel, Field, StringConstraints
 
 
 ActionType = Literal[
-    'containment',
-    'coordination',
-    'communication',
-    'escalation',
-    'analysis',
-    'recovery',
-    'monitoring',
-    'legal',
-    'business_continuity',
+    "containment",
+    "coordination",
+    "communication",
+    "escalation",
+    "analysis",
+    "recovery",
+    "monitoring",
+    "legal",
+    "business_continuity",
 ]
 
-Priority = Literal['low', 'medium', 'high']
+Priority = Literal["low", "medium", "high"]
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 
