@@ -34,9 +34,7 @@ def make_scenario(executable_rules: list[dict]) -> Scenario:
                         ],
                         "new_consequences": [],
                         "injects": [],
-                        "decisions_to_consider": [
-                            "Vilken regel ska slå först?"
-                        ],
+                        "decisions_to_consider": ["Vilken regel ska slå först?"],
                         "facilitator_notes": "Fördefinierat startnarrativ för scenario engine-test.",
                     }
                 },
