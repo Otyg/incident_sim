@@ -488,12 +488,15 @@ def test_manual_inject_trigger_skips_when_inject_is_already_active(monkeypatch):
     assert first_status == 200
     assert second_status == 200
     assert second_body["active_injects"].count("inject-media-001") == 1
-    assert sum(
-        1
-        for item in second_body["exercise_log"]
-        if item["text"]
-        == "Manuellt inject aktiverat: Frågor från lokalmedia (inject-media-001)"
-    ) == 1
+    assert (
+        sum(
+            1
+            for item in second_body["exercise_log"]
+            if item["text"]
+            == "Manuellt inject aktiverat: Frågor från lokalmedia (inject-media-001)"
+        )
+        == 1
+    )
 
 
 def test_manual_inject_trigger_reactivates_resolved_inject(monkeypatch):

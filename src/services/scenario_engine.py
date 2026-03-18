@@ -54,7 +54,11 @@ class ScenarioEngine:
         phases = [scenario.initial_state.phase]
         for rule in scenario.executable_rules:
             for effect in rule.effects:
-                if effect.type == "set_phase" and effect.phase and effect.phase not in phases:
+                if (
+                    effect.type == "set_phase"
+                    and effect.phase
+                    and effect.phase not in phases
+                ):
                     phases.append(effect.phase)
         return phases
 
