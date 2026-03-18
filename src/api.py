@@ -152,7 +152,9 @@ def build_session_state(
     )
 
 
-def resolve_initial_narration(scenario: Scenario, audience: Audience) -> NarratorResponse:
+def resolve_initial_narration(
+    scenario: Scenario, audience: Audience
+) -> NarratorResponse:
     """Resolve the scenario-authored initial narration for the selected audience."""
 
     configured = scenario.initial_state.initial_narration

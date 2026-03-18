@@ -80,9 +80,7 @@ def sample_scenario_payload():
                     ],
                     "new_consequences": [],
                     "injects": [],
-                    "decisions_to_consider": [
-                        "Behöver läget eskaleras direkt?"
-                    ],
+                    "decisions_to_consider": ["Behöver läget eskaleras direkt?"],
                     "facilitator_notes": "Fördefinierat startnarrativ för testsessionen.",
                 }
             },
@@ -174,9 +172,7 @@ def test_create_session_prefers_audience_specific_initial_narration(monkeypatch)
             ],
             "new_consequences": [],
             "injects": [],
-            "decisions_to_consider": [
-                "Vilket första ledningsbeslut behöver fattas?"
-            ],
+            "decisions_to_consider": ["Vilket första ledningsbeslut behöver fattas?"],
             "facilitator_notes": "Audience-specifikt startnarrativ för krisledning.",
         }
     }
@@ -227,7 +223,9 @@ def test_create_session_falls_back_to_default_initial_narration(monkeypatch):
 def test_create_session_does_not_call_provider_generate_narration(monkeypatch):
     class FailingInitialNarrationProvider:
         def generate_narration(self, state) -> dict:
-            raise AssertionError("generate_narration should not be called during session creation")
+            raise AssertionError(
+                "generate_narration should not be called during session creation"
+            )
 
     monkeypatch.setattr(
         api_module,
