@@ -4,6 +4,8 @@ import pytest
 
 from src.storage.factory import StorageConfigurationError, load_storage_config
 
+DIST_FIXTURE_PATH = Path(__file__).resolve().parents[1] / "config.yaml.dist"
+
 
 def test_load_storage_config_reads_dist_when_default_config_is_missing(monkeypatch):
     dist_path = Path("/virtual/config.yaml.dist")
@@ -15,9 +17,7 @@ def test_load_storage_config_reads_dist_when_default_config_is_missing(monkeypat
 
     def fake_open(self: Path, *args, **kwargs):
         if self == dist_path:
-            return open(
-                "/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs
-            )
+            return open(DIST_FIXTURE_PATH, *args, **kwargs)
         raise FileNotFoundError(self)
 
     monkeypatch.setattr(Path, "exists", fake_exists)
@@ -40,9 +40,7 @@ def test_load_storage_config_logs_warning_when_falling_back_to_dist(monkeypatch)
 
     def fake_open(self: Path, *args, **kwargs):
         if self == dist_path:
-            return open(
-                "/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs
-            )
+            return open(DIST_FIXTURE_PATH, *args, **kwargs)
         raise FileNotFoundError(self)
 
     def fake_warning(message, *args):
