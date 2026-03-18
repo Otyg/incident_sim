@@ -237,6 +237,7 @@
           }
         },
         "impact_level": {
+          "description": "Övergripande påverkan i startläget på en femgradig skala där 1 är mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan.",
           "type": "integer",
           "minimum": 1,
           "maximum": 5,

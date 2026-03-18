@@ -25,6 +25,21 @@ def make_scenario(executable_rules: list[dict]) -> Scenario:
                 "time": "08:15",
                 "phase": "initial-detection",
                 "impact_level": 3,
+                "initial_narration": {
+                    "default": {
+                        "situation_update": "Scenario engine-testet startar i ett tidigt detektionsläge.",
+                        "key_points": [
+                            "Regelutvärdering ska kunna ske från start.",
+                            "State transition ska vara deterministisk.",
+                        ],
+                        "new_consequences": [],
+                        "injects": [],
+                        "decisions_to_consider": [
+                            "Vilken regel ska slå först?"
+                        ],
+                        "facilitator_notes": "Fördefinierat startnarrativ för scenario engine-test.",
+                    }
+                },
             },
             "actors": [],
             "inject_catalog": [],

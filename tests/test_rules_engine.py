@@ -27,6 +27,21 @@ def make_legacy_scenario() -> Scenario:
                 "time": "08:15",
                 "phase": "initial-detection",
                 "impact_level": 3,
+                "initial_narration": {
+                    "default": {
+                        "situation_update": "Testscenariot startar i ett osäkert men hanterbart läge.",
+                        "key_points": [
+                            "Flera symptom behöver följas upp.",
+                            "Deltagarna behöver snabbt skapa lägesbild.",
+                        ],
+                        "new_consequences": [],
+                        "injects": [],
+                        "decisions_to_consider": [
+                            "Vilken åtgärd ska prioriteras först?"
+                        ],
+                        "facilitator_notes": "Fördefinierat startnarrativ för testscenario.",
+                    }
+                },
             },
             "actors": [],
             "inject_catalog": [],
