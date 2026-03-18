@@ -118,7 +118,8 @@ Scenarioformatet är dokumenterat separat:
 - Scenarioguide: [data/scenarios/README.md](/home/maves/projects/incident_sim/data/scenarios/README.md)
 
 Guiden beskriver vad fälten betyder, hur nivåer som `impact_level` och
-`severity` bör tolkas, och hur du bör lägga till faser, triggers och regler.
+`severity` bör tolkas, och hur du bör lägga till faser, triggers, legacy-regler
+och nya `executable_rules` för den datadrivna scenariomotorn.
 
 ## Loggning
 

@@ -311,6 +311,14 @@
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
 
+        const currentTurnScenarioEvents = session
+          ? session.exercise_log.filter(
+              (item) =>
+                item.turn === session.turn_number &&
+                (item.type === "scenario_event" || item.type === "phase_change")
+            )
+          : [];
+
         const loadTimeline = async (sessionId) => {
           const items = await apiRequest(`/sessions/${sessionId}/timeline`);
           setTimeline(items);
@@ -600,6 +608,7 @@
                   <div className="meta-item"><span>Version</span><strong>{scenario.version}</strong></div>
                   <div className="meta-item"><span>Svårighet</span><strong>{scenario.difficulty}</strong></div>
                   <div className="meta-item"><span>Tidsram</span><strong>{scenario.timebox_minutes} min</strong></div>
+                  <div className="meta-item"><span>Datadrivna regler</span><strong>{scenario.executable_rules?.length || 0}</strong></div>
                 </div>
                 <div>
                   <div className="small">Mål</div>
@@ -715,6 +724,16 @@
                       </div>
                     )}
                     <div>{latestNarration.situation_update}</div>
+                    {currentTurnScenarioEvents.length > 0 && (
+                      <div>
+                        <div className="small">Vad ändrades denna turn</div>
+                        <div className="list">
+                          {currentTurnScenarioEvents.map((item, index) => (
+                            <div key={`${item.type}-${index}`}>- {item.text}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <div className="small">Nyckelpunkter</div>
                       <div className="tag-row">
@@ -772,6 +791,10 @@
                     <div className="meta-item"><span>Påverkansnivå</span><strong>{session.metrics.impact_level}</strong></div>
                     <div className="meta-item"><span>Medietryck</span><strong>{session.metrics.media_pressure}</strong></div>
                     <div className="meta-item"><span>Störning</span><strong>{session.metrics.service_disruption}</strong></div>
+                    <div className="meta-item">
+                      <span>Aktiva injects</span>
+                      <strong>{session.active_injects.length > 0 ? session.active_injects.join(", ") : "Inga"}</strong>
+                    </div>
                   </div>
                 ) : (
                   <div className="small">Ingen aktiv session ännu.</div>

@@ -27,3 +27,13 @@ def test_scenario_schema_includes_level_descriptions():
 
     assert "femgradig skala" in impact_level_description
     assert "femgradig skala" in severity_description
+
+
+def test_scenario_schema_includes_executable_rule_definition():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    executable_rule_description = schema["properties"]["executable_rules"][
+        "description"
+    ]
+
+    assert "datadrivna scenariomotorn" in executable_rule_description

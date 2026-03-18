@@ -39,11 +39,16 @@ LLM work; it only updates metrics, flags, consequences, logs and focus items.
 
 from copy import deepcopy
 
+from src.models.scenario import Scenario
 from src.models.session import ExerciseLogItem, ParticipantActionLog, SessionState
 from src.schemas.interpreted_action import InterpretedAction
+from src.services.scenario_engine import ScenarioEngine
 
 
 class RulesEngine:
+    def __init__(self) -> None:
+        self.scenario_engine = ScenarioEngine()
+
     @staticmethod
     def _add_focus_item(state: SessionState, item: str) -> None:
         """Append a focus item only if it is not already present.
@@ -60,11 +65,16 @@ class RulesEngine:
             state.focus_items.append(item)
 
     def apply(
-        self, state: SessionState, interpreted_action: InterpretedAction, raw_input: str
+        self,
+        scenario: Scenario,
+        state: SessionState,
+        interpreted_action: InterpretedAction,
+        raw_input: str,
     ) -> SessionState:
         """Apply deterministic rules to a session state.
 
         Args:
+            scenario: Scenario definition containing executable rules.
             state: Current session state before rule processing.
             interpreted_action: Structured action created by the provider layer.
             raw_input: Original participant input used for audit logging.
@@ -127,19 +137,12 @@ class RulesEngine:
                 updated.consequences.append("Fördröjd kommunikation ökar medietrycket.")
                 self._add_focus_item(updated, "Ta fram ett första externt budskap.")
 
-        if (
-            updated.metrics.service_disruption >= 2
-            and "inject-ops-001" not in updated.active_injects
-        ):
-            updated.active_injects.append("inject-ops-001")
-
-        if (
-            updated.metrics.media_pressure >= 2
-            and "inject-media-001" not in updated.active_injects
-        ):
-            updated.active_injects.append("inject-media-001")
-
         if updated.metrics.impact_level >= 3 and not updated.flags.executive_escalation:
             updated.metrics.leadership_pressure += 1
 
-        return updated
+        return self.scenario_engine.apply(
+            scenario=scenario,
+            state=updated,
+            trigger="turn_processed",
+            action=interpreted_action,
+        )

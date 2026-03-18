@@ -62,6 +62,7 @@ from src.services.llm_provider import (
     validate_narration,
 )
 from src.services.rules_engine import RulesEngine
+from src.services.scenario_engine import ScenarioEngine
 from src.storage.factory import create_storage_repositories
 
 
@@ -78,6 +79,7 @@ SAMPLE_SCENARIO_PATH = (
 
 scenario_repository, session_repository = create_storage_repositories()
 TURN_RETRY_BACKOFF_SECONDS = [2, 4, 8, 16]
+scenario_engine = ScenarioEngine()
 
 
 class CreateSessionRequest(BaseModel):
@@ -302,6 +304,11 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
 
     session_id = f"sess-{session_repository.count() + 1}"
     state = build_session_state(session_id, scenario, request.audience)
+    state = scenario_engine.apply(
+        scenario=scenario,
+        state=state,
+        trigger="session_started",
+    )
     logger.info(
         "Creating session session_id=%s scenario_id=%s audience=%s",
         session_id,
@@ -533,7 +540,21 @@ async def post_turn(
             interpreted.priority,
         )
 
-        updated = engine.apply(state, interpreted, request.participant_input)
+        scenario = scenario_repository.get(state.scenario_id)
+        if not scenario:
+            logger.error(
+                "Turn request failed because scenario was missing session_id=%s scenario_id=%s",
+                session_id,
+                state.scenario_id,
+            )
+            raise HTTPException(status_code=404, detail="Scenario not found")
+
+        updated = engine.apply(
+            scenario,
+            state,
+            interpreted,
+            request.participant_input,
+        )
         logger.info(
             "Rules engine updated state session_id=%s new_turn=%s impact_level=%s media_pressure=%s service_disruption=%s",
             session_id,

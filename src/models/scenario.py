@@ -32,7 +32,7 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -43,6 +43,56 @@ from src.schemas.narrator_response import NarratorResponse
 Difficulty = str
 Audience = str
 InjectType = str
+RulePriority = Literal["low", "medium", "high"]
+RuleTrigger = Literal["session_started", "turn_processed"]
+ConditionOperator = Literal[
+    "equals",
+    "not_equals",
+    "gte",
+    "lte",
+    "contains",
+    "not_contains",
+]
+ConditionFact = Literal[
+    "state.phase",
+    "state.metrics.impact_level",
+    "state.metrics.media_pressure",
+    "state.metrics.service_disruption",
+    "state.metrics.leadership_pressure",
+    "state.metrics.public_confusion",
+    "state.metrics.attack_surface",
+    "state.flags.executive_escalation",
+    "state.flags.external_comms_sent",
+    "state.flags.forensic_analysis_started",
+    "state.flags.external_access_restricted",
+    "session.turn_number",
+    "action.action_types",
+    "action.targets",
+]
+EffectType = Literal[
+    "set_phase",
+    "add_active_inject",
+    "resolve_inject",
+    "append_focus_item",
+    "append_consequence",
+    "increment_metric",
+    "set_flag",
+    "append_exercise_log",
+]
+MetricPath = Literal[
+    "state.metrics.impact_level",
+    "state.metrics.media_pressure",
+    "state.metrics.service_disruption",
+    "state.metrics.leadership_pressure",
+    "state.metrics.public_confusion",
+    "state.metrics.attack_surface",
+]
+FlagPath = Literal[
+    "state.flags.executive_escalation",
+    "state.flags.external_comms_sent",
+    "state.flags.forensic_analysis_started",
+    "state.flags.external_access_restricted",
+]
 
 
 SCENARIO_SCHEMA_PATH = (
@@ -221,6 +271,88 @@ class RuleDefinition(BaseModel):
     )
 
 
+class ExecutableRuleCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fact: ConditionFact = Field(
+        description="Vilket state- eller actionfält som villkoret läser."
+    )
+    operator: ConditionOperator = Field(
+        description="Vilken jämförelseoperator som ska användas."
+    )
+    value: str | int | bool = Field(description="Vilket värde villkoret jämför mot.")
+
+
+class ScenarioRuleEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: EffectType = Field(
+        description="Vilken typ av deterministisk effekt som ska utföras."
+    )
+    phase: str | None = Field(
+        default=None,
+        description="Ny fas för effekttypen set_phase.",
+    )
+    inject_id: str | None = Field(
+        default=None,
+        description="Inject-id för add_active_inject eller resolve_inject.",
+    )
+    item: str | None = Field(
+        default=None,
+        description="Textinnehåll för append_focus_item eller append_consequence.",
+    )
+    metric: MetricPath | None = Field(
+        default=None,
+        description="Vilket metricsfält som påverkas av increment_metric.",
+    )
+    amount: int | None = Field(
+        default=None,
+        description="Hur mycket ett metricsfält ska ökas eller minskas.",
+    )
+    flag: FlagPath | None = Field(
+        default=None,
+        description="Vilken flagga som sätts av set_flag.",
+    )
+    value: bool | None = Field(
+        default=None,
+        description="Booleskt värde för set_flag.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Loggmeddelande för append_exercise_log.",
+    )
+    log_type: str | None = Field(
+        default=None,
+        description="Övningsloggtyp för append_exercise_log.",
+    )
+
+
+class ExecutableRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för den exekverbara regeln.")
+    name: str = Field(description="Kort namn på den exekverbara regeln.")
+    trigger: RuleTrigger = Field(
+        description="Vilken händelse som ska utlösa regelutvärderingen."
+    )
+    conditions: list[ExecutableRuleCondition] = Field(
+        default_factory=list,
+        description="Strukturerade villkor som alla måste vara uppfyllda för att regeln ska slå till.",
+    )
+    effects: list[ScenarioRuleEffect] = Field(
+        min_length=1,
+        description="Deterministiska effekter som utförs när regeln träffar.",
+    )
+    priority: RulePriority = Field(
+        default="medium",
+        description="Prioritet för exekvering när flera regler matchar samma trigger.",
+    )
+    once: bool = Field(
+        default=False,
+        description="Om true får regeln bara appliceras en gång per session.",
+    )
+
+
 class PresentationGuideline(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -272,6 +404,13 @@ class Scenario(BaseModel):
         description=(
             "Dokumenterade scenarioregler och samband. Dessa är idag i första hand "
             "författningsstöd och exekveras inte generiskt från scenariot."
+        ),
+    )
+    executable_rules: list[ExecutableRule] = Field(
+        default_factory=list,
+        description=(
+            "Strukturerade och exekverbara scenarioregler för den datadrivna "
+            "scenariomotorn."
         ),
     )
     presentation_guidelines: dict[str, PresentationGuideline] = Field(

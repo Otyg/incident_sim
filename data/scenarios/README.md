@@ -13,6 +13,7 @@ Ett scenario består av:
 - aktörer
 - inject-katalog
 - dokumenterade regler
+- exekverbara regler
 - presentationsriktlinjer per målgrupp
 
 Det är viktigt att skilja på:
@@ -23,7 +24,7 @@ Det är viktigt att skilja på:
 
 ## Viktigt om nuvarande implementation
 
-Alla scenariofält valideras och lagras, men backend exekverar inte alla delar dynamiskt idag.
+Alla scenariofält valideras och lagras, men backend exekverar inte alla delar dynamiskt.
 
 Nuvarande läge:
 
@@ -33,7 +34,7 @@ Nuvarande läge:
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
 - Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
 
-Det betyder att scenarioförfattaren redan nu kan dokumentera faser, triggers och regler tydligt, men att nya dynamiska beteenden också kräver kodändringar i backend om de ska verkställas automatiskt.
+Det betyder att scenarioförfattaren nu kan styra faser, inject-aktivering och vissa stateförändringar direkt i JSON, medan mer avancerad logik fortfarande kan kräva backendkod.
 
 ## Rotnivå
 
@@ -323,13 +324,77 @@ Exempel:
 
 ## `rules`
 
-Regler beskriver scenariots tänkta logik, men körs inte generiskt från JSON idag.
+Regler beskriver scenariots tänkta logik, men körs inte från JSON.
 
 Använd dem därför som:
 
 - dokumentation för scenarioförfattare
 - underlag för framtida automation
 - stöd för facilitatorn
+
+## `executable_rules`
+
+Det här är den körbara delen av scenariot i v1.
+
+Varje regel innehåller:
+
+- `trigger`: när regeln ska utvärderas
+- `conditions`: alla villkor som måste vara uppfyllda
+- `effects`: vad som ska hända om regeln träffar
+- `priority`: `high`, `medium` eller `low`
+- `once`: om regeln bara får slå till en gång per session
+
+### `trigger`
+
+Tillåtna värden i v1:
+
+- `session_started`
+- `turn_processed`
+
+### `conditions`
+
+Varje villkor består av:
+
+- `fact`
+- `operator`
+- `value`
+
+Tillåtna `fact` i v1:
+
+- `state.phase`
+- `state.metrics.*`
+- `state.flags.*`
+- `session.turn_number`
+- `action.action_types`
+- `action.targets`
+
+Tillåtna operatorer i v1:
+
+- `equals`
+- `not_equals`
+- `gte`
+- `lte`
+- `contains`
+- `not_contains`
+
+### `effects`
+
+Tillåtna effekter i v1:
+
+- `set_phase`
+- `add_active_inject`
+- `resolve_inject`
+- `append_focus_item`
+- `append_consequence`
+- `increment_metric`
+- `set_flag`
+- `append_exercise_log`
+
+Praktiskt råd:
+
+- använd `append_exercise_log` när du vill att övningsledaren tydligt ska se varför något ändrades i UI:t
+- använd `once: true` för fasbyten och inject-aktiveringar som bara ska ske en gång
+- använd `priority: high` för regler som bör slå till före mer allmänna uppdateringar
 
 ### `conditions`
 
@@ -371,11 +436,14 @@ Vilken tonalitet presentationen ska ha, till exempel `strategisk`, `operativ` el
 
 ## Hur du lägger till faser
 
-Faser är idag fria strängar. För att göra dem begripliga och framtidssäkra:
+Faser är fria strängar, men används nu också av den datadrivna scenariomotorn.
+
+För att lägga till en ny fas:
 
 1. välj ett kort fas-id i kebab-case
-2. använd samma fasnamn konsekvent i scenario, dokumentation och eventuell framtida logik
-3. låt varje fas representera ett tydligt övningsläge eller beslutsläge
+2. sätt det som `initial_state.phase` om det är startläget
+3. använd samma fasnamn konsekvent i scenario, dokumentation och regler
+4. lägg till en `set_phase`-effekt i `executable_rules` när en senare fas ska aktiveras
 
 Bra uppsättning:
 
@@ -393,13 +461,18 @@ Undvik:
 
 ## Hur du lägger till triggers
 
-Triggers bör beskriva när facilitatorn bör använda ett inject eller när en regel borde slå till.
+För dokumentation kan du fortfarande använda `inject_catalog[].trigger_conditions`.
+
+För faktisk exekvering i v1 används:
+
+- `trigger` på regeln
+- ett eller flera strukturerade `conditions`
 
 Bra arbetsmodell:
 
-1. skriv triggern utifrån något observerbart
-2. koppla den till ett mätbart eller tydligt tillstånd
-3. håll texten kort och enhetlig
+1. välj först om regeln ska köras vid `session_started` eller `turn_processed`
+2. skriv sedan villkor utifrån observerbara facts som metrics, flags, phase eller action-types
+3. håll varje villkor kort och maskinläsbart
 
 Bra exempel:
 
@@ -409,15 +482,47 @@ Bra exempel:
 
 ## Hur du lägger till regler
 
-Eftersom reglerna inte exekveras generiskt än bör de skrivas som dokumenterad designintention.
+Om regeln bara ska dokumentera scenariots idé använder du `rules[]`.
+
+Om regeln ska påverka körningen automatiskt använder du `executable_rules[]`.
 
 Bra arbetsmodell:
 
-1. beskriv vad som triggar regeln
-2. beskriv vad facilitatorn eller framtida backend borde göra som följd
-3. använd samma ord i `conditions`, `effects`, `trigger_conditions` och övriga scenariot
+1. bestäm när regeln ska utvärderas med `trigger`
+2. välj bara de `conditions` som verkligen behövs
+3. lägg till en eller flera `effects`
+4. markera `once: true` om regeln inte ska kunna upprepas
+5. lägg gärna till en `append_exercise_log`-effekt så att utfallet syns tydligt i UI:t
 
-Om du vill att en ny regel faktiskt ska påverka körningen automatiskt idag behöver du även uppdatera [rules_engine.py](../../src/services/rules_engine.py).
+Exempel på vanlig regel:
+
+```json
+{
+  "id": "rule-phase-containment",
+  "name": "Byt till containment",
+  "trigger": "turn_processed",
+  "conditions": [
+    {
+      "fact": "state.flags.external_access_restricted",
+      "operator": "equals",
+      "value": true
+    }
+  ],
+  "effects": [
+    {
+      "type": "set_phase",
+      "phase": "containment"
+    },
+    {
+      "type": "append_exercise_log",
+      "log_type": "scenario_event",
+      "message": "Scenariot går in i containment."
+    }
+  ],
+  "priority": "high",
+  "once": true
+}
+```
 
 ## Validering
 

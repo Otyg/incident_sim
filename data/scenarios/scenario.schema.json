@@ -1,71 +1,63 @@
 {
   "$defs": {
     "Actor": {
+      "type": "object",
+      "title": "Actor",
       "properties": {
         "id": {
-          "description": "Stabilt unikt id för aktören, till exempel actor-ciso.",
+          "type": "string",
           "minLength": 1,
           "title": "Id",
-          "type": "string"
+          "description": "Stabilt unikt id för aktören, till exempel actor-ciso."
         },
         "name": {
-          "description": "Visningsnamn för aktören.",
+          "type": "string",
           "minLength": 2,
           "title": "Name",
-          "type": "string"
+          "description": "Visningsnamn för aktören."
         },
         "role": {
-          "description": "Kort beskrivning av aktörens ansvar eller funktion i övningen.",
+          "type": "string",
           "minLength": 2,
           "title": "Role",
-          "type": "string"
+          "description": "Kort beskrivning av aktörens ansvar eller funktion i övningen."
         }
       },
-      "required": [
-        "id",
-        "name",
-        "role"
-      ],
-      "title": "Actor",
-      "type": "object"
+      "required": ["id", "name", "role"]
     },
     "Background": {
+      "type": "object",
+      "title": "Background",
       "properties": {
         "organization_type": {
-          "description": "Typ av organisation som övningen utgår från, till exempel kommun eller myndighet.",
+          "type": "string",
           "minLength": 2,
           "title": "Organization Type",
-          "type": "string"
+          "description": "Typ av organisation som övningen utgår från, till exempel kommun eller myndighet."
         },
         "context": {
-          "description": "Bakgrundsbeskrivning som sätter scenen inför övningen.",
+          "type": "string",
           "minLength": 3,
           "title": "Context",
-          "type": "string"
+          "description": "Bakgrundsbeskrivning som sätter scenen inför övningen."
         },
         "threat_actor": {
-          "description": "Kort beskrivning av aktören bakom hotet eller incidenten.",
+          "type": "string",
           "minLength": 2,
           "title": "Threat Actor",
-          "type": "string"
+          "description": "Kort beskrivning av aktören bakom hotet eller incidenten."
         },
         "assumptions": {
+          "type": "array",
+          "title": "Assumptions",
           "description": "Antaganden som gäller när scenariot startar, till exempel tekniska eller organisatoriska förutsättningar.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Assumptions",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
-      "required": [
-        "organization_type",
-        "context",
-        "threat_actor"
-      ],
-      "title": "Background",
-      "type": "object"
+      "required": ["organization_type", "context", "threat_actor"]
     },
     "NarratorInject": {
       "properties": {
@@ -193,61 +185,62 @@
       "type": "object"
     },
     "InitialState": {
+      "type": "object",
+      "title": "InitialState",
       "properties": {
         "time": {
-          "description": "Starttid för scenariot, normalt i formatet HH:MM.",
+          "type": "string",
           "minLength": 4,
           "title": "Time",
-          "type": "string"
+          "description": "Starttid för scenariot, normalt i formatet HH:MM."
         },
         "phase": {
-          "description": "Maskinläsbart namn på startfasen, till exempel initial-detection, containment eller recovery. Fasen är idag författningsmetadata och används inte för dynamisk faslogik i backend.",
+          "type": "string",
           "minLength": 2,
           "title": "Phase",
-          "type": "string"
+          "description": "Maskinläsbart namn på startfasen, till exempel initial-detection, containment eller recovery. Fasen används av den datadrivna scenariomotorn som initial aktiv fas."
         },
         "known_facts": {
+          "type": "array",
+          "title": "Known Facts",
           "description": "Det deltagarna känner till när övningen startar.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Known Facts",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         },
         "unknowns": {
+          "type": "array",
+          "title": "Unknowns",
           "description": "Viktiga osäkerheter som fortfarande behöver utredas.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Unknowns",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         },
         "affected_systems": {
+          "type": "array",
+          "title": "Affected Systems",
           "description": "System eller tjänster som redan bedöms vara påverkade vid start.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Affected Systems",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         },
         "business_impact": {
+          "type": "array",
+          "title": "Business Impact",
           "description": "Beskrivning av verksamhetspåverkan i scenariots initiala läge.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Business Impact",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         },
         "impact_level": {
-          "description": "Övergripande påverkan i startläget på en femgradig skala där 1 är mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan.",
-          "maximum": 5,
+          "type": "integer",
           "minimum": 1,
-          "title": "Impact Level",
-          "type": "integer"
+          "maximum": 5,
+          "title": "Impact Level"
         },
         "initial_narration": {
           "$ref": "#/$defs/InitialNarrationConfig",
@@ -259,212 +252,406 @@
         "phase",
         "impact_level",
         "initial_narration"
-      ],
-      "title": "InitialState",
-      "type": "object"
+      ]
     },
     "InjectDefinition": {
+      "type": "object",
+      "title": "InjectDefinition",
       "properties": {
         "id": {
-          "description": "Stabilt unikt id för injectet, till exempel inject-media-001.",
+          "type": "string",
           "minLength": 1,
           "title": "Id",
-          "type": "string"
+          "description": "Stabilt unikt id för injectet, till exempel inject-media-001."
         },
         "type": {
-          "description": "Vilken typ av inject det är, till exempel media eller operations.",
-          "enum": [
-            "media",
-            "executive",
-            "operations",
-            "technical",
-            "stakeholder"
-          ],
+          "type": "string",
           "title": "Type",
-          "type": "string"
+          "enum": ["media", "executive", "operations", "technical", "stakeholder"],
+          "description": "Vilken typ av inject det är, till exempel media eller operations."
         },
         "title": {
-          "description": "Kort rubrik för injectet.",
+          "type": "string",
           "minLength": 2,
           "title": "Title",
-          "type": "string"
+          "description": "Kort rubrik för injectet."
         },
         "description": {
-          "description": "Beskrivning av vad injectet tillför till övningen.",
+          "type": "string",
           "minLength": 3,
           "title": "Description",
-          "type": "string"
+          "description": "Beskrivning av vad injectet tillför till övningen."
         },
         "trigger_conditions": {
-          "description": "Mänskligt läsbara villkor eller signaler som beskriver när injectet är tänkt att användas. Dessa utvärderas inte dynamiskt av backend idag.",
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
+          "type": "array",
           "title": "Trigger Conditions",
-          "type": "array"
+          "description": "Mänskligt läsbara villkor eller signaler som beskriver när injectet är tänkt att användas. Dessa fält fungerar som dokumentation även när scenariot också har exekverbara regler.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "audience_relevance": {
+          "type": "array",
+          "title": "Audience Relevance",
           "description": "Vilka målgrupper injectet främst är relevant för.",
           "items": {
-            "enum": [
-              "krisledning",
-              "it-ledning",
-              "kommunikation"
-            ],
-            "type": "string"
-          },
-          "title": "Audience Relevance",
-          "type": "array"
+            "type": "string",
+            "enum": ["krisledning", "it-ledning", "kommunikation"]
+          }
         },
         "severity": {
-          "description": "Hur skarpt injectet är på en femgradig skala där 1 är låg störning och 5 är mycket kritiskt eller omedelbart handlingsdrivande.",
-          "maximum": 5,
+          "type": "integer",
           "minimum": 1,
+          "maximum": 5,
           "title": "Severity",
-          "type": "integer"
+          "description": "Hur skarpt injectet är på en femgradig skala där 1 är låg störning och 5 är mycket kritiskt eller omedelbart handlingsdrivande."
         }
       },
-      "required": [
-        "id",
-        "type",
-        "title",
-        "description",
-        "severity"
-      ],
-      "title": "InjectDefinition",
-      "type": "object"
-    },
-    "PresentationGuideline": {
-      "properties": {
-        "focus": {
-          "description": "Vilka aspekter som bör betonas för målgruppen.",
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Focus",
-          "type": "array"
-        },
-        "tone": {
-          "description": "Vilken tonalitet eller nivå presentationen bör ha för målgruppen.",
-          "minLength": 2,
-          "title": "Tone",
-          "type": "string"
-        }
-      },
-      "required": [
-        "tone"
-      ],
-      "title": "PresentationGuideline",
-      "type": "object"
+      "required": ["id", "type", "title", "description", "severity"]
     },
     "RuleDefinition": {
+      "type": "object",
+      "title": "RuleDefinition",
       "properties": {
         "id": {
-          "description": "Stabilt unikt id för regeln, till exempel rule-escalation.",
+          "type": "string",
           "minLength": 1,
           "title": "Id",
-          "type": "string"
+          "description": "Stabilt unikt id för regeln, till exempel rule-escalation."
         },
         "name": {
-          "description": "Kort namn på regeln.",
+          "type": "string",
           "minLength": 2,
           "title": "Name",
-          "type": "string"
+          "description": "Kort namn på regeln."
         },
         "conditions": {
+          "type": "array",
+          "title": "Conditions",
           "description": "Mänskligt läsbara villkor för när regeln borde slå till. Fälten dokumenterar scenariots avsikt och exekveras inte generiskt av backend idag.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Conditions",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         },
         "effects": {
+          "type": "array",
+          "title": "Effects",
           "description": "Mänskligt läsbar beskrivning av regelns tänkta effekt i scenariot.",
           "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Effects",
-          "type": "array"
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
-      "required": [
-        "id",
-        "name"
-      ],
-      "title": "RuleDefinition",
-      "type": "object"
+      "required": ["id", "name"]
+    },
+    "PresentationGuideline": {
+      "type": "object",
+      "title": "PresentationGuideline",
+      "properties": {
+        "focus": {
+          "type": "array",
+          "title": "Focus",
+          "description": "Vilka aspekter som bör betonas för målgruppen.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tone": {
+          "type": "string",
+          "minLength": 2,
+          "title": "Tone",
+          "description": "Vilken tonalitet eller nivå presentationen bör ha för målgruppen."
+        }
+      },
+      "required": ["tone"]
+    },
+    "ExecutableRuleCondition": {
+      "type": "object",
+      "title": "ExecutableRuleCondition",
+      "additionalProperties": false,
+      "properties": {
+        "fact": {
+          "type": "string",
+          "title": "Fact",
+          "description": "Vilket state- eller actionfält som villkoret läser.",
+          "enum": [
+            "state.phase",
+            "state.metrics.impact_level",
+            "state.metrics.media_pressure",
+            "state.metrics.service_disruption",
+            "state.metrics.leadership_pressure",
+            "state.metrics.public_confusion",
+            "state.metrics.attack_surface",
+            "state.flags.executive_escalation",
+            "state.flags.external_comms_sent",
+            "state.flags.forensic_analysis_started",
+            "state.flags.external_access_restricted",
+            "session.turn_number",
+            "action.action_types",
+            "action.targets"
+          ]
+        },
+        "operator": {
+          "type": "string",
+          "title": "Operator",
+          "description": "Vilken jämförelseoperator som ska användas.",
+          "enum": ["equals", "not_equals", "gte", "lte", "contains", "not_contains"]
+        },
+        "value": {
+          "title": "Value",
+          "description": "Vilket värde villkoret jämför mot.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "integer" },
+            { "type": "boolean" }
+          ]
+        }
+      },
+      "required": ["fact", "operator", "value"]
+    },
+    "ScenarioRuleEffect": {
+      "type": "object",
+      "title": "ScenarioRuleEffect",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "set_phase" },
+            "phase": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Ny fas för effekttypen set_phase."
+            }
+          },
+          "required": ["type", "phase"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "add_active_inject" },
+            "inject_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Inject-id som ska aktiveras."
+            }
+          },
+          "required": ["type", "inject_id"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "resolve_inject" },
+            "inject_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Inject-id som ska markeras som löst."
+            }
+          },
+          "required": ["type", "inject_id"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "append_focus_item" },
+            "item": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Textinnehåll för nytt fokusområde."
+            }
+          },
+          "required": ["type", "item"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "append_consequence" },
+            "item": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Textinnehåll för ny konsekvens."
+            }
+          },
+          "required": ["type", "item"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "increment_metric" },
+            "metric": {
+              "type": "string",
+              "description": "Vilket metricsfält som påverkas.",
+              "enum": [
+                "state.metrics.impact_level",
+                "state.metrics.media_pressure",
+                "state.metrics.service_disruption",
+                "state.metrics.leadership_pressure",
+                "state.metrics.public_confusion",
+                "state.metrics.attack_surface"
+              ]
+            },
+            "amount": {
+              "type": "integer",
+              "description": "Hur mycket metricsfältet ska ändras."
+            }
+          },
+          "required": ["type", "metric", "amount"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "set_flag" },
+            "flag": {
+              "type": "string",
+              "description": "Vilken flagga som ska sättas.",
+              "enum": [
+                "state.flags.executive_escalation",
+                "state.flags.external_comms_sent",
+                "state.flags.forensic_analysis_started",
+                "state.flags.external_access_restricted"
+              ]
+            },
+            "value": {
+              "type": "boolean",
+              "description": "Booleskt värde för flaggan."
+            }
+          },
+          "required": ["type", "flag", "value"]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "append_exercise_log" },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Loggmeddelande att lägga till i sessionens övningslogg."
+            },
+            "log_type": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Valfri loggtyp för övningsloggen."
+            }
+          },
+          "required": ["type", "message"]
+        }
+      ]
+    },
+    "ExecutableRule": {
+      "type": "object",
+      "title": "ExecutableRule",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt unikt id för den exekverbara regeln."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "title": "Name",
+          "description": "Kort namn på den exekverbara regeln."
+        },
+        "trigger": {
+          "type": "string",
+          "title": "Trigger",
+          "description": "Vilken händelse som ska utlösa regelutvärderingen.",
+          "enum": ["session_started", "turn_processed"]
+        },
+        "conditions": {
+          "type": "array",
+          "title": "Conditions",
+          "description": "Strukturerade villkor som alla måste vara uppfyllda för att regeln ska slå till.",
+          "items": { "$ref": "#/$defs/ExecutableRuleCondition" }
+        },
+        "effects": {
+          "type": "array",
+          "title": "Effects",
+          "description": "Deterministiska effekter som utförs när regeln träffar.",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ScenarioRuleEffect" }
+        },
+        "priority": {
+          "type": "string",
+          "title": "Priority",
+          "description": "Prioritet för exekvering när flera regler matchar samma trigger.",
+          "enum": ["low", "medium", "high"],
+          "default": "medium"
+        },
+        "once": {
+          "type": "boolean",
+          "title": "Once",
+          "description": "Om true får regeln bara appliceras en gång per session.",
+          "default": false
+        }
+      },
+      "required": ["id", "name", "trigger", "effects"]
     }
   },
+  "type": "object",
+  "title": "Scenario",
   "properties": {
     "id": {
-      "description": "Globalt unikt scenario-id som används vid lagring och hämtning.",
+      "type": "string",
       "minLength": 1,
       "title": "Id",
-      "type": "string"
+      "description": "Globalt unikt scenario-id som används vid lagring och hämtning."
     },
     "title": {
-      "description": "Scenarioets visningsnamn.",
+      "type": "string",
       "minLength": 2,
       "title": "Title",
-      "type": "string"
+      "description": "Scenarioets visningsnamn."
     },
     "version": {
-      "description": "Scenarioets versionsbeteckning, till exempel 1.0.",
+      "type": "string",
       "minLength": 1,
       "title": "Version",
-      "type": "string"
+      "description": "Scenarioets versionsbeteckning, till exempel 1.0."
     },
     "description": {
-      "description": "Kort sammanfattning av scenarioets upplägg och kontext.",
+      "type": "string",
       "minLength": 3,
       "title": "Description",
-      "type": "string"
+      "description": "Kort sammanfattning av scenarioets upplägg och kontext."
     },
     "audiences": {
-      "description": "Vilka målgrupper scenariot är avsett för.",
-      "items": {
-        "enum": [
-          "krisledning",
-          "it-ledning",
-          "kommunikation"
-        ],
-        "type": "string"
-      },
-      "minItems": 1,
+      "type": "array",
       "title": "Audiences",
-      "type": "array"
+      "description": "Vilka målgrupper scenariot är avsett för.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["krisledning", "it-ledning", "kommunikation"]
+      }
     },
     "training_goals": {
-      "description": "Vilka förmågor eller lärandemål scenariot ska öva.",
-      "items": {
-        "minLength": 3,
-        "type": "string"
-      },
-      "minItems": 1,
+      "type": "array",
       "title": "Training Goals",
-      "type": "array"
+      "description": "Vilka förmågor eller lärandemål scenariot ska öva.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
     },
     "difficulty": {
-      "description": "Övergripande svårighetsgrad för scenariot.",
-      "enum": [
-        "low",
-        "medium",
-        "high"
-      ],
+      "type": "string",
       "title": "Difficulty",
-      "type": "string"
+      "description": "Övergripande svårighetsgrad för scenariot.",
+      "enum": ["low", "medium", "high"]
     },
     "timebox_minutes": {
-      "description": "Planerad maximal övningstid i minuter.",
-      "maximum": 480,
+      "type": "integer",
       "minimum": 1,
+      "maximum": 480,
       "title": "Timebox Minutes",
-      "type": "integer"
+      "description": "Planerad maximal övningstid i minuter."
     },
     "background": {
       "$ref": "#/$defs/Background",
@@ -475,43 +662,39 @@
       "description": "Vilket läge övningen startar i."
     },
     "actors": {
-      "description": "Viktiga aktörer eller roller i scenariot.",
-      "items": {
-        "$ref": "#/$defs/Actor"
-      },
+      "type": "array",
       "title": "Actors",
-      "type": "array"
+      "description": "Viktiga aktörer eller roller i scenariot.",
+      "items": { "$ref": "#/$defs/Actor" }
     },
     "inject_catalog": {
-      "description": "Katalog över möjliga injects som kan användas under övningen.",
-      "items": {
-        "$ref": "#/$defs/InjectDefinition"
-      },
+      "type": "array",
       "title": "Inject Catalog",
-      "type": "array"
+      "description": "Katalog över möjliga injects som kan användas under övningen.",
+      "items": { "$ref": "#/$defs/InjectDefinition" }
     },
     "rules": {
-      "description": "Dokumenterade scenarioregler och samband. Dessa är idag i första hand författningsstöd och exekveras inte generiskt från scenariot.",
-      "items": {
-        "$ref": "#/$defs/RuleDefinition"
-      },
+      "type": "array",
       "title": "Rules",
-      "type": "array"
+      "description": "Dokumenterade scenarioregler och samband. Dessa legacyfält fungerar som författningsstöd men exekveras inte av den datadrivna scenariomotorn.",
+      "items": { "$ref": "#/$defs/RuleDefinition" }
+    },
+    "executable_rules": {
+      "type": "array",
+      "title": "Executable Rules",
+      "description": "Strukturerade och exekverbara scenarioregler för den datadrivna scenariomotorn.",
+      "items": { "$ref": "#/$defs/ExecutableRule" }
     },
     "presentation_guidelines": {
-      "additionalProperties": {
-        "$ref": "#/$defs/PresentationGuideline"
-      },
+      "type": "object",
+      "title": "Presentation Guidelines",
       "description": "Hur scenariot bör presenteras för respektive målgrupp.",
       "propertyNames": {
-        "enum": [
-          "krisledning",
-          "it-ledning",
-          "kommunikation"
-        ]
+        "enum": ["krisledning", "it-ledning", "kommunikation"]
       },
-      "title": "Presentation Guidelines",
-      "type": "object"
+      "additionalProperties": {
+        "$ref": "#/$defs/PresentationGuideline"
+      }
     }
   },
   "required": [
@@ -526,7 +709,5 @@
     "background",
     "initial_state",
     "presentation_guidelines"
-  ],
-  "title": "Scenario",
-  "type": "object"
+  ]
 }

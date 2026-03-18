@@ -180,6 +180,106 @@
       ]
     }
   ],
+  "executable_rules": [
+    {
+      "id": "rule-session-start-focus",
+      "name": "Initial scenariostart",
+      "trigger": "session_started",
+      "effects": [
+        {
+          "type": "append_focus_item",
+          "item": "Bekräfta den initiala lägesbilden med verksamheterna."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Scenario startat: initial lägesbild etablerad."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-phase-containment",
+      "name": "Byt till containment vid extern begränsning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.flags.external_access_restricted",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "initial-detection"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "containment"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Scenariot går in i containment efter begränsning av extern åtkomst."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-activate-ops-inject",
+      "name": "Aktivera operations-inject vid ökad störning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.service_disruption",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-ops-001"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Operations-inject aktiverat på grund av ökad tjänstepåverkan."
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-activate-media-inject",
+      "name": "Aktivera media-inject vid medietryck",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.media_pressure",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-media-001"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Media-inject aktiverat efter stigande medietryck."
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    }
+  ],
   "presentation_guidelines": {
     "krisledning": {
       "focus": [

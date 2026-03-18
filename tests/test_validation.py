@@ -113,6 +113,7 @@ def test_scenario_validation_accepts_valid_payload():
     scenario = Scenario(**sample_scenario_dict())
     assert scenario.id == "scenario-001"
     assert scenario.initial_state.impact_level == 2
+    assert scenario.executable_rules == []
 
 
 def test_scenario_validation_accepts_audience_specific_initial_narration():
@@ -145,6 +146,54 @@ def test_scenario_validation_rejects_empty_audiences():
 def test_scenario_validation_rejects_timebox_above_limit():
     payload = sample_scenario_dict()
     payload["timebox_minutes"] = 600
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_accepts_executable_rules():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-phase-change",
+            "name": "Byt fas vid containment",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+            "priority": "high",
+            "once": True,
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.executable_rules[0].trigger == "turn_processed"
+    assert scenario.executable_rules[0].effects[0].type == "set_phase"
+
+
+def test_scenario_validation_rejects_invalid_executable_rule_operator():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-invalid",
+            "name": "Ogiltig operator",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.phase",
+                    "operator": "matches",
+                    "value": "containment",
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+        }
+    ]
 
     with pytest.raises(ValidationError):
         Scenario(**payload)

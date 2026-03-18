@@ -48,7 +48,7 @@ class ParticipantActionLog(BaseModel):
 
 
 class ExerciseLogItem(BaseModel):
-    turn: int = Field(ge=1)
+    turn: int = Field(ge=0)
     type: ShortText
     text: ShortText
 

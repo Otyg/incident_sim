@@ -88,11 +88,52 @@ def sample_scenario_payload():
         "actors": [],
         "inject_catalog": [],
         "rules": [],
+        "executable_rules": [],
         "presentation_guidelines": {
             "krisledning": {"focus": ["beslut"], "tone": "strategisk"},
             "it-ledning": {"focus": ["system"], "tone": "operativ"},
         },
     }
+
+
+def datadriven_scenario_payload():
+    payload = sample_scenario_payload()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-session-start",
+            "name": "Startregel",
+            "trigger": "session_started",
+            "effects": [
+                {
+                    "type": "append_focus_item",
+                    "item": "Bekräfta initial lägesbild med verksamheten.",
+                },
+                {
+                    "type": "append_exercise_log",
+                    "log_type": "scenario_event",
+                    "message": "Sessionen startade i datadrivet läge.",
+                },
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
+            "id": "rule-phase-change",
+            "name": "Containment byter fas",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.external_access_restricted",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+            "priority": "high",
+            "once": True,
+        },
+    ]
+    return payload
 
 
 def test_get_default_sample_scenario():
@@ -271,6 +312,25 @@ def test_post_turn_returns_basic_turn_response(monkeypatch):
         body["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
     )
     assert body["narrator_response"]["key_points"]
+
+
+def test_post_turn_applies_datadriven_phase_change(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "containment"
 
 
 def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
