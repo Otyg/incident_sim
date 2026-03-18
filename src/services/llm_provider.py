@@ -27,8 +27,8 @@ from src.schemas.interpreted_action import InterpretedAction
 from src.schemas.narrator_response import NarratorResponse
 
 
-PROMPTS_DIR = Path(__file__).resolve().parents[1] / 'prompts'
-CONFIG_PATH = Path(__file__).resolve().parents[2] / 'config.yaml'
+PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
 
 
 class LLMProviderError(Exception):
@@ -110,7 +110,7 @@ def load_prompt(name: str) -> str:
         FileNotFoundError: If the prompt file does not exist.
     """
 
-    return (PROMPTS_DIR / name).read_text(encoding='utf-8').strip()
+    return (PROMPTS_DIR / name).read_text(encoding="utf-8").strip()
 
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
@@ -129,16 +129,20 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     config_path = path or CONFIG_PATH
 
     if not config_path.exists():
-        raise ProviderConfigurationError(f'Configuration file not found: {config_path}')
+        raise ProviderConfigurationError(f"Configuration file not found: {config_path}")
 
     try:
-        with config_path.open('r', encoding='utf-8') as handle:
+        with config_path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
     except yaml.YAMLError as exc:
-        raise ProviderConfigurationError(f'Invalid YAML configuration in {config_path}') from exc
+        raise ProviderConfigurationError(
+            f"Invalid YAML configuration in {config_path}"
+        ) from exc
 
     if not isinstance(data, dict):
-        raise ProviderConfigurationError(f'Configuration root must be a mapping in {config_path}')
+        raise ProviderConfigurationError(
+            f"Configuration root must be a mapping in {config_path}"
+        )
 
     return data
 
@@ -162,10 +166,12 @@ def load_llm_config(path: Path | None = None) -> dict[str, Any]:
     """
 
     data = load_config(path)
-    llm_config = data.get('llm_provider')
+    llm_config = data.get("llm_provider")
 
     if not isinstance(llm_config, dict):
-        raise ProviderConfigurationError('Missing or invalid llm_provider section in config.yaml')
+        raise ProviderConfigurationError(
+            "Missing or invalid llm_provider section in config.yaml"
+        )
 
     return llm_config
 
@@ -187,7 +193,9 @@ def validate_interpreted_action(payload: dict[str, Any]) -> InterpretedAction:
     try:
         return InterpretedAction.model_validate(payload)
     except ValidationError as exc:
-        raise ProviderOutputValidationError('Invalid interpreted action payload') from exc
+        raise ProviderOutputValidationError(
+            "Invalid interpreted action payload"
+        ) from exc
 
 
 def validate_narration(payload: dict[str, Any]) -> NarratorResponse:
@@ -207,7 +215,7 @@ def validate_narration(payload: dict[str, Any]) -> NarratorResponse:
     try:
         return NarratorResponse.model_validate(payload)
     except ValidationError as exc:
-        raise ProviderOutputValidationError('Invalid narration payload') from exc
+        raise ProviderOutputValidationError("Invalid narration payload") from exc
 
 
 class OllamaProvider(LLMProvider):
@@ -230,13 +238,13 @@ class OllamaProvider(LLMProvider):
                 ``interpret_model`` and ``narration_model``.
         """
 
-        self.interpret_prompt = load_prompt('interpret_action.txt')
-        self.narration_prompt = load_prompt('generate_narration.txt')
-        self.host = str(config.get('host') or 'http://localhost:11434')
-        self.default_model = str(config.get('model') or 'llama3.2')
-        self.interpret_model = str(config.get('interpret_model') or self.default_model)
-        self.narration_model = str(config.get('narration_model') or self.default_model)
-        self.api_key = config.get('api_key')
+        self.interpret_prompt = load_prompt("interpret_action.txt")
+        self.narration_prompt = load_prompt("generate_narration.txt")
+        self.host = str(config.get("host") or "http://localhost:11434")
+        self.default_model = str(config.get("model") or "llama3.2")
+        self.interpret_model = str(config.get("interpret_model") or self.default_model)
+        self.narration_model = str(config.get("narration_model") or self.default_model)
+        self.api_key = config.get("api_key")
         self.client = self._create_client(self.host, self._build_headers())
 
     @staticmethod
@@ -258,7 +266,7 @@ class OllamaProvider(LLMProvider):
             from ollama import Client
         except ImportError as exc:
             raise ProviderConfigurationError(
-                'The ollama package is required for OllamaProvider. Install it with pip install ollama.'
+                "The ollama package is required for OllamaProvider. Install it with pip install ollama."
             ) from exc
 
         return Client(host=host, headers=headers or None)
@@ -274,7 +282,7 @@ class OllamaProvider(LLMProvider):
         if not self.api_key:
             return None
 
-        return {'Authorization': f'Bearer {self.api_key}'}
+        return {"Authorization": f"Bearer {self.api_key}"}
 
     @staticmethod
     def _extract_json_payload(response: Any) -> dict[str, Any]:
@@ -291,37 +299,45 @@ class OllamaProvider(LLMProvider):
                 cannot be parsed as a JSON object.
         """
 
-        message = getattr(response, 'message', None)
+        message = getattr(response, "message", None)
         if message is None and isinstance(response, dict):
-            message = response.get('message')
+            message = response.get("message")
 
-        content = getattr(message, 'content', None) if message is not None else None
+        content = getattr(message, "content", None) if message is not None else None
         if content is None and isinstance(message, dict):
-            content = message.get('content')
+            content = message.get("content")
 
         if not isinstance(content, str) or not content.strip():
-            raise ProviderResponseFormatError('Ollama response did not contain message content')
+            raise ProviderResponseFormatError(
+                "Ollama response did not contain message content"
+            )
 
         stripped = content.strip()
         try:
             parsed = json.loads(stripped)
         except json.JSONDecodeError:
-            start = stripped.find('{')
-            end = stripped.rfind('}')
+            start = stripped.find("{")
+            end = stripped.rfind("}")
             if start == -1 or end == -1 or end <= start:
-                raise ProviderResponseFormatError('Ollama response was not valid JSON') from None
+                raise ProviderResponseFormatError(
+                    "Ollama response was not valid JSON"
+                ) from None
 
             try:
-                parsed = json.loads(stripped[start:end + 1])
+                parsed = json.loads(stripped[start : end + 1])
             except json.JSONDecodeError as exc:
-                raise ProviderResponseFormatError('Ollama response was not valid JSON') from exc
+                raise ProviderResponseFormatError(
+                    "Ollama response was not valid JSON"
+                ) from exc
 
         if not isinstance(parsed, dict):
-            raise ProviderResponseFormatError('Ollama response JSON must be an object')
+            raise ProviderResponseFormatError("Ollama response JSON must be an object")
 
         return parsed
 
-    def _chat_json(self, model: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+    def _chat_json(
+        self, model: str, system_prompt: str, user_prompt: str
+    ) -> dict[str, Any]:
         """Send a chat request and parse the returned JSON object.
 
         Args:
@@ -341,12 +357,12 @@ class OllamaProvider(LLMProvider):
             response = self.client.chat(
                 model=model,
                 messages=[
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
             )
         except Exception as exc:
-            raise LLMProviderError(f'Ollama request failed: {exc}') from exc
+            raise LLMProviderError(f"Ollama request failed: {exc}") from exc
 
         return self._extract_json_payload(response)
 
@@ -365,24 +381,26 @@ class OllamaProvider(LLMProvider):
         """
 
         expected_shape = {
-            'action_summary': 'string',
-            'action_types': ['containment|coordination|communication|escalation|analysis|recovery|monitoring|legal|business_continuity'],
-            'targets': ['string'],
-            'intent': 'string',
-            'expected_effects': ['string'],
-            'risks': ['string'],
-            'uncertainties': ['string'],
-            'priority': 'low|medium|high',
-            'confidence': 'number between 0 and 1',
+            "action_summary": "string",
+            "action_types": [
+                "containment|coordination|communication|escalation|analysis|recovery|monitoring|legal|business_continuity"
+            ],
+            "targets": ["string"],
+            "intent": "string",
+            "expected_effects": ["string"],
+            "risks": ["string"],
+            "uncertainties": ["string"],
+            "priority": "low|medium|high",
+            "confidence": "number between 0 and 1",
         }
         return self._chat_json(
             model=self.interpret_model,
             system_prompt=(
-                f'{self.interpret_prompt}\n'
-                'Return only a single JSON object and no surrounding prose.\n'
-                f'Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}'
+                f"{self.interpret_prompt}\n"
+                "Return only a single JSON object and no surrounding prose.\n"
+                f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
             ),
-            user_prompt=f'Deltagaratgard:\n{participant_input}',
+            user_prompt=f"Deltagaratgard:\n{participant_input}",
         )
 
     def generate_narration(self, state: SessionState) -> dict[str, Any]:
@@ -400,21 +418,27 @@ class OllamaProvider(LLMProvider):
         """
 
         expected_shape = {
-            'situation_update': 'string',
-            'key_points': ['string'],
-            'new_consequences': ['string'],
-            'injects': [{'type': 'media|executive|operations|technical|stakeholder', 'title': 'string', 'message': 'string'}],
-            'decisions_to_consider': ['string'],
-            'facilitator_notes': 'string',
+            "situation_update": "string",
+            "key_points": ["string"],
+            "new_consequences": ["string"],
+            "injects": [
+                {
+                    "type": "media|executive|operations|technical|stakeholder",
+                    "title": "string",
+                    "message": "string",
+                }
+            ],
+            "decisions_to_consider": ["string"],
+            "facilitator_notes": "string",
         }
         return self._chat_json(
             model=self.narration_model,
             system_prompt=(
-                f'{self.narration_prompt}\n'
-                'Return only a single JSON object and no surrounding prose.\n'
-                f'Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}'
+                f"{self.narration_prompt}\n"
+                "Return only a single JSON object and no surrounding prose.\n"
+                f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
             ),
-            user_prompt=f'Session state:\n{state.model_dump_json()}',
+            user_prompt=f"Session state:\n{state.model_dump_json()}",
         )
 
 
@@ -434,8 +458,8 @@ class OpenAIProvider(LLMProvider):
                 The values are currently stored for future use only.
         """
 
-        self.interpret_prompt = load_prompt('interpret_action.txt')
-        self.narration_prompt = load_prompt('generate_narration.txt')
+        self.interpret_prompt = load_prompt("interpret_action.txt")
+        self.narration_prompt = load_prompt("generate_narration.txt")
         self.config = config or {}
 
     def interpret_action(self, participant_input: str) -> dict[str, Any]:
@@ -452,7 +476,7 @@ class OpenAIProvider(LLMProvider):
                 implemented.
         """
 
-        raise ProviderConfigurationError('OpenAIProvider is not implemented yet')
+        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
 
     def generate_narration(self, state: SessionState) -> dict[str, Any]:
         """Attempt to generate narration with the OpenAI provider.
@@ -468,7 +492,7 @@ class OpenAIProvider(LLMProvider):
                 implemented.
         """
 
-        raise ProviderConfigurationError('OpenAIProvider is not implemented yet')
+        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
 
 
 def get_llm_provider() -> LLMProvider:
@@ -490,18 +514,22 @@ def get_llm_provider() -> LLMProvider:
     """
 
     llm_config = load_llm_config()
-    provider_name = str(llm_config.get('provider') or 'ollama').lower()
+    provider_name = str(llm_config.get("provider") or "ollama").lower()
 
-    if provider_name == 'ollama':
-        provider_config = llm_config.get('ollama')
+    if provider_name == "ollama":
+        provider_config = llm_config.get("ollama")
         if not isinstance(provider_config, dict):
-            raise ProviderConfigurationError('Missing or invalid llm_provider.ollama section in config.yaml')
+            raise ProviderConfigurationError(
+                "Missing or invalid llm_provider.ollama section in config.yaml"
+            )
         return OllamaProvider(provider_config)
 
-    if provider_name == 'openai':
-        provider_config = llm_config.get('openai')
+    if provider_name == "openai":
+        provider_config = llm_config.get("openai")
         if provider_config is not None and not isinstance(provider_config, dict):
-            raise ProviderConfigurationError('Invalid llm_provider.openai section in config.yaml')
+            raise ProviderConfigurationError(
+                "Invalid llm_provider.openai section in config.yaml"
+            )
         return OpenAIProvider(provider_config)
 
-    raise ProviderConfigurationError(f'Unsupported LLM provider: {provider_name}')
+    raise ProviderConfigurationError(f"Unsupported LLM provider: {provider_name}")

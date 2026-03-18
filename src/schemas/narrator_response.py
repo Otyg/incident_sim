@@ -3,7 +3,7 @@ from typing import Annotated, List, Literal
 from pydantic import BaseModel, Field, StringConstraints
 
 
-InjectType = Literal['media', 'executive', 'operations', 'technical', 'stakeholder']
+InjectType = Literal["media", "executive", "operations", "technical", "stakeholder"]
 PointText = Annotated[str, StringConstraints(min_length=1)]
 ShortText = Annotated[str, StringConstraints(min_length=2)]
 TextBlock = Annotated[str, StringConstraints(min_length=3)]
