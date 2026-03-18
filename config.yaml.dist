@@ -1,0 +1,46 @@
+# Exempelkonfiguration för storage- och LLM-providerlager.
+# Kopiera denna fil till `config.yaml` och justera värden efter din miljö.
+
+storage:
+  # Väljer vilken storage-backend applikationen ska använda.
+  # Stödda värden just nu: `tinydb`, `in_memory`
+  backend: tinydb
+
+  tinydb:
+    # Sökväg till JSON-filen där TinyDB lagrar scenarier, sessioner och tidslinje.
+    path: data/incident_sim.json
+
+llm_provider:
+  # Väljer vilken runtime-provider som ska användas för interpretation och narration.
+  # Stödda värden just nu: `ollama`, `openai`
+  provider: ollama
+
+  ollama:
+    # Base URL för Ollama.
+    # Exempel lokalt: http://localhost:11434
+    # Exempel cloud: https://ollama.com
+    host: http://localhost:11434
+
+    # Standardmodell som används om inga mer specifika modellfält sätts.
+    model: llama3.2
+
+    # Valfri modell enbart för tolkning av deltagaråtgärder.
+    interpret_model: llama3.2
+
+    # Valfri modell enbart för generering av lägesbild/narration.
+    narration_model: llama3.2
+
+    # API-nyckel för autentisering mot Ollama Cloud.
+    # Sätt till null om lokal Ollama används utan autentisering.
+    api_key: null
+
+  openai:
+    # API-nyckel för en framtida OpenAI-provider.
+    # Fältet finns redan i konfigurationen men används ännu inte aktivt.
+    api_key: null
+
+    # Valfri base URL för en framtida OpenAI-kompatibel endpoint.
+    base_url: null
+
+    # Modellnamn för en framtida OpenAI-provider.
+    model: null

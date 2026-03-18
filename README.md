@@ -83,11 +83,16 @@ pytest -q tests/test_llm_provider.py
 
 ## Konfiguration via `config.yaml`
 
-LLM-providerlagret läser nu sin konfiguration från `config.yaml` i projektroten.
+Applikationen läser nu både storage-backend och LLM-provider från `config.yaml` i projektroten.
 
 Exempel:
 
 ```yaml
+storage:
+  backend: tinydb
+  tinydb:
+    path: data/incident_sim.json
+
 llm_provider:
   provider: ollama
   ollama:
@@ -101,6 +106,13 @@ llm_provider:
     base_url: null
     model: null
 ```
+
+För storage gäller just nu:
+- `tinydb`: lagrar data i en JSON-fil via TinyDB
+- `in_memory`: håller data i processen utan filpersistens
+
+För TinyDB kan du konfigurera:
+- `storage.tinydb.path`: sökväg till JSON-filen som ska användas för lagring
 
 ## För administratör: så konfigureras LLM-åtkomsten
 
