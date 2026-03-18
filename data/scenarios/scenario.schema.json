@@ -67,6 +67,131 @@
       "title": "Background",
       "type": "object"
     },
+    "NarratorInject": {
+      "properties": {
+        "type": {
+          "enum": [
+            "media",
+            "executive",
+            "operations",
+            "technical",
+            "stakeholder"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 2,
+          "title": "Title",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 3,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "message"
+      ],
+      "title": "NarratorInject",
+      "type": "object"
+    },
+    "NarratorResponse": {
+      "properties": {
+        "situation_update": {
+          "minLength": 10,
+          "title": "Situation Update",
+          "type": "string"
+        },
+        "key_points": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 2,
+          "title": "Key Points",
+          "type": "array"
+        },
+        "new_consequences": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "New Consequences",
+          "type": "array"
+        },
+        "injects": {
+          "items": {
+            "$ref": "#/$defs/NarratorInject"
+          },
+          "maxItems": 2,
+          "title": "Injects",
+          "type": "array"
+        },
+        "decisions_to_consider": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Decisions To Consider",
+          "type": "array"
+        },
+        "facilitator_notes": {
+          "minLength": 5,
+          "title": "Facilitator Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation_update",
+        "key_points",
+        "facilitator_notes"
+      ],
+      "title": "NarratorResponse",
+      "type": "object"
+    },
+    "InitialNarrationConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/NarratorResponse",
+          "description": "Gemensamt startnarrativ som används när ingen audience-specifik variant finns."
+        },
+        "by_audience": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NarratorResponse"
+          },
+          "description": "Valfria audience-specifika startnarrativ som prioriteras före default.",
+          "propertyNames": {
+            "enum": [
+              "krisledning",
+              "it-ledning",
+              "kommunikation"
+            ]
+          },
+          "title": "By Audience",
+          "type": "object"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "default"
+          ]
+        },
+        {
+          "required": [
+            "by_audience"
+          ]
+        }
+      ],
+      "title": "InitialNarrationConfig",
+      "type": "object"
+    },
     "InitialState": {
       "properties": {
         "time": {
@@ -123,12 +248,17 @@
           "minimum": 1,
           "title": "Impact Level",
           "type": "integer"
+        },
+        "initial_narration": {
+          "$ref": "#/$defs/InitialNarrationConfig",
+          "description": "Fördefinierat startnarrativ för scenariot. Audience-specifika varianter prioriteras före default när sessionen startas."
         }
       },
       "required": [
         "time",
         "phase",
-        "impact_level"
+        "impact_level",
+        "initial_narration"
       ],
       "title": "InitialState",
       "type": "object"

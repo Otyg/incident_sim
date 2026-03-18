@@ -152,6 +152,22 @@ def build_session_state(
     )
 
 
+def resolve_initial_narration(scenario: Scenario, audience: Audience) -> NarratorResponse:
+    """Resolve the scenario-authored initial narration for the selected audience."""
+
+    configured = scenario.initial_state.initial_narration
+    audience_specific = configured.by_audience.get(audience)
+    if audience_specific:
+        return audience_specific
+
+    if configured.default:
+        return configured.default
+
+    raise ValueError(
+        f"Scenario {scenario.id} is missing initial narration for audience {audience}"
+    )
+
+
 def load_sample_scenario() -> Scenario:
     """Load the bundled GUI scenario from disk.
 
@@ -292,45 +308,27 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
     )
 
     try:
-        provider = get_llm_provider()
-        logger.info(
-            "Generating initial narration session_id=%s provider=%s",
-            session_id,
-            provider.__class__.__name__,
+        initial_narration = validate_narration(
+            resolve_initial_narration(scenario, request.audience).model_dump()
         )
-        initial_narration = validate_narration(provider.generate_narration(state))
         session_repository.save(state)
         logger.info(
-            "Session initialized with initial narration session_id=%s", session_id
+            "Session initialized with scenario-authored initial narration session_id=%s audience=%s",
+            session_id,
+            request.audience,
         )
         return CreateSessionResponse(
             session_state=state,
             initial_narration=initial_narration,
         )
-    except ProviderOutputValidationError as exc:
-        logger.warning(
-            "Initial narration validation failed session_id=%s detail=%s",
-            session_id,
-            exc,
-            exc_info=True,
-        )
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except ProviderConfigurationError as exc:
-        logger.warning(
-            "Provider configuration error during session creation session_id=%s detail=%s",
-            session_id,
-            exc,
-            exc_info=True,
-        )
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except LLMProviderError as exc:
+    except (ValueError, ProviderOutputValidationError) as exc:
         logger.error(
-            "Provider runtime error during session creation session_id=%s detail=%s",
+            "Scenario initial narration resolution failed session_id=%s detail=%s",
             session_id,
             exc,
             exc_info=True,
         )
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/sessions/{session_id}", response_model=SessionState)

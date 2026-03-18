@@ -71,6 +71,21 @@ def sample_scenario_payload():
             "affected_systems": ["AD"],
             "business_impact": ["Intern påverkan"],
             "impact_level": 2,
+            "initial_narration": {
+                "default": {
+                    "situation_update": "Läget är fortsatt osäkert och flera verksamheter rapporterar störningar.",
+                    "key_points": [
+                        "Inloggningsproblem påverkar flera användare.",
+                        "Omfattningen är fortfarande oklar.",
+                    ],
+                    "new_consequences": [],
+                    "injects": [],
+                    "decisions_to_consider": [
+                        "Behöver läget eskaleras direkt?"
+                    ],
+                    "facilitator_notes": "Fördefinierat startnarrativ för testsessionen.",
+                }
+            },
         },
         "actors": [],
         "inject_catalog": [],
@@ -140,9 +155,95 @@ def test_create_and_get_session_from_existing_scenario(monkeypatch):
     assert create_status == 200
     assert create_body["session_state"]["scenario_id"] == "scenario-001"
     assert create_body["session_state"]["audience"] == "krisledning"
-    assert create_body["initial_narration"]["key_points"]
+    assert create_body["initial_narration"]["situation_update"] == (
+        "Läget är fortsatt osäkert och flera verksamheter rapporterar störningar."
+    )
     assert get_status == 200
     assert get_body["session_id"] == create_body["session_state"]["session_id"]
+
+
+def test_create_session_prefers_audience_specific_initial_narration(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    scenario["initial_state"]["initial_narration"]["by_audience"] = {
+        "krisledning": {
+            "situation_update": "Krisledningen möter ett snabbt eskalerande läge med tydlig verksamhetspåverkan.",
+            "key_points": [
+                "Beslutsbehovet är omedelbart.",
+                "Samordning mellan funktioner behöver etableras nu.",
+            ],
+            "new_consequences": [],
+            "injects": [],
+            "decisions_to_consider": [
+                "Vilket första ledningsbeslut behöver fattas?"
+            ],
+            "facilitator_notes": "Audience-specifikt startnarrativ för krisledning.",
+        }
+    }
+    request_json("POST", "/scenarios", scenario)
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    assert create_status == 200
+    assert create_body["initial_narration"]["situation_update"] == (
+        "Krisledningen möter ett snabbt eskalerande läge med tydlig verksamhetspåverkan."
+    )
+
+
+def test_create_session_falls_back_to_default_initial_narration(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    scenario["initial_state"]["initial_narration"]["by_audience"] = {
+        "krisledning": {
+            "situation_update": "Krisledningens variant.",
+            "key_points": [
+                "Ledningsnivån behöver snabbt mobiliseras.",
+                "Kommunikationsbehovet växer.",
+            ],
+            "new_consequences": [],
+            "injects": [],
+            "decisions_to_consider": ["Ska krisledningen sammankallas?"],
+            "facilitator_notes": "Audience-specifik variant.",
+        }
+    }
+    request_json("POST", "/scenarios", scenario)
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "it-ledning"},
+    )
+
+    assert create_status == 200
+    assert create_body["initial_narration"]["situation_update"] == (
+        "Läget är fortsatt osäkert och flera verksamheter rapporterar störningar."
+    )
+
+
+def test_create_session_does_not_call_provider_generate_narration(monkeypatch):
+    class FailingInitialNarrationProvider:
+        def generate_narration(self, state) -> dict:
+            raise AssertionError("generate_narration should not be called during session creation")
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: FailingInitialNarrationProvider(),
+    )
+    request_json("POST", "/scenarios", sample_scenario_payload())
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    assert create_status == 200
+    assert create_body["initial_narration"]["key_points"]
 
 
 def test_post_turn_returns_basic_turn_response(monkeypatch):
