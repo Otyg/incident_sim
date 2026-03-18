@@ -36,23 +36,32 @@ Ett typiskt användarflöde ser ut så här:
 2. Öppna startsidan i webbläsaren.
 3. Välj ett sparat scenario från databasen, klicka på `Ladda scenario` för exempelscenariot eller ladda upp ett eget scenario i JSON-format.
 4. Läs scenarioöversikten för att förstå kontext, mål och svårighetsgrad.
-5. Klicka på `Starta session` för att skapa en ny övningssession från scenariot.
-6. Följ panelen `Aktuell session` för att se nuvarande fas, tid, turn-nummer och centrala metrics.
-7. Skriv in en deltagaråtgärd i formuläret `Deltagaråtgärd`.
-8. Skicka åtgärden för att spela en turn.
-9. Läs `Senaste lägesbild` för att se systemets återkoppling på den senaste turnen.
-10. Följ `Tidslinje` för att se alla tidigare turns i ordning.
+5. Klicka på `Starta session` för att skapa en ny övningssession och gå vidare till sessionssidan.
+6. Läs den initiala lägesbilden som visas direkt när sessionssidan öppnas och använd den som första briefing till deltagarna.
+7. Följ panelen `Aktuell session` för att se nuvarande fas, tid, turn-nummer och centrala metrics.
+8. Skriv in en deltagaråtgärd i formuläret `Deltagaråtgärd`.
+9. Skicka åtgärden för att spela en turn.
+10. Läs `Senaste lägesbild` för att se systemets återkoppling på den senaste turnen.
+11. Klicka på `Avsluta scenario` när övningen är klar för att generera en tidslinjesummering och ett debriefingunderlag.
 
 ## Vad användaren ser i gränssnittet
 
-Gränssnittet består av fem huvuddelar:
+Gränssnittet består nu av två vyer:
+
+- `Scenariostart`: innehåller scenariokontroller och scenarioöversikt
+- `Aktiv session`: innehåller senaste lägesbild, deltagaråtgärd och aktuell session
+
+På scenariostarten finns följande delar:
 
 - `Scenarioöversikt`: visar vilket scenario som är inläst, dess beskrivning, mål och tidsram.
 - `Scenariokontroller`: visar sparade scenarion i databasen och låter användaren ladda upp nya scenarion i JSON-format.
-- `Aktuell session`: visar det senaste session-state som backend har sparat.
+
+På sessionssidan finns följande delar:
+
+- `Senaste lägesbild`: visar den initiala briefingen direkt vid sessionsstart och därefter senaste narrationen efter varje turn.
 - `Deltagaråtgärd`: ett fritextfält där användaren beskriver nästa åtgärd i övningen.
-- `Senaste lägesbild`: visar den senaste narrationen och de viktigaste punkterna efter en turn.
-- `Tidslinje`: visar sparade turns i kronologisk ordning.
+- `Aktuell session`: visar det senaste session-state som backend har sparat.
+- `Summering av tidslinjen` och `Debriefingunderlag`: visas när scenariot avslutas och används för genomgång med deltagarna.
 
 ## Nuvarande beteende och begränsningar för en användare
 

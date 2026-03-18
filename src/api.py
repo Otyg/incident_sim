@@ -49,12 +49,15 @@ from src.logging_utils import configure_logging, get_logger
 from src.models.scenario import Audience, Scenario
 from src.models.session import SessionMetrics, SessionState
 from src.models.turn import Turn
+from src.schemas.debrief_response import DebriefResponse
+from src.schemas.narrator_response import NarratorResponse
 from src.services.llm_provider import (
     LLMProviderError,
     ProviderConfigurationError,
     ProviderOutputValidationError,
     ProviderUpstreamError,
     get_llm_provider,
+    validate_debrief,
     validate_interpreted_action,
     validate_narration,
 )
@@ -97,6 +100,20 @@ class TurnRequest(BaseModel):
     """
 
     participant_input: str = Field(min_length=3)
+
+
+class CreateSessionResponse(BaseModel):
+    """Response body for session creation plus initial narration."""
+
+    session_state: SessionState
+    initial_narration: NarratorResponse
+
+
+class CompleteSessionResponse(BaseModel):
+    """Response body for session completion and debrief material."""
+
+    session_state: SessionState
+    debrief: DebriefResponse
 
 
 def build_session_state(
@@ -242,15 +259,16 @@ async def get_scenario(scenario_id: str) -> Scenario:
     return scenario
 
 
-@app.post("/sessions", response_model=SessionState)
-async def create_session(request: CreateSessionRequest) -> SessionState:
+@app.post("/sessions", response_model=CreateSessionResponse)
+async def create_session(request: CreateSessionRequest) -> CreateSessionResponse:
     """Start a new session from a stored scenario.
 
     Args:
         request: Session creation payload containing scenario and audience.
 
     Returns:
-        SessionState: Persisted initial session state.
+        CreateSessionResponse: Persisted initial session state together with the
+            first narration shown to the facilitator.
 
     Raises:
         HTTPException: If the referenced scenario does not exist.
@@ -272,7 +290,45 @@ async def create_session(request: CreateSessionRequest) -> SessionState:
         scenario.id,
         request.audience,
     )
-    return session_repository.save(state)
+
+    try:
+        provider = get_llm_provider()
+        logger.info(
+            "Generating initial narration session_id=%s provider=%s",
+            session_id,
+            provider.__class__.__name__,
+        )
+        initial_narration = validate_narration(provider.generate_narration(state))
+        session_repository.save(state)
+        logger.info("Session initialized with initial narration session_id=%s", session_id)
+        return CreateSessionResponse(
+            session_state=state,
+            initial_narration=initial_narration,
+        )
+    except ProviderOutputValidationError as exc:
+        logger.warning(
+            "Initial narration validation failed session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        logger.warning(
+            "Provider configuration error during session creation session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        logger.error(
+            "Provider runtime error during session creation session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/sessions/{session_id}", response_model=SessionState)
@@ -331,6 +387,80 @@ async def get_timeline(session_id: str) -> list[Turn]:
     return timeline
 
 
+@app.post("/sessions/{session_id}/complete", response_model=CompleteSessionResponse)
+async def complete_session(session_id: str) -> CompleteSessionResponse:
+    """Mark a session as completed and generate a debrief package."""
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Session completion failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    timeline = session_repository.get_timeline(session_id)
+    if not timeline:
+        logger.warning(
+            "Session completion failed because timeline was empty session_id=%s",
+            session_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Session must contain at least one turn before it can be completed",
+        )
+
+    scenario = scenario_repository.get(state.scenario_id)
+    if not scenario:
+        logger.error(
+            "Session completion failed because scenario was missing session_id=%s scenario_id=%s",
+            session_id,
+            state.scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    completed_state = state.model_copy(update={"status": "completed"})
+
+    try:
+        provider = get_llm_provider()
+        logger.info(
+            "Generating session debrief session_id=%s provider=%s turn_count=%s",
+            session_id,
+            provider.__class__.__name__,
+            len(timeline),
+        )
+        debrief = validate_debrief(
+            provider.generate_debrief(scenario, completed_state, timeline)
+        )
+        session_repository.save(completed_state)
+        logger.info("Session completed session_id=%s", session_id)
+        return CompleteSessionResponse(session_state=completed_state, debrief=debrief)
+    except ProviderOutputValidationError as exc:
+        logger.warning(
+            "Debrief validation failed session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        logger.warning(
+            "Provider configuration error during session completion session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        logger.error(
+            "Provider runtime error during session completion session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @app.post("/sessions/{session_id}/turns", response_model=Turn)
 async def post_turn(
     session_id: str,
@@ -371,6 +501,16 @@ async def post_turn(
                 session_id,
             )
             raise HTTPException(status_code=404, detail="Session not found")
+        if state.status != "active":
+            logger.warning(
+                "Turn request rejected because session was not active session_id=%s status=%s",
+                session_id,
+                state.status,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Session is not active and cannot accept additional turns",
+            )
 
         engine = RulesEngine()
         provider = get_llm_provider()
