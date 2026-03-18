@@ -336,8 +336,19 @@
             ].filter((phase, index, items) => phase && items.indexOf(phase) === index)
           : [];
         const availableManualInjects = scenario?.inject_catalog || [];
-        const selectedManualInject =
-          availableManualInjects.find((item) => item.id === selectedManualInjectId) || null;
+        const activeInjectDetails = session
+          ? session.active_injects.map((injectId) => {
+              const definition = availableManualInjects.find((item) => item.id === injectId);
+              return (
+                definition || {
+                  id: injectId,
+                  title: injectId,
+                  type: "okand",
+                  description: "Ingen inject-beskrivning hittades i scenariots katalog.",
+                }
+              );
+            })
+          : [];
 
         const getPreferredManualInjectId = (scenarioState, sessionState) => {
           const injects = scenarioState?.inject_catalog || [];
@@ -859,7 +870,7 @@
               </article>
 
               <article className="panel">
-                <h2>Deltagaråtgärd</h2>
+                <h2>Deltagaråtgärd och kontrollpanel</h2>
                 <form onSubmit={submitTurn}>
                   <textarea
                     value={participantInput}
@@ -876,6 +887,74 @@
                     </button>
                   </div>
                 </form>
+                {session && (
+                  <div className="stack" style={{ marginTop: "16px" }}>
+                    {availableScenarioPhases.length > 1 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt fasbyte</div>
+                          <select
+                            value={selectedManualPhase || session.phase}
+                            onChange={(event) => setSelectedManualPhase(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableScenarioPhases.map((phase) => (
+                              <option key={phase} value={phase}>
+                                {phase}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={changePhaseManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualPhase ||
+                              selectedManualPhase === session.phase
+                            }
+                          >
+                            Byt fas
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {availableManualInjects.length > 0 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt inject</div>
+                          <select
+                            value={selectedManualInjectId}
+                            onChange={(event) => setSelectedManualInjectId(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableManualInjects.map((inject) => (
+                              <option key={inject.id} value={inject.id}>
+                                {inject.title} ({inject.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={triggerInjectManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualInjectId ||
+                              session.active_injects.includes(selectedManualInjectId)
+                            }
+                          >
+                            Trigga inject
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {session?.status === "completed" && (
                   <div className="small">
                     Sessionen är avslutad. Nya deltagaråtgärder kan inte längre skickas.
@@ -905,74 +984,28 @@
                 ) : (
                   <div className="small">Ingen aktiv session ännu.</div>
                 )}
-                {session && availableScenarioPhases.length > 1 && (
-                  <div className="stack" style={{ marginTop: "16px" }}>
-                    <div>
-                      <div className="small">Manuellt fasbyte</div>
-                      <select
-                        value={selectedManualPhase || session.phase}
-                        onChange={(event) => setSelectedManualPhase(event.target.value)}
-                        disabled={loading || session.status !== "active"}
-                      >
-                        {availableScenarioPhases.map((phase) => (
-                          <option key={phase} value={phase}>
-                            {phase}
-                          </option>
-                        ))}
-                      </select>
+              </article>
+
+              <article className="panel">
+                <h2>Aktiva injects</h2>
+                {session ? (
+                  activeInjectDetails.length > 0 ? (
+                    <div className="list">
+                      {activeInjectDetails.map((inject) => (
+                        <div key={inject.id} className="timeline-item">
+                          <strong>{inject.title}</strong>
+                          <div className="small">{inject.type} · {inject.id}</div>
+                          <div>{inject.description}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        onClick={changePhaseManually}
-                        disabled={
-                          loading ||
-                          session.status !== "active" ||
-                          !selectedManualPhase ||
-                          selectedManualPhase === session.phase
-                        }
-                      >
-                        Byt fas
-                      </button>
+                  ) : (
+                    <div className="small">
+                      Inga aktiva injects just nu.
                     </div>
-                  </div>
-                )}
-                {session && availableManualInjects.length > 0 && (
-                  <div className="stack" style={{ marginTop: "16px" }}>
-                    <div>
-                      <div className="small">Manuellt inject</div>
-                      <select
-                        value={selectedManualInjectId}
-                        onChange={(event) => setSelectedManualInjectId(event.target.value)}
-                        disabled={loading || session.status !== "active"}
-                      >
-                        {availableManualInjects.map((inject) => (
-                          <option key={inject.id} value={inject.id}>
-                            {inject.title} ({inject.type})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {selectedManualInject && (
-                      <div className="small">
-                        {selectedManualInject.description}
-                      </div>
-                    )}
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        onClick={triggerInjectManually}
-                        disabled={
-                          loading ||
-                          session.status !== "active" ||
-                          !selectedManualInjectId ||
-                          session.active_injects.includes(selectedManualInjectId)
-                        }
-                      >
-                        Trigga inject
-                      </button>
-                    </div>
-                  </div>
+                  )
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
                 )}
               </article>
             </section>
