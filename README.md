@@ -1,4 +1,4 @@
-# Incident Exercise Prototype
+# Incident Exercise Support
 
 En liten FastAPI-prototyp för scenario- och incidentövning med:
 - validerade scenario-, session- och turnmodeller
