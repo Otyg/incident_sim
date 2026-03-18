@@ -59,7 +59,7 @@ from src.schemas.interpreted_action import InterpretedAction
 from src.schemas.narrator_response import NarratorResponse
 
 
-PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
+PROMPTS_DIR = Path(__file__).resolve().parents[2] / "data" / "prompts"
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
 
 

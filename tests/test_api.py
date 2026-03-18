@@ -82,6 +82,16 @@ def sample_scenario_payload():
     }
 
 
+def test_get_default_sample_scenario():
+    status, body = request_json("GET", "/sample-scenarios/default")
+
+    assert status == 200
+    assert body["id"] == "scenario-municipality-ransomware-001"
+    assert body["difficulty"] == "high"
+    assert "kommunikation" in body["audiences"]
+    assert len(body["inject_catalog"]) >= 2
+
+
 def test_create_and_get_scenario():
     scenario = sample_scenario_payload()
 

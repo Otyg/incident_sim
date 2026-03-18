@@ -38,6 +38,7 @@ timeline retrieval and turn processing through the rules engine and LLM
 provider layer.
 """
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -61,6 +62,12 @@ from src.storage.factory import create_storage_repositories
 
 app = FastAPI(title="Incident Exercise Prototype")
 FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+SAMPLE_SCENARIO_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "scenarios"
+    / "municipality_ransomware.json"
+)
 
 scenario_repository, session_repository = create_storage_repositories()
 
@@ -123,6 +130,19 @@ def build_session_state(
     )
 
 
+def load_sample_scenario() -> Scenario:
+    """Load the bundled GUI scenario from disk.
+
+    Returns:
+        Scenario: Validated sample scenario used for test driving the GUI.
+    """
+
+    with SAMPLE_SCENARIO_PATH.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    return Scenario.model_validate(payload)
+
+
 @app.get("/health")
 async def health() -> dict:
     """Return a simple liveness response for backend health checks.
@@ -147,6 +167,17 @@ async def frontend() -> FileResponse:
     """
 
     return FileResponse(FRONTEND_INDEX)
+
+
+@app.get("/sample-scenarios/default", response_model=Scenario)
+async def get_default_sample_scenario() -> Scenario:
+    """Return the bundled sample scenario used by the browser client.
+
+    Returns:
+        Scenario: Default GUI scenario.
+    """
+
+    return load_sample_scenario()
 
 
 @app.post("/scenarios", response_model=Scenario)
