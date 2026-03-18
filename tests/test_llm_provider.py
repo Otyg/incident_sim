@@ -9,6 +9,7 @@ from src.services.llm_provider import (
     ProviderConfigurationError,
     ProviderOutputValidationError,
     ProviderResponseFormatError,
+    ProviderUpstreamError,
     get_llm_provider,
     load_llm_config,
     validate_interpreted_action,
@@ -211,6 +212,54 @@ def test_ollama_provider_raises_for_non_json_content(monkeypatch):
 
     with pytest.raises(ProviderResponseFormatError):
         OllamaProvider({"model": "llama3.2"}).interpret_action("Vi samlar teamet.")
+
+
+def test_ollama_provider_marks_500_errors_as_retryable(monkeypatch):
+    class FakeUpstreamError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.status_code = status_code
+
+    class FakeClient:
+        def chat(self, *, model, messages):
+            raise FakeUpstreamError("internal error", 500)
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    with pytest.raises(ProviderUpstreamError) as exc_info:
+        OllamaProvider({"model": "llama3.2"}).interpret_action("Vi samlar teamet.")
+
+    assert exc_info.value.retryable is True
+    assert exc_info.value.upstream_status_code == 500
+    assert exc_info.value.provider_stage == "interpret_action"
+
+
+def test_ollama_provider_marks_404_errors_as_non_retryable(monkeypatch):
+    class FakeUpstreamError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.status_code = status_code
+
+    class FakeClient:
+        def chat(self, *, model, messages):
+            raise FakeUpstreamError("not found", 404)
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    with pytest.raises(ProviderUpstreamError) as exc_info:
+        OllamaProvider({"model": "llama3.2"}).generate_narration(make_state())
+
+    assert exc_info.value.retryable is False
+    assert exc_info.value.upstream_status_code == 404
+    assert exc_info.value.provider_stage == "generate_narration"
 
 
 def test_load_llm_config_reads_provider_section(monkeypatch):

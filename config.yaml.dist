@@ -10,6 +10,12 @@ storage:
     # Sökväg till JSON-filen där TinyDB lagrar scenarier, sessioner och tidslinje.
     path: data/incident_sim.json
 
+logging:
+  # Om detta fält utelämnas skrivs info till stdout och warning/error till stderr.
+  # Sätt en fil för att skriva alla loggar till fil. Warning/error fortsätter då
+  # även till stderr för att blockerande och hanterade fel ska synas direkt.
+  file: null
+
 llm_provider:
   # Väljer vilken runtime-provider som ska användas för interpretation och narration.
   # Stödda värden just nu: `ollama`, `openai`

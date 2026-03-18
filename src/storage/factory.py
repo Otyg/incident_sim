@@ -37,11 +37,17 @@ from typing import Any
 
 import yaml
 
+from src.logging_utils import get_logger
 from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
-from src.storage.tinydb_json import TinyDBScenarioRepository, TinyDBSessionRepository
+from src.storage.tinydb_json import (
+    DEFAULT_DB_PATH,
+    TinyDBScenarioRepository,
+    TinyDBSessionRepository,
+)
 
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
+logger = get_logger(__name__)
 
 
 class StorageConfigurationError(Exception):
@@ -65,27 +71,36 @@ def load_storage_config(path: Path | None = None) -> dict[str, Any]:
 
     config_path = path or CONFIG_PATH
     if not config_path.exists():
+        logger.error("Storage configuration file was not found: %s", config_path)
         raise StorageConfigurationError(f"Configuration file not found: {config_path}")
 
     try:
         with config_path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
     except yaml.YAMLError as exc:
+        logger.error(
+            "Failed to parse storage configuration from %s",
+            config_path,
+            exc_info=True,
+        )
         raise StorageConfigurationError(
             f"Invalid YAML configuration in {config_path}"
         ) from exc
 
     if not isinstance(data, dict):
+        logger.error("Storage configuration root was not a mapping in %s", config_path)
         raise StorageConfigurationError(
             f"Configuration root must be a mapping in {config_path}"
         )
 
     storage_config = data.get("storage")
     if not isinstance(storage_config, dict):
+        logger.error("Missing or invalid storage section in %s", config_path)
         raise StorageConfigurationError(
             "Missing or invalid storage section in config.yaml"
         )
 
+    logger.info("Loaded storage configuration from %s", config_path)
     return storage_config
 
 
@@ -103,11 +118,13 @@ def create_storage_repositories() -> tuple[object, object]:
     backend = str(storage_config.get("backend") or "tinydb").lower()
 
     if backend == "in_memory":
+        logger.info("Initializing storage repositories with backend=in_memory")
         return InMemoryScenarioRepository(), InMemorySessionRepository()
 
     if backend == "tinydb":
         tinydb_config = storage_config.get("tinydb")
         if tinydb_config is not None and not isinstance(tinydb_config, dict):
+            logger.error("Invalid storage.tinydb section in config.yaml")
             raise StorageConfigurationError(
                 "Invalid storage.tinydb section in config.yaml"
             )
@@ -116,6 +133,11 @@ def create_storage_repositories() -> tuple[object, object]:
         if isinstance(tinydb_config, dict) and tinydb_config.get("path"):
             db_path = Path(str(tinydb_config["path"]))
 
+        logger.info(
+            "Initializing storage repositories with backend=tinydb path=%s",
+            db_path or DEFAULT_DB_PATH,
+        )
         return TinyDBScenarioRepository(db_path), TinyDBSessionRepository(db_path)
 
+    logger.error("Unsupported storage backend requested: %s", backend)
     raise StorageConfigurationError(f"Unsupported storage backend: {backend}")

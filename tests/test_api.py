@@ -4,7 +4,7 @@ import json
 
 from src import api as api_module
 from src.main import app
-from src.services.llm_provider import OpenAIProvider
+from src.services.llm_provider import OpenAIProvider, ProviderUpstreamError
 from tests.mock_llm_provider import MockLLMProvider
 
 
@@ -195,6 +195,152 @@ def test_post_turn_returns_502_for_invalid_provider_output(monkeypatch):
 
     assert status == 502
     assert body["detail"] == "Invalid interpreted action payload"
+
+
+def test_post_turn_returns_retry_metadata_for_retryable_provider_500(monkeypatch):
+    class FlakyProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            raise ProviderUpstreamError(
+                "Ollama request failed during interpret_action with upstream status 500: upstream failure",
+                provider_stage="interpret_action",
+                upstream_status_code=500,
+                retryable=True,
+            )
+
+        def generate_narration(self, state) -> dict:
+            return {}
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 502
+    assert body["error_code"] == "llm_provider_retryable_failure"
+    assert body["retryable"] is True
+    assert body["retry_after_seconds"] == 2
+    assert body["attempt"] == 1
+    assert body["max_attempts"] == 5
+    assert body["provider_stage"] == "interpret_action"
+    assert body["upstream_status_code"] == 500
+
+
+def test_post_turn_returns_retry_metadata_for_retryable_provider_503(monkeypatch):
+    class FlakyProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            return MockLLMProvider().interpret_action(participant_input)
+
+        def generate_narration(self, state) -> dict:
+            raise ProviderUpstreamError(
+                "Ollama request failed during generate_narration with upstream status 503: service unavailable",
+                provider_stage="generate_narration",
+                upstream_status_code=503,
+                retryable=True,
+            )
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 502
+    assert body["error_code"] == "llm_provider_retryable_failure"
+    assert body["retryable"] is True
+    assert body["provider_stage"] == "generate_narration"
+    assert body["upstream_status_code"] == 503
+
+
+def test_post_turn_returns_retry_metadata_for_retryable_provider_504(monkeypatch):
+    class FlakyProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            raise ProviderUpstreamError(
+                "Ollama request failed during interpret_action with upstream status 504: gateway timeout",
+                provider_stage="interpret_action",
+                upstream_status_code=504,
+                retryable=True,
+            )
+
+        def generate_narration(self, state) -> dict:
+            return {}
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FlakyProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 502
+    assert body["error_code"] == "llm_provider_retryable_failure"
+    assert body["retryable"] is True
+    assert body["upstream_status_code"] == 504
+
+
+def test_post_turn_returns_non_retryable_metadata_for_provider_400(monkeypatch):
+    class ClientErrorProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            raise ProviderUpstreamError(
+                "Ollama request failed during interpret_action with upstream status 400: bad request",
+                provider_stage="interpret_action",
+                upstream_status_code=400,
+                retryable=False,
+            )
+
+        def generate_narration(self, state) -> dict:
+            return {}
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: ClientErrorProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 502
+    assert body["error_code"] == "llm_provider_upstream_failure"
+    assert body["retryable"] is False
+    assert body["retry_after_seconds"] is None
+    assert body["upstream_status_code"] == 400
 
 
 def test_get_timeline_returns_turns_in_order(monkeypatch):
