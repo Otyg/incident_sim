@@ -35,7 +35,12 @@
 from copy import deepcopy
 
 from src.logging_utils import get_logger
-from src.models.scenario import ExecutableRule, Scenario, ScenarioRuleEffect
+from src.models.scenario import (
+    ExecutableRule,
+    Scenario,
+    ScenarioRuleEffect,
+    ScenarioStateDefinition,
+)
 from src.models.session import ExerciseLogItem, SessionState
 from src.schemas.interpreted_action import InterpretedAction
 
@@ -52,6 +57,52 @@ class ScenarioEngine:
         """Return stable scenario phase ids derived from initial state and rules."""
 
         return [state.phase for state in scenario.states]
+
+    @staticmethod
+    def get_state_definition(
+        scenario: Scenario, phase: str
+    ) -> ScenarioStateDefinition | None:
+        """Return the configured scenario state for a phase if it exists."""
+
+        return next((state for state in scenario.states if state.phase == phase), None)
+
+    @staticmethod
+    def is_full_state_definition(state_definition: ScenarioStateDefinition) -> bool:
+        """Return whether a scenario state is complete enough to act as a full state."""
+
+        return (
+            state_definition.time is not None
+            and state_definition.impact_level is not None
+            and state_definition.narration is not None
+        )
+
+    @staticmethod
+    def apply_state_definition(
+        state: SessionState, state_definition: ScenarioStateDefinition
+    ) -> SessionState:
+        """Overlay a scenario state definition onto a live session state.
+
+        Only fields explicitly present in the scenario definition are applied so
+        metadata-only states can safely omit optional keys.
+        """
+
+        updated = state.model_copy(deep=True)
+        updated.phase = state_definition.phase
+
+        if state_definition.time is not None:
+            updated.current_time = state_definition.time
+        if state_definition.known_facts is not None:
+            updated.known_facts = list(state_definition.known_facts)
+        if state_definition.unknowns is not None:
+            updated.unknowns = list(state_definition.unknowns)
+        if state_definition.affected_systems is not None:
+            updated.affected_systems = list(state_definition.affected_systems)
+        if state_definition.business_impact is not None:
+            updated.business_impact = list(state_definition.business_impact)
+        if state_definition.impact_level is not None:
+            updated.metrics.impact_level = state_definition.impact_level
+
+        return updated
 
     @staticmethod
     def _get_fact_value(

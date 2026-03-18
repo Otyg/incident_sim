@@ -156,6 +156,8 @@ def build_session_state(
         phase=initial_state.phase,
         known_facts=list(initial_state.known_facts or []),
         unknowns=list(initial_state.unknowns or []),
+        affected_systems=list(initial_state.affected_systems or []),
+        business_impact=list(initial_state.business_impact or []),
         metrics=SessionMetrics(
             impact_level=initial_state.impact_level or 1,
             media_pressure=0,
@@ -168,16 +170,14 @@ def build_session_state(
     )
 
 
-def resolve_initial_narration(
-    scenario: Scenario, audience: Audience
+def resolve_state_narration(
+    state_definition: "ScenarioStateDefinition", audience: Audience
 ) -> NarratorResponse:
-    """Resolve the scenario-authored initial narration for the selected audience."""
+    """Resolve scenario-authored narration for a specific state and audience."""
 
-    configured = scenario.states[0].narration
+    configured = state_definition.narration
     if configured is None:
-        raise ValueError(
-            f"Scenario {scenario.id} is missing narration for initial state"
-        )
+        raise ValueError(f"Scenario state {state_definition.id} is missing narration")
 
     audience_specific = configured.by_audience.get(audience)
     if audience_specific:
@@ -187,8 +187,16 @@ def resolve_initial_narration(
         return configured.default
 
     raise ValueError(
-        f"Scenario {scenario.id} is missing initial narration for audience {audience}"
+        f"Scenario state {state_definition.id} is missing narration for audience {audience}"
     )
+
+
+def resolve_initial_narration(
+    scenario: Scenario, audience: Audience
+) -> NarratorResponse:
+    """Resolve the scenario-authored initial narration for the selected audience."""
+
+    return resolve_state_narration(scenario.states[0], audience)
 
 
 def load_sample_scenario() -> Scenario:
@@ -440,7 +448,18 @@ async def update_session_phase(
 
     updated = state.model_copy(deep=True)
     previous_phase = updated.phase
-    updated.phase = request.phase
+    target_state = scenario_engine.get_state_definition(scenario, request.phase)
+    if target_state is None:
+        logger.error(
+            "Manual phase change failed because phase definition lookup returned nothing session_id=%s phase=%s",
+            session_id,
+            request.phase,
+        )
+        raise HTTPException(
+            status_code=400, detail="Phase is not defined in the scenario"
+        )
+
+    updated = scenario_engine.apply_state_definition(updated, target_state)
     updated.exercise_log.append(
         ExerciseLogItem(
             turn=updated.turn_number,
@@ -734,6 +753,15 @@ async def post_turn(
             interpreted,
             request.participant_input,
         )
+        activated_state = None
+        if updated.phase != state.phase:
+            activated_state = scenario_engine.get_state_definition(
+                scenario, updated.phase
+            )
+            if activated_state is not None:
+                updated = scenario_engine.apply_state_definition(
+                    updated, activated_state
+                )
         logger.info(
             "Rules engine updated state session_id=%s new_turn=%s impact_level=%s media_pressure=%s service_disruption=%s",
             session_id,
@@ -743,7 +771,20 @@ async def post_turn(
             updated.metrics.service_disruption,
         )
 
-        response = validate_narration(provider.generate_narration(updated))
+        if activated_state and scenario_engine.is_full_state_definition(
+            activated_state
+        ):
+            response = validate_narration(
+                resolve_state_narration(activated_state, updated.audience).model_dump()
+            )
+            logger.info(
+                "Narration resolved from scenario-authored state session_id=%s state_id=%s phase=%s",
+                session_id,
+                activated_state.id,
+                activated_state.phase,
+            )
+        else:
+            response = validate_narration(provider.generate_narration(updated))
         logger.info(
             "Narration generated session_id=%s key_points=%s inject_count=%s",
             session_id,

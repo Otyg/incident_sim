@@ -109,6 +109,14 @@ def sample_scenario_payload():
 
 def datadriven_scenario_payload():
     payload = sample_scenario_payload()
+    payload["states"][1].update(
+        {
+            "known_facts": ["Extern åtkomst har begränsats."],
+            "unknowns": ["Om angriparen har alternativ åtkomst."],
+            "affected_systems": ["VPN", "Federerade inloggningar"],
+            "business_impact": ["Extern serviceleverans påverkas."],
+        }
+    )
     payload["inject_catalog"] = [
         {
             "id": "inject-media-001",
@@ -363,6 +371,148 @@ def test_post_turn_applies_datadriven_phase_change(monkeypatch):
 
     assert status == 200
     assert body["state_snapshot"]["phase"] == "containment"
+    assert body["state_snapshot"]["affected_systems"] == [
+        "VPN",
+        "Federerade inloggningar",
+    ]
+    assert (
+        "Berorda system: VPN, Federerade inloggningar."
+        in body["narrator_response"]["key_points"]
+    )
+
+
+def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
+    class NarrationMustNotBeGeneratedProvider(MockLLMProvider):
+        def generate_narration(self, state):  # pragma: no cover - defensive
+            raise AssertionError(
+                "generate_narration should not be called for full scenario states"
+            )
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: NarrationMustNotBeGeneratedProvider(),
+    )
+    scenario = sample_scenario_payload()
+    scenario["states"].append(
+        {
+            "id": "state-escalation",
+            "phase": "escalation",
+            "title": "Escalation",
+            "description": "Laget har eskalerat och kraver tydliga ledningsbeslut.",
+            "time": "08:45",
+            "known_facts": ["Skadan ar mer omfattande an tidigare antaget."],
+            "unknowns": [
+                "Om angriparen fortfarande har kontroll over centrala system."
+            ],
+            "affected_systems": ["AD", "Fildelning"],
+            "business_impact": ["Fler verksamheter far tydlig driftstorning."],
+            "impact_level": 4,
+            "narration": {
+                "default": {
+                    "situation_update": "Laget har eskalerat och tydliga tecken pa spridning mellan centrala miljoer har nu konstaterats.",
+                    "key_points": [
+                        "Ledningen behover fatta samordnade beslut om prioriteringar.",
+                        "Teknisk och verksamhetsmassig paverkan okar samtidigt.",
+                    ],
+                    "new_consequences": [
+                        "Fler beroenden mellan verksamheter borjar ge foljdeffekter."
+                    ],
+                    "injects": [],
+                    "decisions_to_consider": [
+                        "Behovs ytterligare eskalering till kommunledningen nu?"
+                    ],
+                    "facilitator_notes": "Detta narrativ ar forfattat direkt i scenario state-escalation.",
+                }
+            },
+        }
+    )
+    scenario["executable_rules"] = [
+        {
+            "id": "rule-phase-escalation",
+            "name": "Byt till escalation vid eskalering till ledning",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.executive_escalation",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "escalation"}],
+            "priority": "high",
+            "once": True,
+        }
+    ]
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi eskalerar till ledningen och kallar in it-chef."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "escalation"
+    assert body["state_snapshot"]["current_time"] == "08:45"
+    assert body["state_snapshot"]["known_facts"] == [
+        "Skadan ar mer omfattande an tidigare antaget."
+    ]
+    assert body["narrator_response"]["situation_update"] == (
+        "Laget har eskalerat och tydliga tecken pa spridning mellan centrala miljoer har nu konstaterats."
+    )
+
+
+def test_post_turn_handles_partial_state_without_optional_runtime_fields(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    scenario["states"].append(
+        {
+            "id": "state-recovery",
+            "phase": "recovery",
+            "title": "Recovery",
+            "description": "Aterhamtning pagar men state saknar frivilliga runtime-falt.",
+        }
+    )
+    scenario["executable_rules"] = [
+        {
+            "id": "rule-phase-recovery",
+            "name": "Byt till recovery efter analys",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.forensic_analysis_started",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "recovery"}],
+            "priority": "high",
+            "once": True,
+        }
+    ]
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi startar forensisk analys omgaende."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "recovery"
+    assert body["state_snapshot"]["affected_systems"] == ["AD"]
+    assert body["narrator_response"]["key_points"]
 
 
 def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
@@ -382,6 +532,7 @@ def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
 
     assert status == 200
     assert body["phase"] == "containment"
+    assert body["affected_systems"] == ["VPN", "Federerade inloggningar"]
     assert any(
         item["text"] == "Manuellt fasbyte: initial-detection -> containment"
         for item in body["exercise_log"]

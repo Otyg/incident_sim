@@ -89,7 +89,24 @@
       "id": "state-containment",
       "phase": "containment",
       "title": "Containment",
-      "description": "Fokus ligger på att begränsa angriparens åtkomst och minska fortsatt påverkan."
+      "description": "Fokus ligger på att begränsa angriparens åtkomst och minska fortsatt påverkan.",
+      "known_facts": [
+        "Extern åtkomst har begränsats för att minska angriparens handlingsutrymme",
+        "Störningar i verksamheten ökar när beroenden till externa tjänster påverkas"
+      ],
+      "unknowns": [
+        "Om angriparen redan har etablerat alternativa åtkomstvägar",
+        "Hur länge verksamheten klarar reducerad extern tillgänglighet"
+      ],
+      "affected_systems": [
+        "VPN",
+        "Federerade inloggningar",
+        "Extern åtkomst till verksamhetssystem"
+      ],
+      "business_impact": [
+        "Extern serviceleverans och fjärrarbete påverkas direkt",
+        "Behovet av prioritering mellan säkerhet och tillgänglighet ökar"
+      ]
     }
   ],
   "actors": [

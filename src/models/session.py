@@ -80,6 +80,8 @@ class SessionState(BaseModel):
     phase: ShortText
     known_facts: List[NonEmptyStr] = Field(default_factory=list)
     unknowns: List[NonEmptyStr] = Field(default_factory=list)
+    affected_systems: List[NonEmptyStr] = Field(default_factory=list)
+    business_impact: List[NonEmptyStr] = Field(default_factory=list)
     participant_actions: List[ParticipantActionLog] = Field(default_factory=list)
     decisions: List[NonEmptyStr] = Field(default_factory=list)
     consequences: List[NonEmptyStr] = Field(default_factory=list)
