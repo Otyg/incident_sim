@@ -17,22 +17,26 @@ llm_provider:
 
   ollama:
     # Base URL för Ollama.
-    # Exempel lokalt: http://localhost:11434
-    # Exempel cloud: https://ollama.com
-    host: http://localhost:11434
+    # För högsta kvalitet i denna applikation rekommenderas Ollama Cloud.
+    host: https://ollama.com
 
     # Standardmodell som används om inga mer specifika modellfält sätts.
-    model: llama3.2
+    # qwen3.5:cloud är ett bra förstaval för svensk text, instruktioner och
+    # strukturerad JSON-output.
+    model: qwen3.5:cloud
 
-    # Valfri modell enbart för tolkning av deltagaråtgärder.
-    interpret_model: llama3.2
+    # Modell för att tolka deltagaråtgärder till strukturerad data.
+    # Här används qwen3.5:cloud eftersom den är stark på instruction following,
+    # språkhantering och schemaföljsam output.
+    interpret_model: qwen3.5:cloud
 
-    # Valfri modell enbart för generering av lägesbild/narration.
-    narration_model: llama3.2
+    # Modell för att generera lägesbild och narration.
+    # Här används glm-5:cloud separat eftersom den är ett starkt val för
+    # resonemang och mer nyanserad narrativ återkoppling.
+    narration_model: glm-5:cloud
 
     # API-nyckel för autentisering mot Ollama Cloud.
-    # Sätt till null om lokal Ollama används utan autentisering.
-    api_key: null
+    api_key: YOUR_OLLAMA_API_KEY
 
   openai:
     # API-nyckel för en framtida OpenAI-provider.
