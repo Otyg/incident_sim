@@ -106,7 +106,31 @@
       "business_impact": [
         "Extern serviceleverans och fjärrarbete påverkas direkt",
         "Behovet av prioritering mellan säkerhet och tillgänglighet ökar"
-      ]
+      ],
+      "narration": {
+        "default": {
+          "situation_update": "Kl. 08:30 har ni gått in i en tydlig containmentfas. Extern åtkomst har begränsats för att minska angriparens handlingsutrymme, men åtgärden skapar omedelbart följdeffekter i verksamheten. Fjärrarbete, externa beroenden och vissa verksamhetssystem påverkas nu samtidigt som den tekniska osäkerheten består. Ni har vunnit viss kontroll över läget, men behöver snabbt avgöra hur länge begränsningarna kan ligga kvar och vilka verksamheter som måste prioriteras.",
+          "key_points": [
+            "Extern åtkomst har begränsats för att minska fortsatt spridning",
+            "Verksamhetspåverkan ökar när externa tjänster och fjärrarbete störs",
+            "Det är fortfarande oklart om angriparen har andra kvarvarande åtkomstvägar",
+            "Behovet av samordning mellan IT, ledning och kommunikation har ökat",
+            "Containmentåtgärderna köper tid men löser ännu inte grundorsaken"
+          ],
+          "new_consequences": [
+            "Externa användare och leverantörer får svårare att nå kommunens system",
+            "Vissa verksamheter behöver tillfälliga manuella arbetssätt"
+          ],
+          "injects": [],
+          "decisions_to_consider": [
+            "Hur länge kan extern åtkomst hållas begränsad utan oacceptabel verksamhetspåverkan?",
+            "Vilka verksamheter eller tjänster måste prioriteras för undantag eller alternativa lösningar?",
+            "Behöver containment kompletteras med fler tekniska isoleringsåtgärder direkt?",
+            "Vilket budskap ska gå ut internt och externt om de nya begränsningarna?"
+          ],
+          "facilitator_notes": "Detta narrativ används när scenariot går in i containment med ett fullständigt scenarioförfattat läge."
+        }
+      }
     }
   ],
   "actors": [
