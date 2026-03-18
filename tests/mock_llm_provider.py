@@ -109,7 +109,8 @@ class MockLLMProvider(LLMProvider):
             "exercise_summary": (
                 f"Ovningen for {scenario.title} avslutades efter {len(timeline)} turns med slutstatus {state.status}."
             ),
-            "timeline_summary": timeline_summary or [
+            "timeline_summary": timeline_summary
+            or [
                 {
                     "turn_number": 1,
                     "summary": "Ingen turn spelades",

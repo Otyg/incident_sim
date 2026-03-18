@@ -300,7 +300,9 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
         )
         initial_narration = validate_narration(provider.generate_narration(state))
         session_repository.save(state)
-        logger.info("Session initialized with initial narration session_id=%s", session_id)
+        logger.info(
+            "Session initialized with initial narration session_id=%s", session_id
+        )
         return CreateSessionResponse(
             session_state=state,
             initial_narration=initial_narration,
