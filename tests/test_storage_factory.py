@@ -15,7 +15,9 @@ def test_load_storage_config_reads_dist_when_default_config_is_missing(monkeypat
 
     def fake_open(self: Path, *args, **kwargs):
         if self == dist_path:
-            return open("/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs)
+            return open(
+                "/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs
+            )
         raise FileNotFoundError(self)
 
     monkeypatch.setattr(Path, "exists", fake_exists)
@@ -26,9 +28,7 @@ def test_load_storage_config_reads_dist_when_default_config_is_missing(monkeypat
     assert storage_config["backend"] == "tinydb"
 
 
-def test_load_storage_config_logs_warning_when_falling_back_to_dist(
-    monkeypatch
-):
+def test_load_storage_config_logs_warning_when_falling_back_to_dist(monkeypatch):
     dist_path = Path("/virtual/config.yaml.dist")
     missing_config_path = Path("/virtual/config.yaml")
     monkeypatch.setattr("src.storage.factory.CONFIG_PATH", missing_config_path)
@@ -40,7 +40,9 @@ def test_load_storage_config_logs_warning_when_falling_back_to_dist(
 
     def fake_open(self: Path, *args, **kwargs):
         if self == dist_path:
-            return open("/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs)
+            return open(
+                "/home/maves/projects/incident_sim/config.yaml.dist", *args, **kwargs
+            )
         raise FileNotFoundError(self)
 
     def fake_warning(message, *args):
