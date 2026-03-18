@@ -46,7 +46,7 @@ Ett typiskt användarflöde ser ut så här:
 
 ## Vad användaren ser i gränssnittet
 
-Gränssnittet består nu av två vyer:
+Gränssnittet består av två vyer:
 
 - `Scenariostart`: innehåller scenariokontroller och scenarioöversikt
 - `Aktiv session`: innehåller senaste lägesbild, deltagaråtgärd och aktuell session
@@ -62,20 +62,6 @@ På sessionssidan finns följande delar:
 - `Deltagaråtgärd`: ett fritextfält där användaren beskriver nästa åtgärd i övningen.
 - `Aktuell session`: visar det senaste session-state som backend har sparat.
 - `Summering av tidslinjen` och `Debriefingunderlag`: visas när scenariot avslutas och används för genomgång med deltagarna.
-
-## Nuvarande beteende och begränsningar för en användare
-
-Det är viktigt att känna till hur den nuvarande versionen fungerar:
-
-- Applikationen använder ett inbyggt exempelscenario i frontend.
-- Sessioner och tidslinje lagras bara i minnet så länge processen kör.
-- Om servern startas om försvinner scenarier, sessioner och turns.
-- Ollama kan användas som faktisk runtime-provider om `config.yaml` pekar på en fungerande lokal eller molnbaserad Ollama-instans.
-- `openai` finns fortfarande bara som stub och kommer därför att ge ett kontrollerat fel om den väljs i konfigurationen.
-
-Det innebär att applikationen redan nu kan köras med ett riktigt providerflöde via Ollama, men att alla alternativa providers ännu inte är fullt implementerade.
-
-Observera att turn-endpointen använder det konfigurerade providerlagret från `config.yaml`. Projektet stöder nu Ollama som runtime-provider, både mot lokal Ollama och Ollama Cloud. `openai` finns fortfarande kvar som stub och returnerar ett kontrollerat fel (`503`) tills en riktig integration implementeras.
 
 ## Tester
 
@@ -126,7 +112,7 @@ För TinyDB kan du konfigurera:
 
 ## Scenarioformat
 
-Scenarioformatet är nu dokumenterat separat:
+Scenarioformatet är dokumenterat separat:
 
 - JSON Schema: [data/scenarios/scenario.schema.json](/home/maves/projects/incident_sim/data/scenarios/scenario.schema.json)
 - Scenarioguide: [data/scenarios/README.md](/home/maves/projects/incident_sim/data/scenarios/README.md)
@@ -136,7 +122,7 @@ Guiden beskriver vad fälten betyder, hur nivåer som `impact_level` och
 
 ## Loggning
 
-Backenden loggar nu händelser i tre nivåer:
+Backenden loggar händelser i tre nivåer:
 - `info`: generell information om vad backend gör
 - `warning`: fel som hanteras och som inte stoppar processen helt
 - `error`: blockerande fel
