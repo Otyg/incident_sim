@@ -54,6 +54,7 @@ from typing import Any
 from pydantic import ValidationError
 import yaml
 
+from src.logging_utils import get_logger
 from src.models.session import SessionState
 from src.schemas.interpreted_action import InterpretedAction
 from src.schemas.narrator_response import NarratorResponse
@@ -61,12 +62,30 @@ from src.schemas.narrator_response import NarratorResponse
 
 PROMPTS_DIR = Path(__file__).resolve().parents[2] / "data" / "prompts"
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
+logger = get_logger(__name__)
 
 
 class LLMProviderError(Exception):
     """Base exception for provider-related failures."""
 
     pass
+
+
+class ProviderUpstreamError(LLMProviderError):
+    """Raised when an upstream LLM provider request fails."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider_stage: str,
+        upstream_status_code: int | None = None,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.provider_stage = provider_stage
+        self.upstream_status_code = upstream_status_code
+        self.retryable = retryable
 
 
 class ProviderOutputValidationError(LLMProviderError):
@@ -161,21 +180,29 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     config_path = path or CONFIG_PATH
 
     if not config_path.exists():
+        logger.error("LLM configuration file was not found: %s", config_path)
         raise ProviderConfigurationError(f"Configuration file not found: {config_path}")
 
     try:
         with config_path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
     except yaml.YAMLError as exc:
+        logger.error(
+            "Failed to parse LLM configuration from %s",
+            config_path,
+            exc_info=True,
+        )
         raise ProviderConfigurationError(
             f"Invalid YAML configuration in {config_path}"
         ) from exc
 
     if not isinstance(data, dict):
+        logger.error("LLM configuration root was not a mapping in %s", config_path)
         raise ProviderConfigurationError(
             f"Configuration root must be a mapping in {config_path}"
         )
 
+    logger.info("Loaded application configuration from %s", config_path)
     return data
 
 
@@ -201,10 +228,12 @@ def load_llm_config(path: Path | None = None) -> dict[str, Any]:
     llm_config = data.get("llm_provider")
 
     if not isinstance(llm_config, dict):
+        logger.error("Missing or invalid llm_provider section in config.yaml")
         raise ProviderConfigurationError(
             "Missing or invalid llm_provider section in config.yaml"
         )
 
+    logger.info("Loaded llm_provider configuration")
     return llm_config
 
 
@@ -225,6 +254,11 @@ def validate_interpreted_action(payload: dict[str, Any]) -> InterpretedAction:
     try:
         return InterpretedAction.model_validate(payload)
     except ValidationError as exc:
+        logger.warning(
+            "Provider output did not validate as interpreted action: %s",
+            payload,
+            exc_info=True,
+        )
         raise ProviderOutputValidationError(
             "Invalid interpreted action payload"
         ) from exc
@@ -247,6 +281,11 @@ def validate_narration(payload: dict[str, Any]) -> NarratorResponse:
     try:
         return NarratorResponse.model_validate(payload)
     except ValidationError as exc:
+        logger.warning(
+            "Provider output did not validate as narration payload: %s",
+            payload,
+            exc_info=True,
+        )
         raise ProviderOutputValidationError("Invalid narration payload") from exc
 
 
@@ -278,6 +317,12 @@ class OllamaProvider(LLMProvider):
         self.narration_model = str(config.get("narration_model") or self.default_model)
         self.api_key = config.get("api_key")
         self.client = self._create_client(self.host, self._build_headers())
+        logger.info(
+            "Initialized OllamaProvider host=%s interpret_model=%s narration_model=%s",
+            self.host,
+            self.interpret_model,
+            self.narration_model,
+        )
 
     @staticmethod
     def _create_client(host: str, headers: dict[str, str] | None):
@@ -367,8 +412,56 @@ class OllamaProvider(LLMProvider):
 
         return parsed
 
+    @staticmethod
+    def _extract_status_code(exc: Exception) -> int | None:
+        """Best-effort extraction of an HTTP status code from a client exception."""
+
+        for attribute in ("status_code", "status", "code"):
+            value = getattr(exc, attribute, None)
+            if isinstance(value, int):
+                return value
+
+        response = getattr(exc, "response", None)
+        if response is not None:
+            for attribute in ("status_code", "status"):
+                value = getattr(response, attribute, None)
+                if isinstance(value, int):
+                    return value
+
+        return None
+
+    @classmethod
+    def _build_upstream_error(
+        cls, exc: Exception, *, model: str, provider_stage: str
+    ) -> ProviderUpstreamError:
+        """Normalize Ollama client failures into a structured upstream error."""
+
+        status_code = cls._extract_status_code(exc)
+        retryable = status_code is not None and 500 <= status_code <= 599
+        message = f"Ollama request failed during {provider_stage}: {exc}"
+        if status_code is not None:
+            message = (
+                f"Ollama request failed during {provider_stage} "
+                f"with upstream status {status_code}: {exc}"
+            )
+
+        logger.warning(
+            "Ollama request failed model=%s stage=%s upstream_status=%s retryable=%s",
+            model,
+            provider_stage,
+            status_code,
+            retryable,
+            exc_info=True,
+        )
+        return ProviderUpstreamError(
+            message,
+            provider_stage=provider_stage,
+            upstream_status_code=status_code,
+            retryable=retryable,
+        )
+
     def _chat_json(
-        self, model: str, system_prompt: str, user_prompt: str
+        self, model: str, system_prompt: str, user_prompt: str, provider_stage: str
     ) -> dict[str, Any]:
         """Send a chat request and parse the returned JSON object.
 
@@ -394,8 +487,15 @@ class OllamaProvider(LLMProvider):
                 ],
             )
         except Exception as exc:
-            raise LLMProviderError(f"Ollama request failed: {exc}") from exc
+            raise self._build_upstream_error(
+                exc,
+                model=model,
+                provider_stage=provider_stage,
+            ) from exc
 
+        logger.info(
+            "Ollama request completed for model=%s stage=%s", model, provider_stage
+        )
         return self._extract_json_payload(response)
 
     def interpret_action(self, participant_input: str) -> dict[str, Any]:
@@ -433,6 +533,7 @@ class OllamaProvider(LLMProvider):
                 f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
             ),
             user_prompt=f"Deltagaratgard:\n{participant_input}",
+            provider_stage="interpret_action",
         )
 
     def generate_narration(self, state: SessionState) -> dict[str, Any]:
@@ -471,6 +572,7 @@ class OllamaProvider(LLMProvider):
                 f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
             ),
             user_prompt=f"Session state:\n{state.model_dump_json()}",
+            provider_stage="generate_narration",
         )
 
 
@@ -493,6 +595,7 @@ class OpenAIProvider(LLMProvider):
         self.interpret_prompt = load_prompt("interpret_action.txt")
         self.narration_prompt = load_prompt("generate_narration.txt")
         self.config = config or {}
+        logger.info("Initialized OpenAIProvider stub")
 
     def interpret_action(self, participant_input: str) -> dict[str, Any]:
         """Attempt to interpret an action with the OpenAI provider.
@@ -551,17 +654,24 @@ def get_llm_provider() -> LLMProvider:
     if provider_name == "ollama":
         provider_config = llm_config.get("ollama")
         if not isinstance(provider_config, dict):
+            logger.error(
+                "Missing or invalid llm_provider.ollama section in config.yaml"
+            )
             raise ProviderConfigurationError(
                 "Missing or invalid llm_provider.ollama section in config.yaml"
             )
+        logger.info("Selected LLM provider=ollama")
         return OllamaProvider(provider_config)
 
     if provider_name == "openai":
         provider_config = llm_config.get("openai")
         if provider_config is not None and not isinstance(provider_config, dict):
+            logger.error("Invalid llm_provider.openai section in config.yaml")
             raise ProviderConfigurationError(
                 "Invalid llm_provider.openai section in config.yaml"
             )
+        logger.info("Selected LLM provider=openai")
         return OpenAIProvider(provider_config)
 
+    logger.error("Unsupported LLM provider requested: %s", provider_name)
     raise ProviderConfigurationError(f"Unsupported LLM provider: {provider_name}")

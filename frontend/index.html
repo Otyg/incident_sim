@@ -177,6 +177,20 @@
     <div id="root"></div>
     <script type="text/babel">
       const { useEffect, useState } = React;
+      const TURN_RETRY_DELAYS_MS = [2000, 4000, 8000, 16000];
+
+      class ApiError extends Error {
+        constructor(message, { status, body } = {}) {
+          super(message);
+          this.name = "ApiError";
+          this.status = status;
+          this.body = body || null;
+        }
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+      }
 
       async function apiRequest(path, options = {}) {
         const response = await fetch(path, {
@@ -188,7 +202,10 @@
         const body = isJson ? await response.json() : null;
 
         if (!response.ok) {
-          throw new Error(body?.detail || `Request failed: ${response.status}`);
+          throw new ApiError(body?.detail || `Request failed: ${response.status}`, {
+            status: response.status,
+            body,
+          });
         }
 
         return body;
@@ -268,22 +285,73 @@
           event.preventDefault();
           if (!session || !participantInput.trim()) return;
 
+          const submittedInput = participantInput.trim();
+          const maxAttempts = TURN_RETRY_DELAYS_MS.length + 1;
+
           setLoading(true);
           setError("");
           setStatus("Skickar deltagaråtgärd...");
 
           try {
-            const turn = await apiRequest(`/sessions/${session.session_id}/turns`, {
-              method: "POST",
-              body: JSON.stringify({ participant_input: participantInput }),
-            });
+            let turn = null;
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              try {
+                setStatus(
+                  attempt === 1
+                    ? "Skickar deltagaråtgärd..."
+                    : `Försök ${attempt} av ${maxAttempts}: försöker skicka deltagaråtgärden igen...`
+                );
+
+                turn = await apiRequest(`/sessions/${session.session_id}/turns`, {
+                  method: "POST",
+                  headers: {
+                    "X-Retry-Attempt": String(attempt),
+                    "X-Retry-Max-Attempts": String(maxAttempts),
+                  },
+                  body: JSON.stringify({ participant_input: submittedInput }),
+                });
+                break;
+              } catch (err) {
+                const retryable = err instanceof ApiError && err.body?.retryable === true;
+                const hasAttemptsLeft = attempt < maxAttempts;
+
+                if (!retryable || !hasAttemptsLeft) {
+                  throw err;
+                }
+
+                const retryAfterSeconds =
+                  err.body?.retry_after_seconds ||
+                  TURN_RETRY_DELAYS_MS[Math.min(attempt - 1, TURN_RETRY_DELAYS_MS.length - 1)] / 1000;
+                const providerMessage =
+                  err.body?.detail || "LLM-provider svarade med ett serverfel.";
+                setError(providerMessage);
+                setStatus(
+                  `${providerMessage} Nytt försök om ${retryAfterSeconds} sekunder...`
+                );
+                await sleep(retryAfterSeconds * 1000);
+              }
+            }
+
+            if (!turn) {
+              throw new Error("Turn kunde inte sparas efter flera försök.");
+            }
+
             setSession(turn.state_snapshot);
             setLatestNarration(turn.narrator_response);
             setParticipantInput("");
+            setError("");
             setStatus("Turn sparad och lägesbild uppdaterad.");
             await loadTimeline(session.session_id);
           } catch (err) {
-            setError(err.message);
+            if (err instanceof ApiError && err.body?.retryable) {
+              setError(
+                err.body?.detail ||
+                  "LLM-provider svarade fortsatt med serverfel efter alla försök."
+              );
+            } else {
+              setError(err.message);
+            }
             setStatus("");
           } finally {
             setLoading(false);
@@ -363,6 +431,7 @@
                   <textarea
                     value={participantInput}
                     onChange={(event) => setParticipantInput(event.target.value)}
+                    disabled={loading}
                     placeholder="Beskriv nästa åtgärd, till exempel: Vi stänger extern VPN och förbereder ett första uttalande."
                   />
                   <div className="actions">

@@ -114,6 +114,28 @@ För storage gäller just nu:
 För TinyDB kan du konfigurera:
 - `storage.tinydb.path`: sökväg till JSON-filen som ska användas för lagring
 
+## Loggning
+
+Backenden loggar nu händelser i tre nivåer:
+- `info`: generell information om vad backend gör
+- `warning`: fel som hanteras och som inte stoppar processen helt
+- `error`: blockerande fel
+
+Standardbeteendet är:
+- `info` skrivs till `stdout`
+- `warning` och `error` skrivs till `stderr`
+
+Om du vill logga till fil, lägg till detta i `config.yaml`:
+
+```yaml
+logging:
+  file: logs/backend.log
+```
+
+Relativa sökvägar tolkas relativt till katalogen där `config.yaml` ligger.
+När fil-loggning är aktiv skrivs alla nivåer till filen, medan `warning` och
+`error` fortfarande också skrivs till `stderr`.
+
 ## För administratör: så konfigureras LLM-åtkomsten
 
 En administrativ användare behöver i praktiken bara arbeta i `config.yaml`.
