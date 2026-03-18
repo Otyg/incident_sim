@@ -168,7 +168,9 @@ def test_post_turn_returns_basic_turn_response(monkeypatch):
     assert body["turn_number"] == 1
     assert body["participant_input"].startswith("Vi stänger extern VPN")
     assert body["interpreted_action"]["priority"] == "high"
-    assert body["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
+    assert (
+        body["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
+    )
     assert body["narrator_response"]["key_points"]
 
 
@@ -425,7 +427,10 @@ def test_get_timeline_includes_complete_turn_data(monkeypatch):
     assert status == 200
     assert len(body) == 1
     assert body[0]["interpreted_action"]["action_types"]
-    assert body[0]["state_snapshot"]["session_id"] == session["session_state"]["session_id"]
+    assert (
+        body[0]["state_snapshot"]["session_id"]
+        == session["session_state"]["session_id"]
+    )
     assert body[0]["narrator_response"]["facilitator_notes"]
 
 

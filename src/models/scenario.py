@@ -37,6 +37,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
+
 Difficulty = str
 Audience = str
 InjectType = str
@@ -92,9 +93,7 @@ class Background(BaseModel):
 class InitialState(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    time: str = Field(
-        description="Starttid för scenariot, normalt i formatet HH:MM."
-    )
+    time: str = Field(description="Starttid för scenariot, normalt i formatet HH:MM.")
     phase: str = Field(
         description=(
             "Maskinläsbart namn på startfasen, till exempel initial-detection, "
@@ -160,7 +159,7 @@ class InjectDefinition(BaseModel):
     )
     audience_relevance: list[Audience] = Field(
         default_factory=list,
-        description="Vilka målgrupper injectet främst är relevant för."
+        description="Vilka målgrupper injectet främst är relevant för.",
     )
     severity: int = Field(
         description=(
@@ -197,7 +196,7 @@ class PresentationGuideline(BaseModel):
 
     focus: list[str] = Field(
         default_factory=list,
-        description="Vilka aspekter som bör betonas för målgruppen."
+        description="Vilka aspekter som bör betonas för målgruppen.",
     )
     tone: str = Field(
         description="Vilken tonalitet eller nivå presentationen bör ha för målgruppen."
@@ -226,22 +225,17 @@ class Scenario(BaseModel):
     difficulty: Difficulty = Field(
         description="Övergripande svårighetsgrad för scenariot."
     )
-    timebox_minutes: int = Field(
-        description="Planerad maximal övningstid i minuter."
-    )
+    timebox_minutes: int = Field(description="Planerad maximal övningstid i minuter.")
     background: Background = Field(
         description="Bakgrund och grundförutsättningar för scenariot."
     )
-    initial_state: InitialState = Field(
-        description="Vilket läge övningen startar i."
-    )
+    initial_state: InitialState = Field(description="Vilket läge övningen startar i.")
     actors: list[Actor] = Field(
-        default_factory=list,
-        description="Viktiga aktörer eller roller i scenariot."
+        default_factory=list, description="Viktiga aktörer eller roller i scenariot."
     )
     inject_catalog: list[InjectDefinition] = Field(
         default_factory=list,
-        description="Katalog över möjliga injects som kan användas under övningen."
+        description="Katalog över möjliga injects som kan användas under övningen.",
     )
     rules: list[RuleDefinition] = Field(
         default_factory=list,
