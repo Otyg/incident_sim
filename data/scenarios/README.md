@@ -28,6 +28,7 @@ Alla scenariofält valideras och lagras, men backend exekverar inte alla delar d
 Nuvarande läge:
 
 - `initial_state.phase` lagras och visas, men styr inte någon automatisk fasmaskin i backend.
+- `initial_state.initial_narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
 - Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
@@ -197,6 +198,36 @@ Rekommenderad tolkning:
 Exempel:
 
 - `impact_level: 3` betyder ungefär att läget redan är tydligt allvarligt, påverkar flera delar av verksamheten och kräver samordning, men att hela organisationen ännu inte nödvändigtvis står stilla.
+
+### `initial_narration`
+
+Fördefinierat startnarrativ som skickas tillbaka från backend när en session startas.
+
+Detta fält används nu i stället för att generera initial lägesbild via LLM.
+
+Struktur:
+
+- `default`: gemensamt startnarrativ för alla målgrupper
+- `by_audience`: valfria målgruppsspecifika narrativ
+
+Prioritetsregel vid sessionsstart:
+
+- backend använder först `by_audience` för vald målgrupp om den finns
+- annars används `default`
+
+Varje narrativ följer samma struktur som en vanlig narration i API:t:
+
+- `situation_update`
+- `key_points`
+- `new_consequences`
+- `injects`
+- `decisions_to_consider`
+- `facilitator_notes`
+
+Praktiskt råd:
+
+- lägg alltid in ett `default`-narrativ även om ni också använder `by_audience`
+- använd `by_audience` när olika målgrupper ska få olika fokus redan i startläget
 
 ## `actors`
 

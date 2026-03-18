@@ -52,7 +52,28 @@
       "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
       "Kontaktcenter får längre handläggningstider"
     ],
-    "impact_level": 3
+    "impact_level": 3,
+    "initial_narration": {
+      "default": {
+        "situation_update": "Kl. 08:15 har ni en växlande bild av allvarliga IT-störningar. Flera användare kan inte logga in, gemensamma filyter beter sig instabilt och servicedesk får snabbt in många felanmälningar. En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå. Ännu är det oklart om detta är en antagonistisk verksamhet eller naturliga störningar, men tecken pekar mot ett koordinerat angrepp. Ni vet inte om en eventuell angripare fortfarande har aktiv åtkomst eller hur omfattande skadan är.",
+        "key_points": [
+          "Indikation på koordinerad attack mot IT-infrastrukturen",
+          "Servicedesk översvämmas av felanmälningar - personalen är orolig",
+          "Verksamhetschefens rapport tyder på att kritiska funktioner påverkas",
+          "Ingen extern kommunikation har gått ut än",
+          "Ingen teknisk analys har påbörjats"
+        ],
+        "new_consequences": [],
+        "injects": [],
+        "decisions_to_consider": [
+          "Ska extern åtkomst stängas av direkt, och vilka konsekvenser får det?",
+          "Vem ska leda det tekniska arbetet och vem ansvarar för kommunikationen?",
+          "Ska en inledande lägesuppfattning begäras in från IT, och när?",
+          "Hur hanterar vi oron hos verksamhetscheferna?"
+        ],
+        "facilitator_notes": "Detta är scenariots fördefinierade startnarrativ för initial fas."
+      }
+    }
   },
   "actors": [
     {

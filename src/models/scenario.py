@@ -38,6 +38,8 @@ from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
 
+from src.schemas.narrator_response import NarratorResponse
+
 Difficulty = str
 Audience = str
 InjectType = str
@@ -93,6 +95,28 @@ class Background(BaseModel):
 class InitialState(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    class InitialNarrationConfig(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        default: NarratorResponse | None = Field(
+            default=None,
+            description="Gemensamt startnarrativ som används när ingen audience-specifik variant finns.",
+        )
+        by_audience: dict[str, NarratorResponse] = Field(
+            default_factory=dict,
+            description="Valfria audience-specifika startnarrativ som prioriteras före default.",
+        )
+
+        @model_validator(mode="after")
+        def ensure_narrative_available(self) -> "InitialState.InitialNarrationConfig":
+            """Require at least one narrative source."""
+
+            if self.default is None and not self.by_audience:
+                raise ValueError(
+                    "initial_narration must define default or at least one by_audience entry"
+                )
+            return self
+
     time: str = Field(description="Starttid för scenariot, normalt i formatet HH:MM.")
     phase: str = Field(
         description=(
@@ -122,6 +146,12 @@ class InitialState(BaseModel):
             "Övergripande påverkan i startläget på en femgradig skala där 1 är "
             "mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan."
         ),
+    )
+    initial_narration: InitialNarrationConfig = Field(
+        description=(
+            "Fördefinierat startnarrativ för scenariot. Audience-specifika varianter "
+            "prioriteras före default när sessionen startas."
+        )
     )
 
 

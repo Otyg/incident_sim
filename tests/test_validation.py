@@ -32,6 +32,19 @@ def sample_scenario_dict():
             "affected_systems": ["AD"],
             "business_impact": ["Intern påverkan"],
             "impact_level": 2,
+            "initial_narration": {
+                "default": {
+                    "situation_update": "Läget är fortsatt osäkert men tillräckligt beskrivet för att starta övningen.",
+                    "key_points": [
+                        "Flera system påverkas.",
+                        "Omfattningen är fortfarande oklar.",
+                    ],
+                    "new_consequences": [],
+                    "injects": [],
+                    "decisions_to_consider": ["Behöver vi eskalera läget nu?"],
+                    "facilitator_notes": "Fördefinierat startnarrativ.",
+                }
+            },
         },
         "actors": [],
         "inject_catalog": [],
@@ -100,6 +113,25 @@ def test_scenario_validation_accepts_valid_payload():
     scenario = Scenario(**sample_scenario_dict())
     assert scenario.id == "scenario-001"
     assert scenario.initial_state.impact_level == 2
+
+
+def test_scenario_validation_accepts_audience_specific_initial_narration():
+    payload = sample_scenario_dict()
+    payload["initial_state"]["initial_narration"]["by_audience"] = {
+        "krisledning": sample_narrator_response_dict()
+    }
+
+    scenario = Scenario(**payload)
+
+    assert "krisledning" in scenario.initial_state.initial_narration.by_audience
+
+
+def test_scenario_validation_rejects_missing_initial_narration_sources():
+    payload = sample_scenario_dict()
+    payload["initial_state"]["initial_narration"] = {}
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
 
 
 def test_scenario_validation_rejects_empty_audiences():
