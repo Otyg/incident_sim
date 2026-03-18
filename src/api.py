@@ -24,14 +24,13 @@ from src.services.llm_provider import (
     validate_narration,
 )
 from src.services.rules_engine import RulesEngine
-from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
+from src.storage.factory import StorageConfigurationError, create_storage_repositories
 
 
 app = FastAPI(title='Incident Exercise Prototype')
 FRONTEND_INDEX = Path(__file__).resolve().parents[1] / 'frontend' / 'index.html'
 
-scenario_repository = InMemoryScenarioRepository()
-session_repository = InMemorySessionRepository()
+scenario_repository, session_repository = create_storage_repositories()
 
 
 class CreateSessionRequest(BaseModel):
@@ -125,6 +124,10 @@ async def create_scenario(scenario: Scenario) -> Scenario:
 
     Returns:
         Scenario: The stored scenario.
+
+    Raises:
+        StorageConfigurationError: Indirectly during module initialization if
+            repository configuration is invalid.
     """
 
     return scenario_repository.save(scenario)
