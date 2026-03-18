@@ -98,6 +98,26 @@ def sample_scenario_payload():
 
 def datadriven_scenario_payload():
     payload = sample_scenario_payload()
+    payload["inject_catalog"] = [
+        {
+            "id": "inject-media-001",
+            "type": "media",
+            "title": "Frågor från lokalmedia",
+            "description": "Lokalmedia vill ha en kommentar inom 20 minuter.",
+            "trigger_conditions": ["Stigande medietryck"],
+            "audience_relevance": ["krisledning"],
+            "severity": 3,
+        },
+        {
+            "id": "inject-ops-001",
+            "type": "operations",
+            "title": "Verksamhetssystem slutar fungera",
+            "description": "Ett verksamhetskritiskt system går inte längre att använda.",
+            "trigger_conditions": ["Ökad störningsnivå"],
+            "audience_relevance": ["krisledning"],
+            "severity": 4,
+        },
+    ]
     payload["executable_rules"] = [
         {
             "id": "rule-session-start",
@@ -374,6 +394,142 @@ def test_manual_phase_change_rejects_undefined_phase(monkeypatch):
 
     assert status == 400
     assert body["detail"] == "Phase is not defined in the scenario"
+
+
+def test_manual_inject_trigger_updates_session_when_inject_is_defined(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+
+    assert status == 200
+    assert "inject-media-001" in body["active_injects"]
+    assert any(
+        item["text"]
+        == "Manuellt inject aktiverat: Frågor från lokalmedia (inject-media-001)"
+        for item in body["exercise_log"]
+    )
+
+
+def test_manual_inject_trigger_rejects_undefined_inject(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/injects",
+        {"inject_id": "inject-unknown-001"},
+    )
+
+    assert status == 400
+    assert body["detail"] == "Inject is not defined in the scenario"
+
+
+def test_manual_inject_trigger_rejects_inactive_session(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+    session_id = session["session_state"]["session_id"]
+    stored_session = api_module.session_repository.get(session_id)
+    assert stored_session is not None
+    api_module.session_repository.save(
+        stored_session.model_copy(update={"status": "completed"})
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+
+    assert status == 409
+    assert body["detail"] == "Session is not active and injects cannot be triggered"
+
+
+def test_manual_inject_trigger_skips_when_inject_is_already_active(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+    session_id = session["session_state"]["session_id"]
+
+    first_status, first_body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+    second_status, second_body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+
+    assert first_status == 200
+    assert second_status == 200
+    assert second_body["active_injects"].count("inject-media-001") == 1
+    assert sum(
+        1
+        for item in second_body["exercise_log"]
+        if item["text"]
+        == "Manuellt inject aktiverat: Frågor från lokalmedia (inject-media-001)"
+    ) == 1
+
+
+def test_manual_inject_trigger_reactivates_resolved_inject(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+    session_id = session["session_state"]["session_id"]
+    stored_session = api_module.session_repository.get(session_id)
+    assert stored_session is not None
+    api_module.session_repository.save(
+        stored_session.model_copy(
+            update={
+                "active_injects": [],
+                "resolved_injects": ["inject-media-001"],
+            }
+        )
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+
+    assert status == 200
+    assert "inject-media-001" in body["active_injects"]
+    assert "inject-media-001" not in body["resolved_injects"]
+    assert any(
+        item["text"]
+        == "Manuellt inject återaktiverat: Frågor från lokalmedia (inject-media-001)"
+        for item in body["exercise_log"]
+    )
 
 
 def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):

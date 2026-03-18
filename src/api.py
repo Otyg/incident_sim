@@ -110,6 +110,12 @@ class ManualPhaseChangeRequest(BaseModel):
     phase: str = Field(min_length=2)
 
 
+class ManualInjectTriggerRequest(BaseModel):
+    """Request body for manually triggering an inject in the active session."""
+
+    inject_id: str = Field(min_length=2)
+
+
 class CreateSessionResponse(BaseModel):
     """Response body for session creation plus initial narration."""
 
@@ -441,6 +447,92 @@ async def update_session_phase(
         session_id,
         previous_phase,
         request.phase,
+    )
+    return updated
+
+
+@app.post("/sessions/{session_id}/injects", response_model=SessionState)
+async def trigger_session_inject(
+    session_id: str, request: ManualInjectTriggerRequest
+) -> SessionState:
+    """Manually activate or reactivate an inject for an ongoing session."""
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Manual inject trigger failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if state.status != "active":
+        logger.warning(
+            "Manual inject trigger rejected because session was not active session_id=%s status=%s",
+            session_id,
+            state.status,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="Session is not active and injects cannot be triggered",
+        )
+
+    scenario = scenario_repository.get(state.scenario_id)
+    if not scenario:
+        logger.error(
+            "Manual inject trigger failed because scenario was missing session_id=%s scenario_id=%s",
+            session_id,
+            state.scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    inject_definition = next(
+        (item for item in scenario.inject_catalog if item.id == request.inject_id),
+        None,
+    )
+    if not inject_definition:
+        logger.warning(
+            "Manual inject trigger rejected because inject was not defined session_id=%s inject_id=%s",
+            session_id,
+            request.inject_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Inject is not defined in the scenario",
+        )
+
+    if request.inject_id in state.active_injects:
+        logger.info(
+            "Manual inject trigger skipped because inject was already active session_id=%s inject_id=%s",
+            session_id,
+            request.inject_id,
+        )
+        return state
+
+    updated = state.model_copy(deep=True)
+    was_resolved = request.inject_id in updated.resolved_injects
+    if was_resolved:
+        updated.resolved_injects = [
+            item for item in updated.resolved_injects if item != request.inject_id
+        ]
+    updated.active_injects.append(request.inject_id)
+
+    action = "återaktiverat" if was_resolved else "aktiverat"
+    updated.exercise_log.append(
+        ExerciseLogItem(
+            turn=updated.turn_number,
+            type="scenario_event",
+            text=(
+                f"Manuellt inject {action}: "
+                f"{inject_definition.title} ({request.inject_id})"
+            ),
+        )
+    )
+    session_repository.save(updated)
+    logger.info(
+        "Manual inject trigger applied session_id=%s inject_id=%s reactivated=%s",
+        session_id,
+        request.inject_id,
+        was_resolved,
     )
     return updated
 

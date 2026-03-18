@@ -308,6 +308,7 @@
         const [debrief, setDebrief] = useState(null);
         const [participantInput, setParticipantInput] = useState("");
         const [selectedManualPhase, setSelectedManualPhase] = useState("");
+        const [selectedManualInjectId, setSelectedManualInjectId] = useState("");
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
@@ -334,6 +335,20 @@
                 .map((effect) => effect.phase),
             ].filter((phase, index, items) => phase && items.indexOf(phase) === index)
           : [];
+        const availableManualInjects = scenario?.inject_catalog || [];
+        const selectedManualInject =
+          availableManualInjects.find((item) => item.id === selectedManualInjectId) || null;
+
+        const getPreferredManualInjectId = (scenarioState, sessionState) => {
+          const injects = scenarioState?.inject_catalog || [];
+          if (injects.length === 0) {
+            return "";
+          }
+
+          const activeInjects = sessionState?.active_injects || [];
+          const availableInject = injects.find((item) => !activeInjects.includes(item.id));
+          return availableInject?.id || injects[0]?.id || "";
+        };
 
         const loadTimeline = async (sessionId) => {
           const items = await apiRequest(`/sessions/${sessionId}/timeline`);
@@ -375,6 +390,7 @@
           setDebrief(null);
           setParticipantInput("");
           setSelectedManualPhase("");
+          setSelectedManualInjectId("");
         };
 
         const loadScenario = async () => {
@@ -475,6 +491,7 @@
             });
             setSession(created.session_state);
             setSelectedManualPhase(created.session_state.phase);
+            setSelectedManualInjectId(getPreferredManualInjectId(scenario, created.session_state));
             setTimeline([]);
             setLatestNarration(created.initial_narration);
             setDebrief(null);
@@ -503,6 +520,32 @@
             });
             setSession(updatedSession);
             setStatus(`Fasen är nu ${updatedSession.phase}.`);
+          } catch (err) {
+            setError(getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const triggerInjectManually = async () => {
+          if (!session || session.status !== "active" || !selectedManualInjectId) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Triggar inject manuellt...");
+
+          try {
+            const updatedSession = await apiRequest(`/sessions/${session.session_id}/injects`, {
+              method: "POST",
+              body: JSON.stringify({ inject_id: selectedManualInjectId }),
+            });
+            const injectTitle =
+              availableManualInjects.find((item) => item.id === selectedManualInjectId)?.title ||
+              selectedManualInjectId;
+            setSession(updatedSession);
+            setSelectedManualInjectId(getPreferredManualInjectId(scenario, updatedSession));
+            setStatus(`Injectet "${injectTitle}" är nu aktivt.`);
           } catch (err) {
             setError(getErrorMessage(err));
             setStatus("");
@@ -640,6 +683,23 @@
             setSelectedManualPhase(session.phase);
           }
         }, [session?.phase]);
+
+        useEffect(() => {
+          setSelectedManualInjectId((currentValue) => {
+            const injects = scenario?.inject_catalog || [];
+            if (injects.length === 0) {
+              return "";
+            }
+
+            const activeInjects = session?.active_injects || [];
+            if (currentValue && injects.some((item) => item.id === currentValue)) {
+              return currentValue;
+            }
+
+            const availableInject = injects.find((item) => !activeInjects.includes(item.id));
+            return availableInject?.id || injects[0]?.id || "";
+          });
+        }, [scenario, session?.active_injects]);
 
         const renderScenarioOverview = () => (
           <article className="panel">
@@ -873,6 +933,43 @@
                         }
                       >
                         Byt fas
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {session && availableManualInjects.length > 0 && (
+                  <div className="stack" style={{ marginTop: "16px" }}>
+                    <div>
+                      <div className="small">Manuellt inject</div>
+                      <select
+                        value={selectedManualInjectId}
+                        onChange={(event) => setSelectedManualInjectId(event.target.value)}
+                        disabled={loading || session.status !== "active"}
+                      >
+                        {availableManualInjects.map((inject) => (
+                          <option key={inject.id} value={inject.id}>
+                            {inject.title} ({inject.type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedManualInject && (
+                      <div className="small">
+                        {selectedManualInject.description}
+                      </div>
+                    )}
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        onClick={triggerInjectManually}
+                        disabled={
+                          loading ||
+                          session.status !== "active" ||
+                          !selectedManualInjectId ||
+                          session.active_injects.includes(selectedManualInjectId)
+                        }
+                      >
+                        Trigga inject
                       </button>
                     </div>
                   </div>
