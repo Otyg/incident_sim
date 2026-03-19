@@ -6,6 +6,7 @@ from src.models.session import SessionFlags, SessionMetrics, SessionState
 from src.services.llm_provider import (
     OllamaProvider,
     OpenAIProvider,
+    OpenRouterProvider,
     ProviderConfigurationError,
     ProviderOutputValidationError,
     ProviderResponseFormatError,
@@ -112,6 +113,28 @@ def test_get_llm_provider_can_select_openai_stub(monkeypatch):
     provider = get_llm_provider()
 
     assert isinstance(provider, OpenAIProvider)
+
+
+def test_get_llm_provider_can_select_openrouter(monkeypatch):
+    monkeypatch.setattr(
+        "src.services.llm_provider.CONFIG_PATH",
+        Path("/tmp/test-config-openrouter.yaml"),
+    )
+    write_config(
+        Path("/tmp/test-config-openrouter.yaml"),
+        (
+            "llm_provider:\n"
+            "  provider: openrouter\n"
+            "  openrouter:\n"
+            "    api_key: secret-token\n"
+            "    base_url: https://openrouter.ai/api/v1\n"
+            "    model: openai/gpt-4.1-mini\n"
+        ),
+    )
+
+    provider = get_llm_provider()
+
+    assert isinstance(provider, OpenRouterProvider)
 
 
 def test_validate_interpreted_action_raises_for_invalid_provider_output():
@@ -321,6 +344,85 @@ def test_ollama_provider_passes_json_format_to_client(monkeypatch):
 
     assert captured["format"] == "json"
     assert captured["stream"] is False
+
+
+def test_openrouter_provider_builds_expected_headers():
+    provider = OpenRouterProvider(
+        {
+            "api_key": "secret-token",
+            "app_url": "https://example.com",
+            "app_name": "Incident Exercise Support",
+            "model": "openai/gpt-4.1-mini",
+        }
+    )
+
+    headers = provider._build_headers()
+
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert headers["HTTP-Referer"] == "https://example.com"
+    assert headers["X-Title"] == "Incident Exercise Support"
+
+
+def test_openrouter_provider_requires_api_key():
+    provider = OpenRouterProvider({"model": "openai/gpt-4.1-mini"})
+
+    with pytest.raises(ProviderConfigurationError):
+        provider._build_headers()
+
+
+def test_openrouter_provider_interpret_action_parses_json_response(monkeypatch):
+    def fake_post_json(self, payload):
+        assert payload["model"] == "openai/gpt-4.1-mini"
+        assert payload["response_format"] == {"type": "json_object"}
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                            '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                            '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                            '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenRouterProvider, "_post_json", fake_post_json)
+
+    payload = OpenRouterProvider(
+        {
+            "api_key": "secret-token",
+            "model": "openai/gpt-4.1-mini",
+        }
+    ).interpret_action("Vi samlar teamet.")
+
+    assert payload["action_types"] == ["coordination"]
+    assert payload["priority"] == "medium"
+
+
+def test_openrouter_provider_raises_retryable_upstream_error_on_429(monkeypatch):
+    class FakeHttpError(Exception):
+        code = 429
+
+    def fake_post_json(self, payload):
+        raise FakeHttpError("rate limited")
+
+    monkeypatch.setattr(OpenRouterProvider, "_post_json", fake_post_json)
+
+    provider = OpenRouterProvider(
+        {
+            "api_key": "secret-token",
+            "model": "openai/gpt-4.1-mini",
+        }
+    )
+
+    with pytest.raises(ProviderUpstreamError) as exc_info:
+        provider.interpret_action("Vi samlar teamet.")
+
+    assert exc_info.value.upstream_status_code == 429
+    assert exc_info.value.retryable is True
 
 
 def test_validate_scenario_downgrades_incomplete_executable_rules():

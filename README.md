@@ -108,6 +108,21 @@ llm_provider:
     api_key: null
     base_url: null
     model: null
+  openrouter:
+    api_key: YOUR_OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: openai/gpt-4.1-mini
+    interpret_model: openai/gpt-4.1-mini
+    narration_model: openai/gpt-4.1-mini
+    scenario_model: openai/gpt-4.1-mini
+    prompts:
+      interpret: interpret_action.txt
+      narration: generate_narration.txt
+      debrief: generate_debrief.txt
+      scenario_authoring: generate_scenario_draft.txt
+    app_url: https://example.com
+    app_name: Incident Exercise Support
+    timeout_seconds: 120
 ```
 
 För storage gäller just nu:
@@ -189,6 +204,22 @@ llm_provider:
     api_key: DIN_OLLAMA_API_NYCKEL
 ```
 
+Exempel för OpenRouter:
+
+```yaml
+llm_provider:
+  provider: openrouter
+  openrouter:
+    api_key: DIN_OPENROUTER_API_NYCKEL
+    base_url: https://openrouter.ai/api/v1
+    model: openai/gpt-4.1-mini
+    interpret_model: openai/gpt-4.1-mini
+    narration_model: anthropic/claude-3.7-sonnet
+    scenario_model: openai/gpt-4.1-mini
+    app_url: https://example.com
+    app_name: Incident Exercise Support
+```
+
 Det viktigaste för en administratör är:
 - `provider` styr vilken runtime-provider appen använder
 - `host` styr vart anropen skickas
@@ -201,7 +232,8 @@ Efter ändring i `config.yaml` startas appen om för att läsa in ny konfigurati
 
 Stödda provider-värden just nu:
 - `ollama`: väljer `OllamaProvider`
-- `openai`: väljer `OpenAIProvider`, som fortfarande är en stub
+- `openrouter`: väljer `OpenRouterProvider`
+- `openai`: bakåtkompatibelt alias till samma OpenRouter-baserade implementation
 
 För Ollama kan du konfigurera:
 - `host`: URL till lokal Ollama eller Ollama Cloud
@@ -220,6 +252,13 @@ Användning mot Ollama Cloud:
 - sätt `llm_provider.ollama.host: https://ollama.com`
 - sätt `llm_provider.ollama.api_key`
 - välj en cloud-kompatibel modell
+
+Användning mot OpenRouter:
+- sätt `llm_provider.provider: openrouter`
+- sätt `llm_provider.openrouter.api_key`
+- sätt `llm_provider.openrouter.base_url: https://openrouter.ai/api/v1`
+- välj modell i `llm_provider.openrouter.model`
+- sätt gärna `app_url` och `app_name` för OpenRouters frivilliga appheaders
 
 ## För utvecklare: så lägger du till en ny LLM-provider
 
@@ -261,6 +300,7 @@ Projektet har två olika användningssätt för providerlagret just nu:
 
 - Mock-provider: används bara i testsviten via `tests/mock_llm_provider.py` för att göra API- och providerscenarier deterministiska
 - Ollama-provider: runtime-koden kan prata med både lokal Ollama och Ollama Cloud via den officiella Python-klienten `ollama`, styrd via `config.yaml`
-- OpenAI-provider: finns kvar som stub för framtida integration
+- OpenRouter-provider: runtime-koden kan prata med OpenRouter via dess OpenAI-kompatibla chat completions-API
+- OpenAI-provider: finns kvar som bakåtkompatibelt alias ovanpå OpenRouterProvider
 
 Det betyder att testerna kan köra ett komplett turn-flöde med mock, medan lokal körning nu kan använda Ollama som faktisk runtime-provider om rätt miljövariabler och modell finns tillgängliga.

@@ -30,45 +30,15 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-"""OpenAI runtime provider stub.
+"""Backward-compatible alias for the OpenRouter-backed provider.
 
-The structured task flow is already inherited from ``StructuredLLMProvider``;
-this module currently only keeps placeholder transport configuration for a
-future implementation.
+The original ``OpenAIProvider`` name is retained so older imports and tests do
+not break, but the implementation now targets OpenRouter's OpenAI-compatible
+API.
 """
 
-from typing import Any
-
-from src.logging_utils import get_logger
-from src.services.llm_provider import ProviderConfigurationError
-from src.services.providers.base import StructuredLLMProvider
+from src.services.providers.openrouter_provider import OpenRouterProvider
 
 
-logger = get_logger(__name__)
-
-
-class OpenAIProvider(StructuredLLMProvider):
-    """Stub implementation for a future OpenAI-backed provider."""
-
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
-        """Create an OpenAI provider stub from config data."""
-
-        super().__init__(config)
-        self.default_model = str(self.config.get("model") or "")
-        self.interpret_model = str(
-            self.config.get("interpret_model") or self.default_model
-        )
-        self.narration_model = str(
-            self.config.get("narration_model") or self.default_model
-        )
-        self.scenario_model = str(
-            self.config.get("scenario_model") or self.default_model
-        )
-        logger.info("Initialized OpenAIProvider stub")
-
-    def _chat_json(
-        self, model: str, system_prompt: str, user_prompt: str, provider_stage: str
-    ) -> dict[str, Any]:
-        """Attempt to execute a structured request with the OpenAI provider."""
-
-        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
+class OpenAIProvider(OpenRouterProvider):
+    """Backward-compatible alias for ``OpenRouterProvider``."""

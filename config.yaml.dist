@@ -18,8 +18,8 @@ logging:
 
 llm_provider:
   # Väljer vilken runtime-provider som ska användas för interpretation och narration.
-  # Stödda värden just nu: `ollama`, `openai`
-  provider: ollama
+  # Stödda värden just nu: `ollama`, `openrouter`, `openai`
+  provider: openrouter
 
   ollama:
     # Base URL för Ollama.
@@ -58,12 +58,50 @@ llm_provider:
     api_key: YOUR_OLLAMA_API_KEY
 
   openai:
-    # API-nyckel för en framtida OpenAI-provider.
-    # Fältet finns redan i konfigurationen men används ännu inte aktivt.
+    # Bakåtkompatibelt alias för OpenRouterProvider.
+    # Nya installationer bör använda `provider: openrouter` och blocket
+    # `llm_provider.openrouter` i stället.
     api_key: null
 
-    # Valfri base URL för en framtida OpenAI-kompatibel endpoint.
-    base_url: null
+    # Base URL för OpenRouters OpenAI-kompatibla API.
+    base_url: https://openrouter.ai/api/v1
 
-    # Modellnamn för en framtida OpenAI-provider.
+    # Modellnamn hos OpenRouter.
     model: null
+
+  openrouter:
+    # API-nyckel för OpenRouter.
+    api_key: YOUR_OPENROUTER_API_KEY
+
+    # Base URL för OpenRouters OpenAI-kompatibla API.
+    base_url: https://openrouter.ai/api/v1
+
+    # Standardmodell som används om inga mer specifika modellfält sätts.
+    # Step 3.5 Flash (free) är ett bra gratis förstaval för narration,
+    # debriefing och scenarioförfattning.
+    model: stepfun/step-3.5-flash:free
+
+    # Modell för att tolka deltagaråtgärder till strukturerad data.
+    # GLM 4.5 Air (free) är ett starkt gratis förstaval för instruktioner,
+    # strukturerad output och flerspråkiga texter.
+    interpret_model: z-ai/glm-4.5-air:free
+
+    # Modell för narration och lägesbild.
+    narration_model: stepfun/step-3.5-flash:free
+
+    # Modell för scenarioförfattning från fri text till scenario-JSON.
+    scenario_model: stepfun/step-3.5-flash:free
+
+    # Promptfiler som används för respektive steg.
+    prompts:
+      interpret: interpret_action.txt
+      narration: generate_narration.txt
+      debrief: generate_debrief.txt
+      scenario_authoring: generate_scenario_draft.txt
+
+    # Frivilliga OpenRouter-headers för rankning och identifiering av appen.
+    app_url: https://example.com
+    app_name: Incident Exercise Support
+
+    # Timeout för HTTP-anrop i sekunder.
+    timeout_seconds: 120

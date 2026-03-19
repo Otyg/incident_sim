@@ -343,12 +343,25 @@ def get_llm_provider() -> LLMProvider:
         logger.info("Selected LLM provider=openai")
         return OpenAIProvider(provider_config)
 
+    if provider_name == "openrouter":
+        from src.services.providers.openrouter_provider import OpenRouterProvider
+
+        provider_config = llm_config.get("openrouter")
+        if provider_config is not None and not isinstance(provider_config, dict):
+            logger.error("Invalid llm_provider.openrouter section in config.yaml")
+            raise ProviderConfigurationError(
+                "Invalid llm_provider.openrouter section in config.yaml"
+            )
+        logger.info("Selected LLM provider=openrouter")
+        return OpenRouterProvider(provider_config)
+
     logger.error("Unsupported LLM provider requested: %s", provider_name)
     raise ProviderConfigurationError(f"Unsupported LLM provider: {provider_name}")
 
 
 from src.services.providers.ollama_provider import OllamaProvider
 from src.services.providers.openai_provider import OpenAIProvider
+from src.services.providers.openrouter_provider import OpenRouterProvider
 
 __all__ = [
     "CONFIG_PATH",
@@ -357,6 +370,7 @@ __all__ = [
     "LLMProviderError",
     "OllamaProvider",
     "OpenAIProvider",
+    "OpenRouterProvider",
     "ProviderConfigurationError",
     "ProviderOutputValidationError",
     "ProviderResponseFormatError",

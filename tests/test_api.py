@@ -1253,7 +1253,7 @@ def test_post_turn_returns_503_for_unavailable_openai_provider(monkeypatch):
     )
 
     assert status == 503
-    assert "not implemented yet" in body["detail"]
+    assert "OpenRouterProvider requires" in body["detail"]
 
 
 def test_post_turn_returns_502_for_invalid_provider_output(monkeypatch):
