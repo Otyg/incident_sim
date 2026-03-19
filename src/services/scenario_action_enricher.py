@@ -76,7 +76,9 @@ class ScenarioActionEnricher:
         if alias_value in candidate or candidate in alias_value:
             return True
 
-        alias_tokens = [token for token in self._tokenize(alias_value) if len(token) >= 4]
+        alias_tokens = [
+            token for token in self._tokenize(alias_value) if len(token) >= 4
+        ]
         candidate_tokens = [
             token for token in self._tokenize(candidate) if len(token) >= 4
         ]
@@ -165,12 +167,16 @@ class ScenarioActionEnricher:
         updated = interpreted_action.model_copy(deep=True)
         normalized_text = self._normalize(participant_input)
         normalized_targets = [
-            (target, self._normalize(target)) for target in updated.targets if target.strip()
+            (target, self._normalize(target))
+            for target in updated.targets
+            if target.strip()
         ]
         log_messages: list[str] = []
 
         for alias in scenario.target_aliases:
-            matched, source = self._matches_alias(alias, normalized_text, normalized_targets)
+            matched, source = self._matches_alias(
+                alias, normalized_text, normalized_targets
+            )
             if not matched:
                 continue
 
