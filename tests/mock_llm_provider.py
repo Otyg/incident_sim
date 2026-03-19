@@ -59,6 +59,14 @@ class MockLLMProvider(LLMProvider):
             key_points.append("Extern atkomst ar begransad.")
         if state.flags.forensic_analysis_started:
             key_points.append("Forensisk analys har paborjats.")
+        if state.affected_systems:
+            key_points.append(
+                f"Berorda system: {', '.join(state.affected_systems[:2])}."
+            )
+        if state.business_impact:
+            key_points.append(state.business_impact[0])
+        if state.unknowns:
+            key_points.append(f"Osakerhet kvarstar: {state.unknowns[0]}")
 
         injects = []
         if "inject-media-001" in state.active_injects:

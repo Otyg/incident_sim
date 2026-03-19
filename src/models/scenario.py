@@ -32,17 +32,71 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
 
+from src.schemas.interpreted_action import ActionType
 from src.schemas.narrator_response import NarratorResponse
 
 Difficulty = str
 Audience = str
 InjectType = str
+RulePriority = Literal["low", "medium", "high"]
+RuleTrigger = Literal["session_started", "turn_processed"]
+ConditionOperator = Literal[
+    "equals",
+    "not_equals",
+    "gte",
+    "lte",
+    "contains",
+    "not_contains",
+]
+ConditionFact = Literal[
+    "state.phase",
+    "state.no_communication_turns",
+    "state.metrics.impact_level",
+    "state.metrics.media_pressure",
+    "state.metrics.service_disruption",
+    "state.metrics.leadership_pressure",
+    "state.metrics.public_confusion",
+    "state.metrics.attack_surface",
+    "state.flags.executive_escalation",
+    "state.flags.external_comms_sent",
+    "state.flags.forensic_analysis_started",
+    "state.flags.external_access_restricted",
+    "session.turn_number",
+    "action.action_types",
+    "action.targets",
+]
+EffectType = Literal[
+    "set_phase",
+    "add_active_inject",
+    "resolve_inject",
+    "append_focus_item",
+    "append_consequence",
+    "increment_metric",
+    "set_flag",
+    "append_exercise_log",
+]
+MetricPath = Literal[
+    "state.metrics.impact_level",
+    "state.metrics.media_pressure",
+    "state.metrics.service_disruption",
+    "state.metrics.leadership_pressure",
+    "state.metrics.public_confusion",
+    "state.metrics.attack_surface",
+]
+FlagPath = Literal[
+    "state.flags.executive_escalation",
+    "state.flags.external_comms_sent",
+    "state.flags.forensic_analysis_started",
+    "state.flags.external_access_restricted",
+]
+TextMatcherField = Literal["action.action_types", "action.targets"]
+TextMatcherMatchType = Literal["contains_any", "contains_all"]
 
 
 SCENARIO_SCHEMA_PATH = (
@@ -92,66 +146,78 @@ class Background(BaseModel):
     )
 
 
-class InitialState(BaseModel):
+class StateNarrationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    default: NarratorResponse | None = Field(
+        default=None,
+        description="Gemensamt narrativ som används när ingen audience-specifik variant finns.",
+    )
+    by_audience: dict[str, NarratorResponse] = Field(
+        default_factory=dict,
+        description="Valfria audience-specifika narrativ som prioriteras före default.",
+    )
+
+    @model_validator(mode="after")
+    def ensure_narrative_available(self) -> "StateNarrationConfig":
+        """Require at least one narrative source."""
+
+        if self.default is None and not self.by_audience:
+            raise ValueError(
+                "narration must define default or at least one by_audience entry"
+            )
+        return self
+
+
+class ScenarioStateDefinition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    class InitialNarrationConfig(BaseModel):
-        model_config = ConfigDict(extra="forbid")
-
-        default: NarratorResponse | None = Field(
-            default=None,
-            description="Gemensamt startnarrativ som används när ingen audience-specifik variant finns.",
-        )
-        by_audience: dict[str, NarratorResponse] = Field(
-            default_factory=dict,
-            description="Valfria audience-specifika startnarrativ som prioriteras före default.",
-        )
-
-        @model_validator(mode="after")
-        def ensure_narrative_available(self) -> "InitialState.InitialNarrationConfig":
-            """Require at least one narrative source."""
-
-            if self.default is None and not self.by_audience:
-                raise ValueError(
-                    "initial_narration must define default or at least one by_audience entry"
-                )
-            return self
-
-    time: str = Field(description="Starttid för scenariot, normalt i formatet HH:MM.")
+    id: str = Field(
+        description="Stabilt unikt state-id, till exempel state-initial-detection."
+    )
     phase: str = Field(
         description=(
-            "Maskinläsbart namn på startfasen, till exempel initial-detection, "
-            "containment eller recovery. Fasen är idag författningsmetadata och "
-            "används inte för dynamisk faslogik i backend."
+            "Maskinläsbart namn på fasen eller state-läget, till exempel "
+            "initial-detection, escalation eller containment."
         )
     )
-    known_facts: list[str] = Field(
-        default_factory=list,
-        description="Det deltagarna känner till när övningen startar.",
+    title: str = Field(description="Kort visningsnamn för state-läget.")
+    description: str = Field(
+        description="Beskrivning av vad state-läget representerar i scenariot."
     )
-    unknowns: list[str] = Field(
-        default_factory=list,
-        description="Viktiga osäkerheter som fortfarande behöver utredas.",
+    time: str | None = Field(
+        default=None,
+        description="Tid för state-läget när det används som komplett state-definition.",
     )
-    affected_systems: list[str] = Field(
-        default_factory=list,
-        description="System eller tjänster som redan bedöms vara påverkade vid start.",
+    known_facts: list[str] | None = Field(
+        default=None,
+        description="Det deltagarna känner till i detta state-läge.",
     )
-    business_impact: list[str] = Field(
-        default_factory=list,
-        description="Beskrivning av verksamhetspåverkan i scenariots initiala läge.",
+    unknowns: list[str] | None = Field(
+        default=None,
+        description="Viktiga osäkerheter i detta state-läge.",
     )
-    impact_level: int = Field(
+    affected_systems: list[str] | None = Field(
+        default=None,
+        description="System eller tjänster som bedöms vara påverkade i detta state-läge.",
+    )
+    business_impact: list[str] | None = Field(
+        default=None,
+        description="Beskrivning av verksamhetspåverkan i detta state-läge.",
+    )
+    impact_level: int | None = Field(
+        default=None,
         description=(
-            "Övergripande påverkan i startläget på en femgradig skala där 1 är "
+            "Övergripande påverkan i state-läget på en femgradig skala där 1 är "
             "mycket begränsad påverkan och 5 är samhälls- eller verksamhetskritisk påverkan."
         ),
     )
-    initial_narration: InitialNarrationConfig = Field(
+    narration: StateNarrationConfig | None = Field(
+        default=None,
         description=(
-            "Fördefinierat startnarrativ för scenariot. Audience-specifika varianter "
-            "prioriteras före default när sessionen startas."
-        )
+            "Fördefinierat narrativ för state-läget. Audience-specifika varianter "
+            "prioriteras före default."
+        ),
     )
 
 
@@ -199,6 +265,130 @@ class InjectDefinition(BaseModel):
     )
 
 
+class TextMatcher(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för textmatcharen.")
+    field: TextMatcherField = Field(
+        description="Vilket tolkningsfält som ska kompletteras vid match."
+    )
+    match_type: TextMatcherMatchType = Field(
+        description="Hur deltagartexten ska matchas mot angivna mönster."
+    )
+    patterns: list[str] = Field(
+        min_length=1,
+        description="Case-insensitive textmönster som används mot rå deltagartext.",
+    )
+    value: str = Field(
+        min_length=1,
+        description="Vilket värde som ska läggas till i angivet tolkningsfält vid träff.",
+    )
+
+    @model_validator(mode="after")
+    def validate_field_value_combo(self) -> "TextMatcher":
+        """Ensure matcher values are valid for the selected target field."""
+
+        if self.field == "action.action_types" and self.value not in get_args(
+            ActionType
+        ):
+            raise ValueError(
+                "TextMatcher value must be a supported action type when field is action.action_types"
+            )
+        return self
+
+
+class InterpretationHintCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text_contains_any: list[str] = Field(
+        default_factory=list,
+        description="Rå deltagartext måste innehålla minst ett av dessa textmönster.",
+    )
+    action_types_contains: list[ActionType] = Field(
+        default_factory=list,
+        description="Redan tolkade action_types som måste finnas innan hinton används.",
+    )
+    targets_contains: list[str] = Field(
+        default_factory=list,
+        description="Redan tolkade targets som måste finnas innan hinton används.",
+    )
+
+    @model_validator(mode="after")
+    def require_at_least_one_condition(self) -> "InterpretationHintCondition":
+        """Require at least one explicit condition for the hint."""
+
+        if not (
+            self.text_contains_any
+            or self.action_types_contains
+            or self.targets_contains
+        ):
+            raise ValueError(
+                "InterpretationHintCondition must define at least one condition"
+            )
+        return self
+
+
+class InterpretationHint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för tolkstödet.")
+    when: InterpretationHintCondition = Field(
+        description="Villkor som måste vara uppfyllda för att hinton ska användas."
+    )
+    add_action_types: list[ActionType] = Field(
+        default_factory=list,
+        description="Action types som adderas om hinton träffar.",
+    )
+    add_targets: list[str] = Field(
+        default_factory=list,
+        description="Targets som adderas om hinton träffar.",
+    )
+    confidence_boost: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Valfritt metadatafält för framtida användning när tolkstöd ska kunna "
+            "påverka confidence. Används inte dynamiskt ännu."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_at_least_one_effect(self) -> "InterpretationHint":
+        """Require at least one additiv effekt for the hint."""
+
+        if not (self.add_action_types or self.add_targets):
+            raise ValueError(
+                "InterpretationHint must define add_action_types or add_targets"
+            )
+        return self
+
+
+class TargetAlias(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för target-normaliseringen.")
+    canonical: str = Field(
+        min_length=1,
+        description="Det kanoniska target-värdet som regler och hints ska använda.",
+    )
+    aliases: list[str] = Field(
+        min_length=1,
+        description=(
+            "Case-insensitive alias eller fraser som ska normaliseras till det "
+            "kanoniska target-värdet."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_non_empty_aliases(self) -> "TargetAlias":
+        """Require at least one non-empty alias value."""
+
+        if not any(alias.strip() for alias in self.aliases):
+            raise ValueError("TargetAlias aliases must contain at least one value")
+        return self
+
+
 class RuleDefinition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -218,6 +408,88 @@ class RuleDefinition(BaseModel):
         description=(
             "Mänskligt läsbar beskrivning av regelns tänkta effekt i scenariot."
         ),
+    )
+
+
+class ExecutableRuleCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fact: ConditionFact = Field(
+        description="Vilket state- eller actionfält som villkoret läser."
+    )
+    operator: ConditionOperator = Field(
+        description="Vilken jämförelseoperator som ska användas."
+    )
+    value: str | int | bool = Field(description="Vilket värde villkoret jämför mot.")
+
+
+class ScenarioRuleEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: EffectType = Field(
+        description="Vilken typ av deterministisk effekt som ska utföras."
+    )
+    phase: str | None = Field(
+        default=None,
+        description="Ny fas för effekttypen set_phase.",
+    )
+    inject_id: str | None = Field(
+        default=None,
+        description="Inject-id för add_active_inject eller resolve_inject.",
+    )
+    item: str | None = Field(
+        default=None,
+        description="Textinnehåll för append_focus_item eller append_consequence.",
+    )
+    metric: MetricPath | None = Field(
+        default=None,
+        description="Vilket metricsfält som påverkas av increment_metric.",
+    )
+    amount: int | None = Field(
+        default=None,
+        description="Hur mycket ett metricsfält ska ökas eller minskas.",
+    )
+    flag: FlagPath | None = Field(
+        default=None,
+        description="Vilken flagga som sätts av set_flag.",
+    )
+    value: bool | None = Field(
+        default=None,
+        description="Booleskt värde för set_flag.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Loggmeddelande för append_exercise_log.",
+    )
+    log_type: str | None = Field(
+        default=None,
+        description="Övningsloggtyp för append_exercise_log.",
+    )
+
+
+class ExecutableRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för den exekverbara regeln.")
+    name: str = Field(description="Kort namn på den exekverbara regeln.")
+    trigger: RuleTrigger = Field(
+        description="Vilken händelse som ska utlösa regelutvärderingen."
+    )
+    conditions: list[ExecutableRuleCondition] = Field(
+        default_factory=list,
+        description="Strukturerade villkor som alla måste vara uppfyllda för att regeln ska slå till.",
+    )
+    effects: list[ScenarioRuleEffect] = Field(
+        min_length=1,
+        description="Deterministiska effekter som utförs när regeln träffar.",
+    )
+    priority: RulePriority = Field(
+        default="medium",
+        description="Prioritet för exekvering när flera regler matchar samma trigger.",
+    )
+    once: bool = Field(
+        default=False,
+        description="Om true får regeln bara appliceras en gång per session.",
     )
 
 
@@ -259,7 +531,10 @@ class Scenario(BaseModel):
     background: Background = Field(
         description="Bakgrund och grundförutsättningar för scenariot."
     )
-    initial_state: InitialState = Field(description="Vilket läge övningen startar i.")
+    states: list[ScenarioStateDefinition] = Field(
+        min_length=1,
+        description="Ordnad lista över scenariots definierade state-lägen där första posten är startläget.",
+    )
     actors: list[Actor] = Field(
         default_factory=list, description="Viktiga aktörer eller roller i scenariot."
     )
@@ -267,11 +542,39 @@ class Scenario(BaseModel):
         default_factory=list,
         description="Katalog över möjliga injects som kan användas under övningen.",
     )
+    text_matchers: list[TextMatcher] = Field(
+        default_factory=list,
+        description=(
+            "Enkla, scenariodefinierade textmatchningar mot rå deltagartext som "
+            "kan komplettera tolkade action_types eller targets."
+        ),
+    )
+    target_aliases: list[TargetAlias] = Field(
+        default_factory=list,
+        description=(
+            "Scenariodefinierade alias för att normalisera provider-targets och "
+            "rå deltagartext till kanoniska target-värden innan regler utvärderas."
+        ),
+    )
+    interpretation_hints: list[InterpretationHint] = Field(
+        default_factory=list,
+        description=(
+            "Deklarativa tolkhints som kan komplettera LLM-tolkningen med "
+            "ytterligare action_types eller targets när deras villkor matchar."
+        ),
+    )
     rules: list[RuleDefinition] = Field(
         default_factory=list,
         description=(
             "Dokumenterade scenarioregler och samband. Dessa är idag i första hand "
             "författningsstöd och exekveras inte generiskt från scenariot."
+        ),
+    )
+    executable_rules: list[ExecutableRule] = Field(
+        default_factory=list,
+        description=(
+            "Strukturerade och exekverbara scenarioregler för den datadrivna "
+            "scenariomotorn."
         ),
     )
     presentation_guidelines: dict[str, PresentationGuideline] = Field(
@@ -284,6 +587,51 @@ class Scenario(BaseModel):
         """Use the checked-in JSON Schema as the source of truth."""
 
         return validate_scenario_payload(value)
+
+    @model_validator(mode="after")
+    def validate_phase_timeline(self) -> "Scenario":
+        """Ensure state timeline is internally consistent."""
+
+        state_ids = [state.id for state in self.states]
+        if len(state_ids) != len(set(state_ids)):
+            raise ValueError("Scenario states must use unique ids")
+
+        phase_ids = [state.phase for state in self.states]
+        if len(phase_ids) != len(set(phase_ids)):
+            raise ValueError("Scenario states must use unique phases")
+
+        text_matcher_ids = [matcher.id for matcher in self.text_matchers]
+        if len(text_matcher_ids) != len(set(text_matcher_ids)):
+            raise ValueError("Scenario text_matchers must use unique ids")
+
+        target_alias_ids = [alias.id for alias in self.target_aliases]
+        if len(target_alias_ids) != len(set(target_alias_ids)):
+            raise ValueError("Scenario target_aliases must use unique ids")
+
+        interpretation_hint_ids = [hint.id for hint in self.interpretation_hints]
+        if len(interpretation_hint_ids) != len(set(interpretation_hint_ids)):
+            raise ValueError("Scenario interpretation_hints must use unique ids")
+
+        initial_state = self.states[0]
+        if initial_state.time is None:
+            raise ValueError("states[0] must define time")
+        if initial_state.impact_level is None:
+            raise ValueError("states[0] must define impact_level")
+        if initial_state.narration is None:
+            raise ValueError("states[0] must define narration")
+
+        for rule in self.executable_rules:
+            for effect in rule.effects:
+                if (
+                    effect.type == "set_phase"
+                    and effect.phase
+                    and effect.phase not in phase_ids
+                ):
+                    raise ValueError(
+                        f"Executable rule {rule.id} references undefined phase {effect.phase}"
+                    )
+
+        return self
 
     @classmethod
     def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:

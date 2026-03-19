@@ -24,30 +24,44 @@ def sample_scenario_dict():
             "threat_actor": "okänd angripare",
             "assumptions": [],
         },
-        "initial_state": {
-            "time": "08:15",
-            "phase": "initial-detection",
-            "known_facts": ["Inloggningsproblem"],
-            "unknowns": ["Omfattning oklar"],
-            "affected_systems": ["AD"],
-            "business_impact": ["Intern påverkan"],
-            "impact_level": 2,
-            "initial_narration": {
-                "default": {
-                    "situation_update": "Läget är fortsatt osäkert men tillräckligt beskrivet för att starta övningen.",
-                    "key_points": [
-                        "Flera system påverkas.",
-                        "Omfattningen är fortfarande oklar.",
-                    ],
-                    "new_consequences": [],
-                    "injects": [],
-                    "decisions_to_consider": ["Behöver vi eskalera läget nu?"],
-                    "facilitator_notes": "Fördefinierat startnarrativ.",
-                }
+        "states": [
+            {
+                "id": "state-initial-detection",
+                "phase": "initial-detection",
+                "title": "Initial detection",
+                "description": "De första indikationerna på incidenten samlas in.",
+                "time": "08:15",
+                "known_facts": ["Inloggningsproblem"],
+                "unknowns": ["Omfattning oklar"],
+                "affected_systems": ["AD"],
+                "business_impact": ["Intern påverkan"],
+                "impact_level": 2,
+                "narration": {
+                    "default": {
+                        "situation_update": "Läget är fortsatt osäkert men tillräckligt beskrivet för att starta övningen.",
+                        "key_points": [
+                            "Flera system påverkas.",
+                            "Omfattningen är fortfarande oklar.",
+                        ],
+                        "new_consequences": [],
+                        "injects": [],
+                        "decisions_to_consider": ["Behöver vi eskalera läget nu?"],
+                        "facilitator_notes": "Fördefinierat startnarrativ.",
+                    }
+                },
             },
-        },
+            {
+                "id": "state-containment",
+                "phase": "containment",
+                "title": "Containment",
+                "description": "Åtgärder för att begränsa vidare påverkan pågår.",
+            },
+        ],
         "actors": [],
         "inject_catalog": [],
+        "text_matchers": [],
+        "target_aliases": [],
+        "interpretation_hints": [],
         "rules": [],
         "presentation_guidelines": {
             "krisledning": {"focus": ["beslut"], "tone": "strategisk"},
@@ -112,23 +126,25 @@ def sample_narrator_response_dict():
 def test_scenario_validation_accepts_valid_payload():
     scenario = Scenario(**sample_scenario_dict())
     assert scenario.id == "scenario-001"
-    assert scenario.initial_state.impact_level == 2
+    assert scenario.states[0].impact_level == 2
+    assert scenario.executable_rules == []
+    assert scenario.states[0].phase == "initial-detection"
 
 
 def test_scenario_validation_accepts_audience_specific_initial_narration():
     payload = sample_scenario_dict()
-    payload["initial_state"]["initial_narration"]["by_audience"] = {
+    payload["states"][0]["narration"]["by_audience"] = {
         "krisledning": sample_narrator_response_dict()
     }
 
     scenario = Scenario(**payload)
 
-    assert "krisledning" in scenario.initial_state.initial_narration.by_audience
+    assert "krisledning" in scenario.states[0].narration.by_audience
 
 
 def test_scenario_validation_rejects_missing_initial_narration_sources():
     payload = sample_scenario_dict()
-    payload["initial_state"]["initial_narration"] = {}
+    payload["states"][0]["narration"] = {}
 
     with pytest.raises(ValidationError):
         Scenario(**payload)
@@ -145,6 +161,214 @@ def test_scenario_validation_rejects_empty_audiences():
 def test_scenario_validation_rejects_timebox_above_limit():
     payload = sample_scenario_dict()
     payload["timebox_minutes"] = 600
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_accepts_executable_rules():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-phase-change",
+            "name": "Byt fas vid containment",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+            "priority": "high",
+            "once": True,
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.executable_rules[0].trigger == "turn_processed"
+    assert scenario.executable_rules[0].effects[0].type == "set_phase"
+
+
+def test_scenario_validation_accepts_text_matchers_and_interpretation_hints():
+    payload = sample_scenario_dict()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-external-access",
+            "field": "action.targets",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "vpn"],
+            "value": "external_access",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-containment-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "vpn"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.text_matchers[0].field == "action.targets"
+    assert scenario.interpretation_hints[0].add_targets == ["external_access"]
+
+
+def test_scenario_validation_accepts_target_aliases():
+    payload = sample_scenario_dict()
+    payload["target_aliases"] = [
+        {
+            "id": "alias-external-access",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst", "externa anslutningar"],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.target_aliases[0].canonical == "external_access"
+
+
+def test_scenario_validation_rejects_duplicate_target_alias_ids():
+    payload = sample_scenario_dict()
+    payload["target_aliases"] = [
+        {
+            "id": "alias-duplicate",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst"],
+        },
+        {
+            "id": "alias-duplicate",
+            "canonical": "vpn",
+            "aliases": ["vpn"],
+        },
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_invalid_text_matcher_field():
+    payload = sample_scenario_dict()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-invalid",
+            "field": "state.phase",
+            "match_type": "contains_any",
+            "patterns": ["containment"],
+            "value": "containment",
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_interpretation_hint_without_conditions():
+    payload = sample_scenario_dict()
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-empty",
+            "when": {},
+            "add_targets": ["external_access"],
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_interpretation_hint_without_effects():
+    payload = sample_scenario_dict()
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-no-effects",
+            "when": {"text_contains_any": ["extern åtkomst"]},
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_duplicate_state_phases():
+    payload = sample_scenario_dict()
+    payload["states"][1]["phase"] = "initial-detection"
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_set_phase_not_in_phase_list():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-phase-change",
+            "name": "Byt till escalation",
+            "trigger": "turn_processed",
+            "effects": [{"type": "set_phase", "phase": "escalation"}],
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_accepts_no_communication_turns_as_rule_fact():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-missing-comms",
+            "name": "Utebliven kommunikation ökar trycket",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.no_communication_turns",
+                    "operator": "gte",
+                    "value": 2,
+                }
+            ],
+            "effects": [
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.media_pressure",
+                    "amount": 1,
+                }
+            ],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert (
+        scenario.executable_rules[0].conditions[0].fact
+        == "state.no_communication_turns"
+    )
+
+
+def test_scenario_validation_rejects_invalid_executable_rule_operator():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-invalid",
+            "name": "Ogiltig operator",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.phase",
+                    "operator": "matches",
+                    "value": "containment",
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+        }
+    ]
 
     with pytest.raises(ValidationError):
         Scenario(**payload)

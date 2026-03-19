@@ -33,6 +33,7 @@
 """TinyDB-backed JSON repositories for scenarios, sessions and timelines."""
 
 from pathlib import Path
+from typing import Any
 
 from tinydb import Query, TinyDB
 
@@ -42,6 +43,25 @@ from src.models.turn import Turn
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "incident_sim.json"
+
+
+def _drop_none_values(value: Any) -> Any:
+    """Recursively remove ``None`` values from dict payloads.
+
+    This keeps TinyDB persistence aligned with the checked-in JSON Schema for
+    discriminated effect objects and also lets us read older rows that were
+    stored before `exclude_none` handling was added.
+    """
+
+    if isinstance(value, dict):
+        return {
+            key: _drop_none_values(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, list):
+        return [_drop_none_values(item) for item in value]
+    return value
 
 
 class TinyDBScenarioRepository:
@@ -57,7 +77,7 @@ class TinyDBScenarioRepository:
         """Store or replace a scenario by identifier."""
 
         query = Query()
-        payload = scenario.model_dump()
+        payload = _drop_none_values(scenario.model_dump(exclude_none=True))
         self._table.upsert(payload, query.id == scenario.id)
         return scenario
 
@@ -66,13 +86,13 @@ class TinyDBScenarioRepository:
 
         query = Query()
         payload = self._table.get(query.id == scenario_id)
-        return Scenario.model_validate(payload) if payload else None
+        return Scenario.model_validate(_drop_none_values(payload)) if payload else None
 
     def list(self) -> list[Scenario]:
         """List all stored scenarios in stable identifier order."""
 
         rows = sorted(self._table.all(), key=lambda item: item["id"])
-        return [Scenario.model_validate(row) for row in rows]
+        return [Scenario.model_validate(_drop_none_values(row)) for row in rows]
 
     def clear(self) -> None:
         """Remove all stored scenarios."""
@@ -94,7 +114,7 @@ class TinyDBSessionRepository:
         """Store or replace the latest state for a session."""
 
         query = Query()
-        payload = session.model_dump()
+        payload = _drop_none_values(session.model_dump(exclude_none=True))
         self._sessions.upsert(payload, query.session_id == session.session_id)
         return session
 
@@ -108,7 +128,7 @@ class TinyDBSessionRepository:
     def append_turn(self, session_id: str, turn: Turn) -> Turn:
         """Append a turn to the session timeline."""
 
-        payload = turn.model_dump()
+        payload = _drop_none_values(turn.model_dump(exclude_none=True))
         payload["session_id"] = session_id
         self._timeline.insert(payload)
         return turn

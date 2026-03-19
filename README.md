@@ -114,11 +114,12 @@ För TinyDB kan du konfigurera:
 
 Scenarioformatet är dokumenterat separat:
 
-- JSON Schema: [data/scenarios/scenario.schema.json](/home/maves/projects/incident_sim/data/scenarios/scenario.schema.json)
-- Scenarioguide: [data/scenarios/README.md](/home/maves/projects/incident_sim/data/scenarios/README.md)
+- JSON Schema: [data/scenarios/scenario.schema.json](data/scenarios/scenario.schema.json)
+- Scenarioguide: [data/scenarios/README.md](data/scenarios/README.md)
 
 Guiden beskriver vad fälten betyder, hur nivåer som `impact_level` och
-`severity` bör tolkas, och hur du bör lägga till faser, triggers och regler.
+`severity` bör tolkas, och hur du bör lägga till faser, triggers, legacy-regler
+och nya `executable_rules` för den datadrivna scenariomotorn.
 
 ## Loggning
 
@@ -218,7 +219,7 @@ Providerlagret är byggt för att kunna utökas utan att API-lagret behöver gö
 
 En utvecklare som vill lägga till en ny provider gör normalt följande:
 
-1. Skapa en ny klass i [src/services/llm_provider.py](/home/maves/projects/incident_sim/src/services/llm_provider.py) eller bryt ut den till en närliggande modul om filen blir för stor.
+1. Skapa en ny klass i [src/services/llm_provider.py](src/services/llm_provider.py) eller bryt ut den till en närliggande modul om filen blir för stor.
 2. Låt klassen implementera `LLMProvider`.
 3. Säkerställ att `interpret_action()` returnerar en `dict` som matchar `InterpretedAction`.
 4. Säkerställ att `generate_narration()` returnerar en `dict` som matchar `NarratorResponse`.

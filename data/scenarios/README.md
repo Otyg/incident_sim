@@ -13,6 +13,7 @@ Ett scenario består av:
 - aktörer
 - inject-katalog
 - dokumenterade regler
+- exekverbara regler
 - presentationsriktlinjer per målgrupp
 
 Det är viktigt att skilja på:
@@ -23,17 +24,21 @@ Det är viktigt att skilja på:
 
 ## Viktigt om nuvarande implementation
 
-Alla scenariofält valideras och lagras, men backend exekverar inte alla delar dynamiskt idag.
+Alla scenariofält valideras och lagras, men backend exekverar inte alla delar dynamiskt.
 
 Nuvarande läge:
 
-- `initial_state.phase` lagras och visas, men styr inte någon automatisk fasmaskin i backend.
-- `initial_state.initial_narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
+- `states[0]` används dynamiskt som startläge när en session skapas.
+- `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
+- `text_matchers[]` används dynamiskt för enkel, scenariostyrd matchning mot rå deltagartext innan regelmotorn körs.
+- `target_aliases[]` används dynamiskt för att normalisera fria provider-targets och textbaserade uttryck till kanoniska target-värden före hints och regler.
+- `interpretation_hints[]` används dynamiskt för att additivt komplettera LLM-tolkningen före regelutvärdering.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
-- Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
+- `executable_rules[]` används dynamiskt för scenariostyrda stateändringar, flaggor, metrics, injects och loggrader.
+- Den faktiska generiska turn-motorn finns i [rules_engine.py](../../src/services/rules_engine.py), medan scenariobunden domänlogik i första hand bör ligga i scenariot.
 
-Det betyder att scenarioförfattaren redan nu kan dokumentera faser, triggers och regler tydligt, men att nya dynamiska beteenden också kräver kodändringar i backend om de ska verkställas automatiskt.
+Det betyder att scenarioförfattaren nu kan styra faser, inject-aktivering och vissa stateförändringar direkt i JSON, medan mer avancerad logik fortfarande kan kräva backendkod.
 
 ## Rotnivå
 
@@ -124,17 +129,44 @@ Kort beskrivning av den som orsakar incidenten eller hotet.
 
 Lista över antaganden som gäller i scenariot. Dessa hjälper deltagarna att förstå vad de får utgå ifrån utan att behöva fråga om allt.
 
-## `initial_state`
+## `states`
 
-Detta beskriver läget när övningen startar.
+`states` är den ordnade listan över scenariots definierade state-lägen. Första posten är alltid startläget som backend använder när en session skapas.
+
+Ett scenario kan alltså beskriva en tänkt statekedja som:
+
+- `initial-detection`
+- `escalation`
+- `containment`
+- `recovery`
+
+Varje state måste ha:
+
+- `id`: stabilt unikt state-id
+- `phase`: maskinläsbart fas-id
+- `title`: kort visningsnamn
+- `description`: vad state-läget betyder i scenariot
+
+Första state-posten, `states[0]`, måste dessutom ha:
+
+- `time`
+- `impact_level`
+- `narration`
+
+Övriga states kan vara:
+
+- kompletta states med full state-data
+- lätta states med bara metadata och eventuellt narrativ
 
 ### `time`
 
-Starttid. Rekommenderat format är `HH:MM`.
+Tid för state-läget. Rekommenderat format är `HH:MM`.
+
+Detta krävs för `states[0]` och är valfritt för senare states.
 
 ### `phase`
 
-Namn på startfasen. Det här är i dag ett scenariobegrepp, inte en dynamisk motorstyrd fasväxel i backend.
+Maskinläsbart namn på state-läget.
 
 Rekommenderad skrivregel:
 
@@ -144,48 +176,34 @@ Rekommenderad skrivregel:
 Bra exempel:
 
 - `initial-detection`
-- `triage`
+- `escalation`
 - `containment`
-- `service-disruption`
 - `recovery`
-- `post-incident`
 
-Praktiskt råd:
+Viktigt:
 
-- om ni inför egna faser, håll er till samma namn genom hela scenariot, dokumentationen och eventuell framtida kod
+- alla `phase`-värden i `states` måste vara unika
+- alla `set_phase`-effekter i `executable_rules` måste peka på en `phase` som finns i `states`
 
 ### `known_facts`
 
-Det deltagarna vet när övningen startar.
-
-Bra innehåll:
-
-- observerade symptom
-- inkomna rapporter
-- verifierade fakta
+Det deltagarna vet i detta state-läge.
 
 ### `unknowns`
 
-Det deltagarna ännu inte vet men behöver utreda.
-
-Bra innehåll:
-
-- omfattning
-- angriparens närvaro
-- dataförlust eller exfiltration
-- tid till återställning
+Det deltagarna ännu inte vet men behöver utreda i detta state-läge.
 
 ### `affected_systems`
 
-System eller tjänster som redan bedöms påverkade i startläget.
+System eller tjänster som bedöms vara påverkade i detta state-läge.
 
 ### `business_impact`
 
-Hur verksamheten påverkas när scenariot startar.
+Hur verksamheten påverkas i detta state-läge.
 
 ### `impact_level`
 
-Övergripande påverkan i startläget på en femgradig skala.
+Övergripande påverkan i state-läget på en femgradig skala.
 
 Rekommenderad tolkning:
 
@@ -195,22 +213,18 @@ Rekommenderad tolkning:
 - `4`: allvarlig påverkan på kritiska verksamheter, hög tidspress
 - `5`: extrem påverkan, långvarig eller samhällskritisk störning
 
-Exempel:
+### `narration`
 
-- `impact_level: 3` betyder ungefär att läget redan är tydligt allvarligt, påverkar flera delar av verksamheten och kräver samordning, men att hela organisationen ännu inte nödvändigtvis står stilla.
+Fördefinierat narrativ för detta state-läge.
 
-### `initial_narration`
-
-Fördefinierat startnarrativ som skickas tillbaka från backend när en session startas.
-
-Detta fält används nu i stället för att generera initial lägesbild via LLM.
+För `states[0]` används detta som initial lägesbild när sessionen startas.
 
 Struktur:
 
-- `default`: gemensamt startnarrativ för alla målgrupper
+- `default`: gemensamt narrativ för alla målgrupper
 - `by_audience`: valfria målgruppsspecifika narrativ
 
-Prioritetsregel vid sessionsstart:
+Prioritetsregel:
 
 - backend använder först `by_audience` för vald målgrupp om den finns
 - annars används `default`
@@ -223,11 +237,6 @@ Varje narrativ följer samma struktur som en vanlig narration i API:t:
 - `injects`
 - `decisions_to_consider`
 - `facilitator_notes`
-
-Praktiskt råd:
-
-- lägg alltid in ett `default`-narrativ även om ni också använder `by_audience`
-- använd `by_audience` när olika målgrupper ska få olika fokus redan i startläget
 
 ## `actors`
 
@@ -323,13 +332,218 @@ Exempel:
 
 ## `rules`
 
-Regler beskriver scenariots tänkta logik, men körs inte generiskt från JSON idag.
+Regler beskriver scenariots tänkta logik, men körs inte från JSON.
 
 Använd dem därför som:
 
 - dokumentation för scenarioförfattare
 - underlag för framtida automation
 - stöd för facilitatorn
+
+## `text_matchers`
+
+`text_matchers` beskriver enkla, scenariodefinierade textmatchningar mot rå deltagartext.
+
+Tanken är att scenariot ska kunna säga att vissa ord eller fraser bör komplettera den strukturerade tolkningen, till exempel att `extern åtkomst` bör leda till target `external_access`.
+
+De används dynamiskt efter LLM-tolkningen och före regelmotorn. Matchningen är additiv: den kompletterar den redan tolkade actionn i stället för att skriva över den.
+
+Varje textmatcher innehåller:
+
+- `id`
+- `field`
+- `match_type`
+- `patterns`
+- `value`
+
+### `field`
+
+Tillåtna värden i v1:
+
+- `action.action_types`
+- `action.targets`
+
+### `match_type`
+
+Tillåtna värden i v1:
+
+- `contains_any`
+- `contains_all`
+
+### `patterns`
+
+Lista med textmönster som ska jämföras mot rå deltagartext.
+
+Rekommendation:
+
+- använd korta, konkreta uttryck
+- skriv flera vanliga varianter om ni vet att deltagare uttrycker sig olika
+- håll dem scenario- och domänspecifika
+
+### `value`
+
+Det värde som ska adderas till fältet när matchningen träffar.
+
+Exempel:
+
+```json
+{
+  "id": "matcher-external-access",
+  "field": "action.targets",
+  "match_type": "contains_any",
+  "patterns": ["extern åtkomst", "extern access", "vpn"],
+  "value": "external_access"
+}
+```
+
+## `target_aliases`
+
+`target_aliases` beskriver scenariodefinierade alias för target-normalisering.
+
+De används dynamiskt för att lägga till kanoniska target-värden utifrån:
+
+- redan tolkade provider-targets
+- rå deltagartext
+
+Det här är lämpligt när LLM:n returnerar mänskliga labels som `Externa anslutningar`, men scenarioreglerna behöver arbeta mot ett stabilt värde som `external_access`.
+
+Exempel:
+
+```json
+{
+  "id": "alias-external-access",
+  "canonical": "external_access",
+  "aliases": ["extern åtkomst", "externa anslutningar", "vpn"]
+}
+```
+
+Normaliseringen är additiv:
+
+- originaltarget får finnas kvar
+- det kanoniska värdet läggs till om det saknas
+- övningsloggen kan visa vilken aliasregel som användes
+
+Rekommendation:
+
+- använd `target_aliases` för synonymhantering och normalisering
+- använd `text_matchers` för enkel textdriven komplettering av `action_types` eller `targets`
+- använd `interpretation_hints` när normaliseringen också ska bero på kontext, till exempel redan tolkade `action_types`
+
+## `interpretation_hints`
+
+`interpretation_hints` beskriver deklarativa tolkhints som kan komplettera LLM-tolkningen med ytterligare `action_types` eller `targets`.
+
+Tanken är att scenariot ska kunna uttrycka att:
+
+- viss råtext i kombination med en redan tolkad åtgärdstyp bör ge extra targets
+- vissa kombinationer av action types och targets bör förstärkas deterministiskt
+
+De används dynamiskt efter `text_matchers` och före regelmotorn. Hints är additiva och används för att komplettera `action_types` eller `targets`, inte för att skriva över befintlig tolkning.
+
+Varje hint innehåller:
+
+- `id`
+- `when`
+- `add_action_types` eller `add_targets`
+- valfritt `confidence_boost`
+
+### `when`
+
+`when` måste innehålla minst ett villkor i v1:
+
+- `text_contains_any`
+- `action_types_contains`
+- `targets_contains`
+
+### `add_action_types`
+
+Action types som ska läggas till om hinton träffar.
+
+### `add_targets`
+
+Targets som ska läggas till om hinton träffar.
+
+### `confidence_boost`
+
+Valfritt metadatafält för framtida bruk. Det finns med i modellen nu, men används ännu inte dynamiskt.
+
+Exempel:
+
+```json
+{
+  "id": "hint-containment-external-access",
+  "when": {
+    "action_types_contains": ["containment"],
+    "text_contains_any": ["extern åtkomst", "vpn"]
+  },
+  "add_targets": ["external_access"]
+}
+```
+
+## `executable_rules`
+
+Det här är den körbara delen av scenariot i v1.
+
+Varje regel innehåller:
+
+- `trigger`: när regeln ska utvärderas
+- `conditions`: alla villkor som måste vara uppfyllda
+- `effects`: vad som ska hända om regeln träffar
+- `priority`: `high`, `medium` eller `low`
+- `once`: om regeln bara får slå till en gång per session
+
+### `trigger`
+
+Tillåtna värden i v1:
+
+- `session_started`
+- `turn_processed`
+
+### `conditions`
+
+Varje villkor består av:
+
+- `fact`
+- `operator`
+- `value`
+
+Tillåtna `fact` i v1:
+
+- `state.phase`
+- `state.no_communication_turns`
+- `state.metrics.*`
+- `state.flags.*`
+- `session.turn_number`
+- `action.action_types`
+- `action.targets`
+
+Tillåtna operatorer i v1:
+
+- `equals`
+- `not_equals`
+- `gte`
+- `lte`
+- `contains`
+- `not_contains`
+
+### `effects`
+
+Tillåtna effekter i v1:
+
+- `set_phase`
+- `add_active_inject`
+- `resolve_inject`
+- `append_focus_item`
+- `append_consequence`
+- `increment_metric`
+- `set_flag`
+- `append_exercise_log`
+
+Praktiskt råd:
+
+- använd `append_exercise_log` när du vill att övningsledaren tydligt ska se varför något ändrades i UI:t
+- använd `once: true` för fasbyten och inject-aktiveringar som bara ska ske en gång
+- använd `priority: high` för regler som bör slå till före mer allmänna uppdateringar
 
 ### `conditions`
 
@@ -371,11 +585,15 @@ Vilken tonalitet presentationen ska ha, till exempel `strategisk`, `operativ` el
 
 ## Hur du lägger till faser
 
-Faser är idag fria strängar. För att göra dem begripliga och framtidssäkra:
+Faser är fria strängar, men används nu också av den datadrivna scenariomotorn.
+
+För att lägga till en ny fas:
 
 1. välj ett kort fas-id i kebab-case
-2. använd samma fasnamn konsekvent i scenario, dokumentation och eventuell framtida logik
-3. låt varje fas representera ett tydligt övningsläge eller beslutsläge
+2. lägg till ett state i `states`
+3. placera det först i listan om det är startläget
+4. använd samma fasnamn konsekvent i scenario, dokumentation och regler
+5. lägg till en `set_phase`-effekt i `executable_rules` när en senare fas ska aktiveras
 
 Bra uppsättning:
 
@@ -393,13 +611,18 @@ Undvik:
 
 ## Hur du lägger till triggers
 
-Triggers bör beskriva när facilitatorn bör använda ett inject eller när en regel borde slå till.
+För dokumentation kan du fortfarande använda `inject_catalog[].trigger_conditions`.
+
+För faktisk exekvering i v1 används:
+
+- `trigger` på regeln
+- ett eller flera strukturerade `conditions`
 
 Bra arbetsmodell:
 
-1. skriv triggern utifrån något observerbart
-2. koppla den till ett mätbart eller tydligt tillstånd
-3. håll texten kort och enhetlig
+1. välj först om regeln ska köras vid `session_started` eller `turn_processed`
+2. skriv sedan villkor utifrån observerbara facts som metrics, flags, phase eller action-types
+3. håll varje villkor kort och maskinläsbart
 
 Bra exempel:
 
@@ -409,15 +632,47 @@ Bra exempel:
 
 ## Hur du lägger till regler
 
-Eftersom reglerna inte exekveras generiskt än bör de skrivas som dokumenterad designintention.
+Om regeln bara ska dokumentera scenariots idé använder du `rules[]`.
+
+Om regeln ska påverka körningen automatiskt använder du `executable_rules[]`.
 
 Bra arbetsmodell:
 
-1. beskriv vad som triggar regeln
-2. beskriv vad facilitatorn eller framtida backend borde göra som följd
-3. använd samma ord i `conditions`, `effects`, `trigger_conditions` och övriga scenariot
+1. bestäm när regeln ska utvärderas med `trigger`
+2. välj bara de `conditions` som verkligen behövs
+3. lägg till en eller flera `effects`
+4. markera `once: true` om regeln inte ska kunna upprepas
+5. lägg gärna till en `append_exercise_log`-effekt så att utfallet syns tydligt i UI:t
 
-Om du vill att en ny regel faktiskt ska påverka körningen automatiskt idag behöver du även uppdatera [rules_engine.py](../../src/services/rules_engine.py).
+Exempel på vanlig regel:
+
+```json
+{
+  "id": "rule-phase-containment",
+  "name": "Byt till containment",
+  "trigger": "turn_processed",
+  "conditions": [
+    {
+      "fact": "state.flags.external_access_restricted",
+      "operator": "equals",
+      "value": true
+    }
+  ],
+  "effects": [
+    {
+      "type": "set_phase",
+      "phase": "containment"
+    },
+    {
+      "type": "append_exercise_log",
+      "log_type": "scenario_event",
+      "message": "Scenariot går in i containment."
+    }
+  ],
+  "priority": "high",
+  "once": true
+}
+```
 
 ## Validering
 
