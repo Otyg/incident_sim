@@ -26,55 +26,113 @@
       "Extern e-post och vissa molntjänster fungerar fortfarande initialt"
     ]
   },
-  "initial_state": {
-    "time": "08:15",
-    "phase": "initial-detection",
-    "known_facts": [
-      "Flera användare kan inte logga in",
-      "Gemensamma filytor beter sig instabilt",
-      "Servicedesk får snabbt in många felanmälningar",
-      "En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå"
-    ],
-    "unknowns": [
-      "Om angriparen fortfarande har aktiv åtkomst",
-      "Hur många system som faktiskt är krypterade",
-      "Om personuppgifter eller känslig information har exfiltrerats",
-      "Hur snabbt kritiska verksamheter påverkas fullt ut"
-    ],
-    "affected_systems": [
-      "AD",
-      "Fildelning",
-      "Klienthantering",
-      "Ärendehanteringsstöd"
-    ],
-    "business_impact": [
-      "Intern administration försvåras",
-      "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
-      "Kontaktcenter får längre handläggningstider"
-    ],
-    "impact_level": 3,
-    "initial_narration": {
-      "default": {
-        "situation_update": "Kl. 08:15 har ni en växlande bild av allvarliga IT-störningar. Flera användare kan inte logga in, gemensamma filyter beter sig instabilt och servicedesk får snabbt in många felanmälningar. En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå. Ännu är det oklart om detta är en antagonistisk verksamhet eller naturliga störningar, men tecken pekar mot ett koordinerat angrepp. Ni vet inte om en eventuell angripare fortfarande har aktiv åtkomst eller hur omfattande skadan är.",
-        "key_points": [
-          "Indikation på koordinerad attack mot IT-infrastrukturen",
-          "Servicedesk översvämmas av felanmälningar - personalen är orolig",
-          "Verksamhetschefens rapport tyder på att kritiska funktioner påverkas",
-          "Ingen extern kommunikation har gått ut än",
-          "Ingen teknisk analys har påbörjats"
-        ],
-        "new_consequences": [],
-        "injects": [],
-        "decisions_to_consider": [
-          "Ska extern åtkomst stängas av direkt, och vilka konsekvenser får det?",
-          "Vem ska leda det tekniska arbetet och vem ansvarar för kommunikationen?",
-          "Ska en inledande lägesuppfattning begäras in från IT, och när?",
-          "Hur hanterar vi oron hos verksamhetscheferna?"
-        ],
-        "facilitator_notes": "Detta är scenariots fördefinierade startnarrativ för initial fas."
+  "states": [
+    {
+      "id": "state-initial-detection",
+      "phase": "initial-detection",
+      "title": "Initial detektion",
+      "description": "Tidiga indikationer på allvarliga IT-störningar samlas in och verifieras.",
+      "time": "08:15",
+      "known_facts": [
+        "Flera användare kan inte logga in",
+        "Gemensamma filytor beter sig instabilt",
+        "Servicedesk får snabbt in många felanmälningar",
+        "En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå"
+      ],
+      "unknowns": [
+        "Om angriparen fortfarande har aktiv åtkomst",
+        "Hur många system som faktiskt är krypterade",
+        "Om personuppgifter eller känslig information har exfiltrerats",
+        "Hur snabbt kritiska verksamheter påverkas fullt ut"
+      ],
+      "affected_systems": [
+        "AD",
+        "Fildelning",
+        "Klienthantering",
+        "Ärendehanteringsstöd"
+      ],
+      "business_impact": [
+        "Intern administration försvåras",
+        "Skolpersonal riskerar att sakna åtkomst till elevrelaterat material",
+        "Kontaktcenter får längre handläggningstider"
+      ],
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Kl. 08:15 har ni en växlande bild av allvarliga IT-störningar. Flera användare kan inte logga in, gemensamma filyter beter sig instabilt och servicedesk får snabbt in många felanmälningar. En verksamhetschef rapporterar att ett delat dokumentarkiv inte går att nå. Ännu är det oklart om detta är en antagonistisk verksamhet eller naturliga störningar, men tecken pekar mot ett koordinerat angrepp. Ni vet inte om en eventuell angripare fortfarande har aktiv åtkomst eller hur omfattande skadan är.",
+          "key_points": [
+            "Indikation på koordinerad attack mot IT-infrastrukturen",
+            "Servicedesk översvämmas av felanmälningar - personalen är orolig",
+            "Verksamhetschefens rapport tyder på att kritiska funktioner påverkas",
+            "Ingen extern kommunikation har gått ut än",
+            "Ingen teknisk analys har påbörjats"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Ska extern åtkomst stängas av direkt, och vilka konsekvenser får det?",
+            "Vem ska leda det tekniska arbetet och vem ansvarar för kommunikationen?",
+            "Ska en inledande lägesuppfattning begäras in från IT, och när?",
+            "Hur hanterar vi oron hos verksamhetscheferna?"
+          ],
+          "facilitator_notes": "Detta är scenariots fördefinierade startnarrativ för initial fas."
+        }
+      }
+    },
+    {
+      "id": "state-escalation",
+      "phase": "escalation",
+      "title": "Eskalering",
+      "description": "Spridning av malware eller tydligt ökande påverkan konstateras och läget behöver eskaleras."
+    },
+    {
+      "id": "state-containment",
+      "phase": "containment",
+      "title": "Containment",
+      "description": "Fokus ligger på att begränsa angriparens åtkomst och minska fortsatt påverkan.",
+      "known_facts": [
+        "Extern åtkomst har begränsats för att minska angriparens handlingsutrymme",
+        "Störningar i verksamheten ökar när beroenden till externa tjänster påverkas"
+      ],
+      "unknowns": [
+        "Om angriparen redan har etablerat alternativa åtkomstvägar",
+        "Hur länge verksamheten klarar reducerad extern tillgänglighet"
+      ],
+      "affected_systems": [
+        "VPN",
+        "Federerade inloggningar",
+        "Extern åtkomst till verksamhetssystem"
+      ],
+      "business_impact": [
+        "Extern serviceleverans och fjärrarbete påverkas direkt",
+        "Behovet av prioritering mellan säkerhet och tillgänglighet ökar"
+      ],
+      "narration": {
+        "default": {
+          "situation_update": "Kl. 08:30 har ni gått in i en tydlig containmentfas. Extern åtkomst har begränsats för att minska angriparens handlingsutrymme, men åtgärden skapar omedelbart följdeffekter i verksamheten. Fjärrarbete, externa beroenden och vissa verksamhetssystem påverkas nu samtidigt som den tekniska osäkerheten består. Ni har vunnit viss kontroll över läget, men behöver snabbt avgöra hur länge begränsningarna kan ligga kvar och vilka verksamheter som måste prioriteras.",
+          "key_points": [
+            "Extern åtkomst har begränsats för att minska fortsatt spridning",
+            "Verksamhetspåverkan ökar när externa tjänster och fjärrarbete störs",
+            "Det är fortfarande oklart om angriparen har andra kvarvarande åtkomstvägar",
+            "Behovet av samordning mellan IT, ledning och kommunikation har ökat",
+            "Containmentåtgärderna köper tid men löser ännu inte grundorsaken"
+          ],
+          "new_consequences": [
+            "Externa användare och leverantörer får svårare att nå kommunens system",
+            "Vissa verksamheter behöver tillfälliga manuella arbetssätt"
+          ],
+          "injects": [],
+          "decisions_to_consider": [
+            "Hur länge kan extern åtkomst hållas begränsad utan oacceptabel verksamhetspåverkan?",
+            "Vilka verksamheter eller tjänster måste prioriteras för undantag eller alternativa lösningar?",
+            "Behöver containment kompletteras med fler tekniska isoleringsåtgärder direkt?",
+            "Vilket budskap ska gå ut internt och externt om de nya begränsningarna?"
+          ],
+          "facilitator_notes": "Detta narrativ används när scenariot går in i containment med ett fullständigt scenarioförfattat läge."
+        }
       }
     }
-  },
+  ],
   "actors": [
     {
       "id": "actor-it-ops",
@@ -143,6 +201,149 @@
       "severity": 3
     }
   ],
+  "text_matchers": [
+    {
+      "id": "matcher-containment-external-access",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "extern",
+        "externa",
+        "extern åtkomst",
+        "extern access",
+        "vpn",
+        "fjärråtkomst"
+      ],
+      "value": "containment"
+    },
+    {
+      "id": "matcher-target-vpn",
+      "field": "action.targets",
+      "match_type": "contains_any",
+      "patterns": [
+        "vpn",
+        "fjärråtkomst"
+      ],
+      "value": "vpn"
+    },
+    {
+      "id": "matcher-analysis-forensics",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "forensik",
+        "forensisk",
+        "bevissäkring"
+      ],
+      "value": "analysis"
+    }
+  ],
+  "target_aliases": [
+    {
+      "id": "alias-external-access",
+      "canonical": "external_access",
+      "aliases": [
+        "extern åtkomst",
+        "extern access",
+        "externa anslutningar",
+        "vpn",
+        "fjärråtkomst"
+      ]
+    },
+    {
+      "id": "alias-executive-team",
+      "canonical": "executive_team",
+      "aliases": [
+        "krisledning",
+        "krisledningsgruppen",
+        "ledning",
+        "kommundirektör"
+      ]
+    },
+    {
+      "id": "alias-communications-team",
+      "canonical": "communications_team",
+      "aliases": [
+        "kommunikation",
+        "kommunicera",
+        "allmänhet",
+        "myndigheter",
+        "media",
+        "press"
+      ]
+    }
+  ],
+  "interpretation_hints": [
+    {
+      "id": "hint-target-external-access",
+      "when": {
+        "action_types_contains": [
+          "containment"
+        ],
+        "text_contains_any": [
+          "extern åtkomst",
+          "extern access",
+          "vpn",
+          "fjärråtkomst"
+        ]
+      },
+      "add_targets": [
+        "external_access"
+      ]
+    },
+    {
+      "id": "hint-target-forensics",
+      "when": {
+        "action_types_contains": [
+          "analysis"
+        ],
+        "text_contains_any": [
+          "forensik",
+          "forensisk",
+          "bevissäkring"
+        ]
+      },
+      "add_targets": [
+        "forensics"
+      ]
+    },
+    {
+      "id": "hint-escalation-executive-team",
+      "when": {
+        "text_contains_any": [
+          "krisledning",
+          "krisledningsgruppen",
+          "ledning",
+          "kommundirektör"
+        ]
+      },
+      "add_action_types": [
+        "escalation"
+      ],
+      "add_targets": [
+        "executive_team"
+      ]
+    },
+    {
+      "id": "hint-communication-communications-team",
+      "when": {
+        "text_contains_any": [
+          "kommunikation",
+          "kommunicera",
+          "allmänhet",
+          "myndigheter",
+          "media",
+          "press"
+        ]
+      },
+      "add_action_types": [
+        "communication"
+      ],
+      "add_targets": [
+        "communications_team"
+      ]
+    }
+  ],
   "rules": [
     {
       "id": "rule-containment-external-access",
@@ -178,6 +379,299 @@
         "sätt executive_escalation",
         "lägg till fokus på ledningsbeslut"
       ]
+    }
+  ],
+  "executable_rules": [
+    {
+      "id": "rule-session-start-focus",
+      "name": "Initial scenariostart",
+      "trigger": "session_started",
+      "effects": [
+        {
+          "type": "append_focus_item",
+          "item": "Bekräfta den initiala lägesbilden med verksamheterna."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Scenario startat: initial lägesbild etablerad."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-restrict-external-access",
+      "name": "Markera begränsad extern åtkomst",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "containment"
+        },
+        {
+          "fact": "action.targets",
+          "operator": "contains",
+          "value": "external_access"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.external_access_restricted",
+          "value": true
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.attack_surface",
+          "amount": -1
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.service_disruption",
+          "amount": 1
+        },
+        {
+          "type": "append_consequence",
+          "item": "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster."
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Hantera påverkan på externa tjänster."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "system_consequence",
+          "message": "Extern attackyta minskar, men tjänstepåverkan ökar externt."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-phase-containment",
+      "name": "Byt till containment vid extern begränsning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.flags.external_access_restricted",
+          "operator": "equals",
+          "value": true
+        },
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "initial-detection"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "containment"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Scenariot går in i containment efter begränsning av extern åtkomst."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-start-forensic-analysis",
+      "name": "Markera påbörjad forensisk analys",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "analysis"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.forensic_analysis_started",
+          "value": true
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Forensisk analys har påbörjats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-executive-escalation",
+      "name": "Markera eskalering till ledning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "escalation"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.executive_escalation",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Förbered ledningsbeslut och eskalering."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Eskalering till ledningen har markerats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-external-communication",
+      "name": "Markera extern kommunikation",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "communication"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.external_comms_sent",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Samordna fortsatt extern kommunikation."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Extern kommunikation har markerats som påbörjad."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-missing-communication-pressure",
+      "name": "Utebliven kommunikation ökar trycket",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.no_communication_turns",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.media_pressure",
+          "amount": 1
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.public_confusion",
+          "amount": 1
+        },
+        {
+          "type": "append_consequence",
+          "item": "Fördröjd kommunikation ökar medietrycket."
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Ta fram ett första externt budskap."
+        }
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "rule-leadership-pressure",
+      "name": "Öka ledningstryck vid allvarligt läge utan eskalering",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.impact_level",
+          "operator": "gte",
+          "value": 3
+        },
+        {
+          "fact": "state.flags.executive_escalation",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.leadership_pressure",
+          "amount": 1
+        }
+      ],
+      "priority": "low"
+    },
+    {
+      "id": "rule-activate-ops-inject",
+      "name": "Aktivera operations-inject vid ökad störning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.service_disruption",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-ops-001"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Operations-inject aktiverat på grund av ökad tjänstepåverkan."
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-activate-media-inject",
+      "name": "Aktivera media-inject vid medietryck",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.media_pressure",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-media-001"
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Media-inject aktiverat efter stigande medietryck."
+        }
+      ],
+      "priority": "medium",
+      "once": true
     }
   ],
   "presentation_guidelines": {

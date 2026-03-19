@@ -289,12 +289,34 @@ def validate_narration(payload: dict[str, Any]) -> NarratorResponse:
             narration schema.
     """
 
+    normalized_payload = payload
+    if isinstance(payload, dict):
+        normalized_payload = dict(payload)
+
+        if isinstance(normalized_payload.get("key_points"), list):
+            key_points = normalized_payload["key_points"]
+            if len(key_points) > 5:
+                logger.warning(
+                    "Narration payload contained too many key_points; trimming from %s to 5",
+                    len(key_points),
+                )
+                normalized_payload["key_points"] = key_points[:5]
+
+        if isinstance(normalized_payload.get("injects"), list):
+            injects = normalized_payload["injects"]
+            if len(injects) > 2:
+                logger.warning(
+                    "Narration payload contained too many injects; trimming from %s to 2",
+                    len(injects),
+                )
+                normalized_payload["injects"] = injects[:2]
+
     try:
-        return NarratorResponse.model_validate(payload)
+        return NarratorResponse.model_validate(normalized_payload)
     except ValidationError as exc:
         logger.warning(
             "Provider output did not validate as narration payload: %s",
-            payload,
+            normalized_payload,
             exc_info=True,
         )
         raise ProviderOutputValidationError("Invalid narration payload") from exc

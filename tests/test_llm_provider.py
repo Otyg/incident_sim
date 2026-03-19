@@ -13,6 +13,7 @@ from src.services.llm_provider import (
     get_llm_provider,
     load_llm_config,
     validate_interpreted_action,
+    validate_narration,
 )
 from tests.mock_llm_provider import MockLLMProvider
 
@@ -108,6 +109,26 @@ def test_get_llm_provider_can_select_openai_stub(monkeypatch):
 def test_validate_interpreted_action_raises_for_invalid_provider_output():
     with pytest.raises(ProviderOutputValidationError):
         validate_interpreted_action({"action_summary": "x"})
+
+
+def test_validate_narration_trims_extra_key_points_and_injects():
+    response = validate_narration(
+        {
+            "situation_update": "Laget utvecklas snabbt och underlaget ar tillrackligt for narrationsvalidering.",
+            "key_points": ["A", "B", "C", "D", "E", "F"],
+            "new_consequences": [],
+            "injects": [
+                {"type": "media", "title": "I1", "message": "Inject ett."},
+                {"type": "operations", "title": "I2", "message": "Inject tva."},
+                {"type": "executive", "title": "I3", "message": "Inject tre."},
+            ],
+            "decisions_to_consider": ["Vad ar viktigast nu?"],
+            "facilitator_notes": "Trimning ska gora payloaden fortsatt anvandbar.",
+        }
+    )
+
+    assert response.key_points == ["A", "B", "C", "D", "E"]
+    assert len(response.injects) == 2
 
 
 def test_get_llm_provider_rejects_unknown_provider(monkeypatch):

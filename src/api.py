@@ -47,7 +47,7 @@ from pydantic import BaseModel, Field
 
 from src.logging_utils import configure_logging, get_logger
 from src.models.scenario import Audience, Scenario
-from src.models.session import SessionMetrics, SessionState
+from src.models.session import ExerciseLogItem, SessionMetrics, SessionState
 from src.models.turn import Turn
 from src.schemas.debrief_response import DebriefResponse
 from src.schemas.narrator_response import NarratorResponse
@@ -61,7 +61,9 @@ from src.services.llm_provider import (
     validate_interpreted_action,
     validate_narration,
 )
+from src.services.scenario_action_enricher import ScenarioActionEnricher
 from src.services.rules_engine import RulesEngine
+from src.services.scenario_engine import ScenarioEngine
 from src.storage.factory import create_storage_repositories
 
 
@@ -78,6 +80,8 @@ SAMPLE_SCENARIO_PATH = (
 
 scenario_repository, session_repository = create_storage_repositories()
 TURN_RETRY_BACKOFF_SECONDS = [2, 4, 8, 16]
+scenario_engine = ScenarioEngine()
+action_enricher = ScenarioActionEnricher()
 
 
 class CreateSessionRequest(BaseModel):
@@ -102,11 +106,30 @@ class TurnRequest(BaseModel):
     participant_input: str = Field(min_length=3)
 
 
+class ManualPhaseChangeRequest(BaseModel):
+    """Request body for manually changing the active scenario phase."""
+
+    phase: str = Field(min_length=2)
+
+
+class ManualInjectTriggerRequest(BaseModel):
+    """Request body for manually triggering an inject in the active session."""
+
+    inject_id: str = Field(min_length=2)
+
+
 class CreateSessionResponse(BaseModel):
     """Response body for session creation plus initial narration."""
 
     session_state: SessionState
     initial_narration: NarratorResponse
+
+
+class PhaseChangeResponse(BaseModel):
+    """Response body for manual phase change plus refreshed narration."""
+
+    session_state: SessionState
+    narration: NarratorResponse
 
 
 class CompleteSessionResponse(BaseModel):
@@ -130,18 +153,22 @@ def build_session_state(
         SessionState: Initialized session state ready to be saved.
     """
 
+    initial_state = scenario.states[0]
+
     return SessionState(
         session_id=session_id,
         scenario_id=scenario.id,
         scenario_version=scenario.version,
         audience=audience,
-        current_time=scenario.initial_state.time,
+        current_time=initial_state.time or "00:00",
         turn_number=0,
-        phase=scenario.initial_state.phase,
-        known_facts=list(scenario.initial_state.known_facts),
-        unknowns=list(scenario.initial_state.unknowns),
+        phase=initial_state.phase,
+        known_facts=list(initial_state.known_facts or []),
+        unknowns=list(initial_state.unknowns or []),
+        affected_systems=list(initial_state.affected_systems or []),
+        business_impact=list(initial_state.business_impact or []),
         metrics=SessionMetrics(
-            impact_level=scenario.initial_state.impact_level,
+            impact_level=initial_state.impact_level or 1,
             media_pressure=0,
             service_disruption=0,
             leadership_pressure=0,
@@ -152,12 +179,15 @@ def build_session_state(
     )
 
 
-def resolve_initial_narration(
-    scenario: Scenario, audience: Audience
+def resolve_state_narration(
+    state_definition: "ScenarioStateDefinition", audience: Audience
 ) -> NarratorResponse:
-    """Resolve the scenario-authored initial narration for the selected audience."""
+    """Resolve scenario-authored narration for a specific state and audience."""
 
-    configured = scenario.initial_state.initial_narration
+    configured = state_definition.narration
+    if configured is None:
+        raise ValueError(f"Scenario state {state_definition.id} is missing narration")
+
     audience_specific = configured.by_audience.get(audience)
     if audience_specific:
         return audience_specific
@@ -166,8 +196,30 @@ def resolve_initial_narration(
         return configured.default
 
     raise ValueError(
-        f"Scenario {scenario.id} is missing initial narration for audience {audience}"
+        f"Scenario state {state_definition.id} is missing narration for audience {audience}"
     )
+
+
+def resolve_initial_narration(
+    scenario: Scenario, audience: Audience
+) -> NarratorResponse:
+    """Resolve the scenario-authored initial narration for the selected audience."""
+
+    return resolve_state_narration(scenario.states[0], audience)
+
+
+def build_phase_narration(
+    state: SessionState, target_state: "ScenarioStateDefinition"
+) -> NarratorResponse:
+    """Build a narration snapshot for a manual phase change."""
+
+    if target_state.narration is not None:
+        return validate_narration(
+            resolve_state_narration(target_state, state.audience).model_dump()
+        )
+
+    provider = get_llm_provider()
+    return validate_narration(provider.generate_narration(state))
 
 
 def load_sample_scenario() -> Scenario:
@@ -302,6 +354,11 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
 
     session_id = f"sess-{session_repository.count() + 1}"
     state = build_session_state(session_id, scenario, request.audience)
+    state = scenario_engine.apply(
+        scenario=scenario,
+        state=state,
+        trigger="session_started",
+    )
     logger.info(
         "Creating session session_id=%s scenario_id=%s audience=%s",
         session_id,
@@ -356,6 +413,210 @@ async def get_session(session_id: str) -> SessionState:
         "Fetched session session_id=%s turn_number=%s", session_id, state.turn_number
     )
     return state
+
+
+@app.post("/sessions/{session_id}/phase", response_model=PhaseChangeResponse)
+async def update_session_phase(
+    session_id: str, request: ManualPhaseChangeRequest
+) -> PhaseChangeResponse:
+    """Manually change the active phase for an ongoing session."""
+    try:
+        state = session_repository.get(session_id)
+        if not state:
+            logger.warning(
+                "Manual phase change failed because session was missing session_id=%s",
+                session_id,
+            )
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if state.status != "active":
+            logger.warning(
+                "Manual phase change rejected because session was not active session_id=%s status=%s",
+                session_id,
+                state.status,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Session is not active and phase cannot be changed",
+            )
+
+        scenario = scenario_repository.get(state.scenario_id)
+        if not scenario:
+            logger.error(
+                "Manual phase change failed because scenario was missing session_id=%s scenario_id=%s",
+                session_id,
+                state.scenario_id,
+            )
+            raise HTTPException(status_code=404, detail="Scenario not found")
+
+        available_phases = scenario_engine.get_defined_phases(scenario)
+        if request.phase not in available_phases:
+            logger.warning(
+                "Manual phase change rejected because phase was not defined session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Phase is not defined in the scenario",
+            )
+
+        target_state = scenario_engine.get_state_definition(scenario, request.phase)
+        if target_state is None:
+            logger.error(
+                "Manual phase change failed because phase definition lookup returned nothing session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            raise HTTPException(
+                status_code=400, detail="Phase is not defined in the scenario"
+            )
+
+        if request.phase == state.phase:
+            logger.info(
+                "Manual phase change skipped because phase was already active session_id=%s phase=%s",
+                session_id,
+                request.phase,
+            )
+            return PhaseChangeResponse(
+                session_state=state,
+                narration=build_phase_narration(state, target_state),
+            )
+
+        updated = state.model_copy(deep=True)
+        previous_phase = updated.phase
+        updated = scenario_engine.apply_state_definition(updated, target_state)
+        updated.exercise_log.append(
+            ExerciseLogItem(
+                turn=updated.turn_number,
+                type="phase_change",
+                text=f"Manuellt fasbyte: {previous_phase} -> {request.phase}",
+            )
+        )
+        narration = build_phase_narration(updated, target_state)
+        session_repository.save(updated)
+        logger.info(
+            "Manual phase change applied session_id=%s from_phase=%s to_phase=%s",
+            session_id,
+            previous_phase,
+            request.phase,
+        )
+        return PhaseChangeResponse(
+            session_state=updated,
+            narration=narration,
+        )
+    except HTTPException:
+        raise
+    except ProviderOutputValidationError as exc:
+        logger.warning(
+            "Provider output validation failed during manual phase change session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        logger.warning(
+            "Provider configuration error during manual phase change session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        logger.error(
+            "Provider runtime error during manual phase change session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/injects", response_model=SessionState)
+async def trigger_session_inject(
+    session_id: str, request: ManualInjectTriggerRequest
+) -> SessionState:
+    """Manually activate or reactivate an inject for an ongoing session."""
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Manual inject trigger failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if state.status != "active":
+        logger.warning(
+            "Manual inject trigger rejected because session was not active session_id=%s status=%s",
+            session_id,
+            state.status,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="Session is not active and injects cannot be triggered",
+        )
+
+    scenario = scenario_repository.get(state.scenario_id)
+    if not scenario:
+        logger.error(
+            "Manual inject trigger failed because scenario was missing session_id=%s scenario_id=%s",
+            session_id,
+            state.scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    inject_definition = next(
+        (item for item in scenario.inject_catalog if item.id == request.inject_id),
+        None,
+    )
+    if not inject_definition:
+        logger.warning(
+            "Manual inject trigger rejected because inject was not defined session_id=%s inject_id=%s",
+            session_id,
+            request.inject_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Inject is not defined in the scenario",
+        )
+
+    if request.inject_id in state.active_injects:
+        logger.info(
+            "Manual inject trigger skipped because inject was already active session_id=%s inject_id=%s",
+            session_id,
+            request.inject_id,
+        )
+        return state
+
+    updated = state.model_copy(deep=True)
+    was_resolved = request.inject_id in updated.resolved_injects
+    if was_resolved:
+        updated.resolved_injects = [
+            item for item in updated.resolved_injects if item != request.inject_id
+        ]
+    updated.active_injects.append(request.inject_id)
+
+    action = "återaktiverat" if was_resolved else "aktiverat"
+    updated.exercise_log.append(
+        ExerciseLogItem(
+            turn=updated.turn_number,
+            type="scenario_event",
+            text=(
+                f"Manuellt inject {action}: "
+                f"{inject_definition.title} ({request.inject_id})"
+            ),
+        )
+    )
+    session_repository.save(updated)
+    logger.info(
+        "Manual inject trigger applied session_id=%s inject_id=%s reactivated=%s",
+        session_id,
+        request.inject_id,
+        was_resolved,
+    )
+    return updated
 
 
 @app.get("/sessions/{session_id}/timeline", response_model=list[Turn])
@@ -526,14 +787,50 @@ async def post_turn(
         interpreted = validate_interpreted_action(
             provider.interpret_action(request.participant_input)
         )
+        scenario = scenario_repository.get(state.scenario_id)
+        if not scenario:
+            logger.error(
+                "Turn request failed because scenario was missing session_id=%s scenario_id=%s",
+                session_id,
+                state.scenario_id,
+            )
+            raise HTTPException(status_code=404, detail="Scenario not found")
+
         logger.info(
-            "Participant action interpreted session_id=%s action_types=%s priority=%s",
+            "Participant action interpreted session_id=%s action_types=%s targets=%s priority=%s",
             session_id,
             interpreted.action_types,
+            interpreted.targets,
             interpreted.priority,
         )
+        enriched = action_enricher.enrich(
+            scenario, request.participant_input, interpreted
+        )
+        if enriched.log_messages:
+            logger.info(
+                "Participant action enriched session_id=%s action_types=%s targets=%s support=%s",
+                session_id,
+                enriched.action.action_types,
+                enriched.action.targets,
+                enriched.log_messages,
+            )
 
-        updated = engine.apply(state, interpreted, request.participant_input)
+        updated = engine.apply(
+            scenario,
+            state,
+            enriched.action,
+            request.participant_input,
+            interpretation_log_messages=enriched.log_messages,
+        )
+        activated_state = None
+        if updated.phase != state.phase:
+            activated_state = scenario_engine.get_state_definition(
+                scenario, updated.phase
+            )
+            if activated_state is not None:
+                updated = scenario_engine.apply_state_definition(
+                    updated, activated_state
+                )
         logger.info(
             "Rules engine updated state session_id=%s new_turn=%s impact_level=%s media_pressure=%s service_disruption=%s",
             session_id,
@@ -543,7 +840,20 @@ async def post_turn(
             updated.metrics.service_disruption,
         )
 
-        response = validate_narration(provider.generate_narration(updated))
+        if activated_state and scenario_engine.is_full_state_definition(
+            activated_state
+        ):
+            response = validate_narration(
+                resolve_state_narration(activated_state, updated.audience).model_dump()
+            )
+            logger.info(
+                "Narration resolved from scenario-authored state session_id=%s state_id=%s phase=%s",
+                session_id,
+                activated_state.id,
+                activated_state.phase,
+            )
+        else:
+            response = validate_narration(provider.generate_narration(updated))
         logger.info(
             "Narration generated session_id=%s key_points=%s inject_count=%s",
             session_id,

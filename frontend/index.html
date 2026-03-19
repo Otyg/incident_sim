@@ -307,9 +307,55 @@
         const [latestNarration, setLatestNarration] = useState(null);
         const [debrief, setDebrief] = useState(null);
         const [participantInput, setParticipantInput] = useState("");
+        const [selectedManualPhase, setSelectedManualPhase] = useState("");
+        const [selectedManualInjectId, setSelectedManualInjectId] = useState("");
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
+
+        const currentTurnScenarioEvents = session
+          ? session.exercise_log.filter(
+              (item) =>
+                item.turn === session.turn_number &&
+                (item.type === "scenario_event" || item.type === "phase_change")
+            )
+          : [];
+        const sessionEventLog = session
+          ? session.exercise_log
+              .filter((item) => item.type !== "participant_action")
+              .slice()
+              .reverse()
+          : [];
+        const availableScenarioPhases = scenario
+          ? (scenario.states || [])
+              .map((state) => state.phase)
+              .filter((phase, index, items) => phase && items.indexOf(phase) === index)
+          : [];
+        const availableManualInjects = scenario?.inject_catalog || [];
+        const activeInjectDetails = session
+          ? session.active_injects.map((injectId) => {
+              const definition = availableManualInjects.find((item) => item.id === injectId);
+              return (
+                definition || {
+                  id: injectId,
+                  title: injectId,
+                  type: "okand",
+                  description: "Ingen inject-beskrivning hittades i scenariots katalog.",
+                }
+              );
+            })
+          : [];
+
+        const getPreferredManualInjectId = (scenarioState, sessionState) => {
+          const injects = scenarioState?.inject_catalog || [];
+          if (injects.length === 0) {
+            return "";
+          }
+
+          const activeInjects = sessionState?.active_injects || [];
+          const availableInject = injects.find((item) => !activeInjects.includes(item.id));
+          return availableInject?.id || injects[0]?.id || "";
+        };
 
         const loadTimeline = async (sessionId) => {
           const items = await apiRequest(`/sessions/${sessionId}/timeline`);
@@ -350,6 +396,8 @@
           setLatestNarration(null);
           setDebrief(null);
           setParticipantInput("");
+          setSelectedManualPhase("");
+          setSelectedManualInjectId("");
         };
 
         const loadScenario = async () => {
@@ -449,12 +497,63 @@
               }),
             });
             setSession(created.session_state);
+            setSelectedManualPhase(created.session_state.phase);
+            setSelectedManualInjectId(getPreferredManualInjectId(scenario, created.session_state));
             setTimeline([]);
             setLatestNarration(created.initial_narration);
             setDebrief(null);
             setStatus("Session startad. Initial lägesbild är klar.");
             setCurrentPage("session");
             await loadTimeline(created.session_state.session_id);
+          } catch (err) {
+            setError(getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const changePhaseManually = async () => {
+          if (!session || session.status !== "active" || !selectedManualPhase) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Byter fas manuellt...");
+
+          try {
+            const updated = await apiRequest(`/sessions/${session.session_id}/phase`, {
+              method: "POST",
+              body: JSON.stringify({ phase: selectedManualPhase }),
+            });
+            setSession(updated.session_state);
+            setLatestNarration(updated.narration);
+            setStatus(`Fasen är nu ${updated.session_state.phase}. Lägesbilden är uppdaterad.`);
+          } catch (err) {
+            setError(getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const triggerInjectManually = async () => {
+          if (!session || session.status !== "active" || !selectedManualInjectId) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Triggar inject manuellt...");
+
+          try {
+            const updatedSession = await apiRequest(`/sessions/${session.session_id}/injects`, {
+              method: "POST",
+              body: JSON.stringify({ inject_id: selectedManualInjectId }),
+            });
+            const injectTitle =
+              availableManualInjects.find((item) => item.id === selectedManualInjectId)?.title ||
+              selectedManualInjectId;
+            setSession(updatedSession);
+            setSelectedManualInjectId(getPreferredManualInjectId(scenario, updatedSession));
+            setStatus(`Injectet "${injectTitle}" är nu aktivt.`);
           } catch (err) {
             setError(getErrorMessage(err));
             setStatus("");
@@ -587,6 +686,29 @@
           initialize();
         }, []);
 
+        useEffect(() => {
+          if (session?.phase) {
+            setSelectedManualPhase(session.phase);
+          }
+        }, [session?.phase]);
+
+        useEffect(() => {
+          setSelectedManualInjectId((currentValue) => {
+            const injects = scenario?.inject_catalog || [];
+            if (injects.length === 0) {
+              return "";
+            }
+
+            const activeInjects = session?.active_injects || [];
+            if (currentValue && injects.some((item) => item.id === currentValue)) {
+              return currentValue;
+            }
+
+            const availableInject = injects.find((item) => !activeInjects.includes(item.id));
+            return availableInject?.id || injects[0]?.id || "";
+          });
+        }, [scenario, session?.active_injects]);
+
         const renderScenarioOverview = () => (
           <article className="panel">
             <h2>Scenarioöversikt</h2>
@@ -600,6 +722,7 @@
                   <div className="meta-item"><span>Version</span><strong>{scenario.version}</strong></div>
                   <div className="meta-item"><span>Svårighet</span><strong>{scenario.difficulty}</strong></div>
                   <div className="meta-item"><span>Tidsram</span><strong>{scenario.timebox_minutes} min</strong></div>
+                  <div className="meta-item"><span>Datadrivna regler</span><strong>{scenario.executable_rules?.length || 0}</strong></div>
                 </div>
                 <div>
                   <div className="small">Mål</div>
@@ -715,6 +838,16 @@
                       </div>
                     )}
                     <div>{latestNarration.situation_update}</div>
+                    {currentTurnScenarioEvents.length > 0 && (
+                      <div>
+                        <div className="small">Vad ändrades denna turn</div>
+                        <div className="list">
+                          {currentTurnScenarioEvents.map((item, index) => (
+                            <div key={`${item.type}-${index}`}>- {item.text}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <div className="small">Nyckelpunkter</div>
                       <div className="tag-row">
@@ -734,7 +867,7 @@
               </article>
 
               <article className="panel">
-                <h2>Deltagaråtgärd</h2>
+                <h2>Deltagaråtgärd och kontrollpanel</h2>
                 <form onSubmit={submitTurn}>
                   <textarea
                     value={participantInput}
@@ -751,6 +884,74 @@
                     </button>
                   </div>
                 </form>
+                {session && (
+                  <div className="stack" style={{ marginTop: "16px" }}>
+                    {availableScenarioPhases.length > 1 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt fasbyte</div>
+                          <select
+                            value={selectedManualPhase || session.phase}
+                            onChange={(event) => setSelectedManualPhase(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableScenarioPhases.map((phase) => (
+                              <option key={phase} value={phase}>
+                                {phase}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={changePhaseManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualPhase ||
+                              selectedManualPhase === session.phase
+                            }
+                          >
+                            Byt fas
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {availableManualInjects.length > 0 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt inject</div>
+                          <select
+                            value={selectedManualInjectId}
+                            onChange={(event) => setSelectedManualInjectId(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableManualInjects.map((inject) => (
+                              <option key={inject.id} value={inject.id}>
+                                {inject.title} ({inject.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={triggerInjectManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualInjectId ||
+                              session.active_injects.includes(selectedManualInjectId)
+                            }
+                          >
+                            Trigga inject
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {session?.status === "completed" && (
                   <div className="small">
                     Sessionen är avslutad. Nya deltagaråtgärder kan inte längre skickas.
@@ -772,6 +973,84 @@
                     <div className="meta-item"><span>Påverkansnivå</span><strong>{session.metrics.impact_level}</strong></div>
                     <div className="meta-item"><span>Medietryck</span><strong>{session.metrics.media_pressure}</strong></div>
                     <div className="meta-item"><span>Störning</span><strong>{session.metrics.service_disruption}</strong></div>
+                    <div className="meta-item">
+                      <span>Aktiva injects</span>
+                      <strong>{session.active_injects.length > 0 ? session.active_injects.join(", ") : "Inga"}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>Aktiva injects</h2>
+                {session ? (
+                  activeInjectDetails.length > 0 ? (
+                    <div className="list">
+                      {activeInjectDetails.map((inject) => (
+                        <div key={inject.id} className="timeline-item">
+                          <strong>{inject.title}</strong>
+                          <div className="small">{inject.type} · {inject.id}</div>
+                          <div>{inject.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="small">
+                      Inga aktiva injects just nu.
+                    </div>
+                  )
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Turn-tidslinje</h2>
+                {timeline.length > 0 ? (
+                  <div className="list">
+                    {timeline
+                      .slice()
+                      .reverse()
+                      .map((turn) => {
+                        return (
+                          <div key={turn.turn_number} className="timeline-item">
+                            <strong>
+                              Turn {turn.turn_number} · {turn.state_snapshot.current_time}
+                            </strong>
+                            <div>{turn.participant_input}</div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : session ? (
+                  <div className="small">
+                    Inga turns spelade ännu. Turn-tidslinjen visas här när övningen går vidare.
+                  </div>
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>System- och scenariohändelser</h2>
+                {sessionEventLog.length > 0 ? (
+                  <div className="list">
+                    {sessionEventLog.map((item, index) => (
+                      <div key={`${item.turn}-${item.type}-${index}`} className="timeline-item">
+                        <strong>
+                          Turn {item.turn} · {item.type}
+                        </strong>
+                        <div>{item.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : session ? (
+                  <div className="small">
+                    Inga system- eller scenariohändelser loggade ännu.
                   </div>
                 ) : (
                   <div className="small">Ingen aktiv session ännu.</div>
