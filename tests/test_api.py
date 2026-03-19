@@ -128,6 +128,13 @@ def datadriven_scenario_payload():
             "add_targets": ["external_access"],
         }
     ]
+    payload["target_aliases"] = [
+        {
+            "id": "alias-external-access",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst", "externa anslutningar", "vpn"],
+        }
+    ]
     payload["states"][1].update(
         {
             "known_facts": ["Extern åtkomst har begränsats."],
@@ -281,6 +288,13 @@ def enrichment_driven_scenario_payload():
             "add_targets": ["external_access"],
         }
     ]
+    payload["target_aliases"] = [
+        {
+            "id": "alias-external-access",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst", "externa anslutningar"],
+        }
+    ]
     payload["executable_rules"] = [
         {
             "id": "rule-restrict-external-access",
@@ -336,7 +350,9 @@ def test_get_default_sample_scenario():
     assert "kommunikation" in body["audiences"]
     assert len(body["inject_catalog"]) >= 2
     assert len(body["text_matchers"]) >= 3
+    assert len(body["target_aliases"]) >= 3
     assert any(item["id"] == "matcher-target-vpn" for item in body["text_matchers"])
+    assert any(item["id"] == "alias-external-access" for item in body["target_aliases"])
     assert any(
         item["id"] == "hint-communication-communications-team"
         for item in body["interpretation_hints"]
@@ -581,9 +597,50 @@ def test_post_turn_applies_scenario_action_enrichment_before_rules(monkeypatch):
     )
     assert any(
         item["type"] == "interpretation_support"
-        and item["text"] == "Interpretation hint använd: hint-external-access"
+        and item["text"]
+        == "Target normaliserad: extern åtkomst -> external_access (alias-external-access)"
         for item in body["state_snapshot"]["exercise_log"]
     )
+
+
+def test_post_turn_normalizes_provider_targets_with_scenario_aliases(monkeypatch):
+    class HumanLabelProvider(MockLLMProvider):
+        def interpret_action(self, participant_input: str) -> dict:
+            return {
+                "action_summary": "Provider returnerar mänskliga labels för targets.",
+                "action_types": ["containment"],
+                "targets": ["Intern infrastruktur", "Externa anslutningar"],
+                "intent": "Blockera angriparens externa väg in.",
+                "expected_effects": [],
+                "risks": [],
+                "uncertainties": [],
+                "priority": "high",
+                "confidence": 0.7,
+            }
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: HumanLabelProvider())
+    request_json("POST", "/scenarios", enrichment_driven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Blockera extern åtkomst."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "containment"
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"]
+        == "Target normaliserad: Externa anslutningar -> external_access (alias-external-access)"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+    assert body["state_snapshot"]["flags"]["external_access_restricted"] is True
 
 
 def test_default_sample_scenario_enrichment_supports_communication_and_escalation(

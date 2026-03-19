@@ -364,6 +364,31 @@ class InterpretationHint(BaseModel):
         return self
 
 
+class TargetAlias(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för target-normaliseringen.")
+    canonical: str = Field(
+        min_length=1,
+        description="Det kanoniska target-värdet som regler och hints ska använda.",
+    )
+    aliases: list[str] = Field(
+        min_length=1,
+        description=(
+            "Case-insensitive alias eller fraser som ska normaliseras till det "
+            "kanoniska target-värdet."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_non_empty_aliases(self) -> "TargetAlias":
+        """Require at least one non-empty alias value."""
+
+        if not any(alias.strip() for alias in self.aliases):
+            raise ValueError("TargetAlias aliases must contain at least one value")
+        return self
+
+
 class RuleDefinition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -524,6 +549,13 @@ class Scenario(BaseModel):
             "kan komplettera tolkade action_types eller targets."
         ),
     )
+    target_aliases: list[TargetAlias] = Field(
+        default_factory=list,
+        description=(
+            "Scenariodefinierade alias för att normalisera provider-targets och "
+            "rå deltagartext till kanoniska target-värden innan regler utvärderas."
+        ),
+    )
     interpretation_hints: list[InterpretationHint] = Field(
         default_factory=list,
         description=(
@@ -571,6 +603,10 @@ class Scenario(BaseModel):
         text_matcher_ids = [matcher.id for matcher in self.text_matchers]
         if len(text_matcher_ids) != len(set(text_matcher_ids)):
             raise ValueError("Scenario text_matchers must use unique ids")
+
+        target_alias_ids = [alias.id for alias in self.target_aliases]
+        if len(target_alias_ids) != len(set(target_alias_ids)):
+            raise ValueError("Scenario target_aliases must use unique ids")
 
         interpretation_hint_ids = [hint.id for hint in self.interpretation_hints]
         if len(interpretation_hint_ids) != len(set(interpretation_hint_ids)):

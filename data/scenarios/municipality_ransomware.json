@@ -236,6 +236,41 @@
       "value": "analysis"
     }
   ],
+  "target_aliases": [
+    {
+      "id": "alias-external-access",
+      "canonical": "external_access",
+      "aliases": [
+        "extern åtkomst",
+        "extern access",
+        "externa anslutningar",
+        "vpn",
+        "fjärråtkomst"
+      ]
+    },
+    {
+      "id": "alias-executive-team",
+      "canonical": "executive_team",
+      "aliases": [
+        "krisledning",
+        "krisledningsgruppen",
+        "ledning",
+        "kommundirektör"
+      ]
+    },
+    {
+      "id": "alias-communications-team",
+      "canonical": "communications_team",
+      "aliases": [
+        "kommunikation",
+        "kommunicera",
+        "allmänhet",
+        "myndigheter",
+        "media",
+        "press"
+      ]
+    }
+  ],
   "interpretation_hints": [
     {
       "id": "hint-target-external-access",

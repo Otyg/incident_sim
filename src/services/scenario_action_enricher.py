@@ -35,7 +35,7 @@
 from dataclasses import dataclass, field
 
 from src.logging_utils import get_logger
-from src.models.scenario import InterpretationHint, Scenario, TextMatcher
+from src.models.scenario import InterpretationHint, Scenario, TargetAlias, TextMatcher
 from src.schemas.interpreted_action import InterpretedAction
 
 
@@ -71,6 +71,26 @@ class ScenarioActionEnricher:
         if matcher.match_type == "contains_all":
             return all(pattern in normalized_text for pattern in normalized_patterns)
         return any(pattern in normalized_text for pattern in normalized_patterns)
+
+    def _matches_alias(
+        self,
+        alias: TargetAlias,
+        normalized_text: str,
+        normalized_targets: list[tuple[str, str]],
+    ) -> tuple[bool, str | None]:
+        normalized_aliases = [
+            self._normalize(item) for item in alias.aliases if item.strip()
+        ]
+        for original, normalized_target in normalized_targets:
+            if normalized_target in normalized_aliases:
+                return True, original
+        canonical = self._normalize(alias.canonical)
+        for normalized_alias in normalized_aliases:
+            if normalized_alias == canonical:
+                continue
+            if normalized_alias in normalized_text:
+                return True, normalized_alias
+        return False, None
 
     def _hint_matches(
         self,
@@ -110,7 +130,27 @@ class ScenarioActionEnricher:
 
         updated = interpreted_action.model_copy(deep=True)
         normalized_text = self._normalize(participant_input)
+        normalized_targets = [
+            (target, self._normalize(target)) for target in updated.targets if target.strip()
+        ]
         log_messages: list[str] = []
+
+        for alias in scenario.target_aliases:
+            matched, source = self._matches_alias(alias, normalized_text, normalized_targets)
+            if not matched:
+                continue
+
+            added = self._append_unique(updated.targets, alias.canonical)
+            if added:
+                log_messages.append(
+                    f"Target normaliserad: {source} -> {alias.canonical} ({alias.id})"
+                )
+                logger.info(
+                    "Scenario target alias matched alias_id=%s canonical=%s source=%s",
+                    alias.id,
+                    alias.canonical,
+                    source,
+                )
 
         for matcher in scenario.text_matchers:
             if not self._matches_text(matcher, normalized_text):

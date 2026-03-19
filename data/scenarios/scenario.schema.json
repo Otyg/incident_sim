@@ -467,6 +467,36 @@
       },
       "required": ["id", "field", "match_type", "patterns", "value"]
     },
+    "TargetAlias": {
+      "type": "object",
+      "title": "TargetAlias",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt unikt id för target-normaliseringen."
+        },
+        "canonical": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Canonical",
+          "description": "Det kanoniska target-värdet som regler och hints ska använda."
+        },
+        "aliases": {
+          "type": "array",
+          "title": "Aliases",
+          "description": "Case-insensitive alias eller fraser som ska normaliseras till det kanoniska target-värdet.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": ["id", "canonical", "aliases"]
+    },
     "InterpretationHintCondition": {
       "type": "object",
       "title": "InterpretationHintCondition",
@@ -957,6 +987,12 @@
       "title": "Text Matchers",
       "description": "Enkla, scenariodefinierade textmatchningar mot rå deltagartext som kan komplettera tolkade action_types eller targets.",
       "items": { "$ref": "#/$defs/TextMatcher" }
+    },
+    "target_aliases": {
+      "type": "array",
+      "title": "Target Aliases",
+      "description": "Scenariodefinierade alias för att normalisera provider-targets och rå deltagartext till kanoniska target-värden innan regler utvärderas.",
+      "items": { "$ref": "#/$defs/TargetAlias" }
     },
     "interpretation_hints": {
       "type": "array",

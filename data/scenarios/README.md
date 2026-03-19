@@ -32,6 +32,7 @@ Nuvarande läge:
 - `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
 - `text_matchers[]` används dynamiskt för enkel, scenariostyrd matchning mot rå deltagartext innan regelmotorn körs.
+- `target_aliases[]` används dynamiskt för att normalisera fria provider-targets och textbaserade uttryck till kanoniska target-värden före hints och regler.
 - `interpretation_hints[]` används dynamiskt för att additivt komplettera LLM-tolkningen före regelutvärdering.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
 - `executable_rules[]` används dynamiskt för scenariostyrda stateändringar, flaggor, metrics, injects och loggrader.
@@ -394,6 +395,39 @@ Exempel:
   "value": "external_access"
 }
 ```
+
+## `target_aliases`
+
+`target_aliases` beskriver scenariodefinierade alias för target-normalisering.
+
+De används dynamiskt för att lägga till kanoniska target-värden utifrån:
+
+- redan tolkade provider-targets
+- rå deltagartext
+
+Det här är lämpligt när LLM:n returnerar mänskliga labels som `Externa anslutningar`, men scenarioreglerna behöver arbeta mot ett stabilt värde som `external_access`.
+
+Exempel:
+
+```json
+{
+  "id": "alias-external-access",
+  "canonical": "external_access",
+  "aliases": ["extern åtkomst", "externa anslutningar", "vpn"]
+}
+```
+
+Normaliseringen är additiv:
+
+- originaltarget får finnas kvar
+- det kanoniska värdet läggs till om det saknas
+- övningsloggen kan visa vilken aliasregel som användes
+
+Rekommendation:
+
+- använd `target_aliases` för synonymhantering och normalisering
+- använd `text_matchers` för enkel textdriven komplettering av `action_types` eller `targets`
+- använd `interpretation_hints` när normaliseringen också ska bero på kontext, till exempel redan tolkade `action_types`
 
 ## `interpretation_hints`
 

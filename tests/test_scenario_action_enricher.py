@@ -68,6 +68,18 @@ def make_scenario() -> Scenario:
                     "value": "analysis",
                 },
             ],
+            "target_aliases": [
+                {
+                    "id": "alias-external-access",
+                    "canonical": "external_access",
+                    "aliases": ["extern åtkomst", "externa anslutningar"],
+                },
+                {
+                    "id": "alias-vpn",
+                    "canonical": "vpn",
+                    "aliases": ["vpn", "fjärråtkomst"],
+                },
+            ],
             "interpretation_hints": [
                 {
                     "id": "hint-external-access",
@@ -119,8 +131,8 @@ def test_enricher_applies_text_matchers_and_interpretation_hints():
     assert result.action.action_types == ["monitoring", "containment"]
     assert result.action.targets == ["external_access"]
     assert result.log_messages == [
+        "Target normaliserad: extern åtkomst -> external_access (alias-external-access)",
         "Textmatchning träffade: matcher-containment",
-        "Interpretation hint använd: hint-external-access",
     ]
 
 
@@ -149,4 +161,17 @@ def test_enricher_can_chain_vpn_and_forensics_support():
         "Textmatchning träffade: matcher-vpn",
         "Textmatchning träffade: matcher-analysis",
         "Interpretation hint använd: hint-forensics",
+    ]
+
+
+def test_enricher_normalizes_provider_targets_before_rules_and_hints():
+    result = ScenarioActionEnricher().enrich(
+        make_scenario(),
+        "Blockera extern åtkomst.",
+        make_action(["containment"], ["Externa anslutningar"]),
+    )
+
+    assert result.action.targets == ["Externa anslutningar", "external_access"]
+    assert result.log_messages == [
+        "Target normaliserad: Externa anslutningar -> external_access (alias-external-access)"
     ]

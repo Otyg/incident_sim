@@ -60,6 +60,7 @@ def sample_scenario_dict():
         "actors": [],
         "inject_catalog": [],
         "text_matchers": [],
+        "target_aliases": [],
         "interpretation_hints": [],
         "rules": [],
         "presentation_guidelines": {
@@ -217,6 +218,40 @@ def test_scenario_validation_accepts_text_matchers_and_interpretation_hints():
 
     assert scenario.text_matchers[0].field == "action.targets"
     assert scenario.interpretation_hints[0].add_targets == ["external_access"]
+
+
+def test_scenario_validation_accepts_target_aliases():
+    payload = sample_scenario_dict()
+    payload["target_aliases"] = [
+        {
+            "id": "alias-external-access",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst", "externa anslutningar"],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.target_aliases[0].canonical == "external_access"
+
+
+def test_scenario_validation_rejects_duplicate_target_alias_ids():
+    payload = sample_scenario_dict()
+    payload["target_aliases"] = [
+        {
+            "id": "alias-duplicate",
+            "canonical": "external_access",
+            "aliases": ["extern åtkomst"],
+        },
+        {
+            "id": "alias-duplicate",
+            "canonical": "vpn",
+            "aliases": ["vpn"],
+        },
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
 
 
 def test_scenario_validation_rejects_invalid_text_matcher_field():
