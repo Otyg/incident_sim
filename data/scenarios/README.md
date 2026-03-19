@@ -31,9 +31,11 @@ Nuvarande läge:
 - `states[0]` används dynamiskt som startläge när en session skapas.
 - `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
-- `text_matchers[]` och `interpretation_hints[]` valideras och lagras, men kopplas in i turn-flödet först i nästa implementeringssteg.
+- `text_matchers[]` används dynamiskt för enkel, scenariostyrd matchning mot rå deltagartext innan regelmotorn körs.
+- `interpretation_hints[]` används dynamiskt för att additivt komplettera LLM-tolkningen före regelutvärdering.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
-- Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
+- `executable_rules[]` används dynamiskt för scenariostyrda stateändringar, flaggor, metrics, injects och loggrader.
+- Den faktiska generiska turn-motorn finns i [rules_engine.py](../../src/services/rules_engine.py), medan scenariobunden domänlogik i första hand bör ligga i scenariot.
 
 Det betyder att scenarioförfattaren nu kan styra faser, inject-aktivering och vissa stateförändringar direkt i JSON, medan mer avancerad logik fortfarande kan kräva backendkod.
 
@@ -343,7 +345,7 @@ Använd dem därför som:
 
 Tanken är att scenariot ska kunna säga att vissa ord eller fraser bör komplettera den strukturerade tolkningen, till exempel att `extern åtkomst` bör leda till target `external_access`.
 
-Fälten är nu validerade och dokumenterade, men de används inte dynamiskt förrän nästa implementeringssteg.
+De används dynamiskt efter LLM-tolkningen och före regelmotorn. Matchningen är additiv: den kompletterar den redan tolkade actionn i stället för att skriva över den.
 
 Varje textmatcher innehåller:
 
@@ -402,7 +404,7 @@ Tanken är att scenariot ska kunna uttrycka att:
 - viss råtext i kombination med en redan tolkad åtgärdstyp bör ge extra targets
 - vissa kombinationer av action types och targets bör förstärkas deterministiskt
 
-Även dessa fält är nu validerade och dokumenterade, men de används inte dynamiskt förrän nästa implementeringssteg.
+De används dynamiskt efter `text_matchers` och före regelmotorn. Hints är additiva och används för att komplettera `action_types` eller `targets`, inte för att skriva över befintlig tolkning.
 
 Varje hint innehåller:
 
@@ -474,6 +476,7 @@ Varje villkor består av:
 Tillåtna `fact` i v1:
 
 - `state.phase`
+- `state.no_communication_turns`
 - `state.metrics.*`
 - `state.flags.*`
 - `session.turn_number`

@@ -285,6 +285,35 @@ def test_scenario_validation_rejects_set_phase_not_in_phase_list():
         Scenario(**payload)
 
 
+def test_scenario_validation_accepts_no_communication_turns_as_rule_fact():
+    payload = sample_scenario_dict()
+    payload["executable_rules"] = [
+        {
+            "id": "rule-missing-comms",
+            "name": "Utebliven kommunikation ökar trycket",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.no_communication_turns",
+                    "operator": "gte",
+                    "value": 2,
+                }
+            ],
+            "effects": [
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.media_pressure",
+                    "amount": 1,
+                }
+            ],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.executable_rules[0].conditions[0].fact == "state.no_communication_turns"
+
+
 def test_scenario_validation_rejects_invalid_executable_rule_operator():
     payload = sample_scenario_dict()
     payload["executable_rules"] = [
