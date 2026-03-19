@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scenariohantering</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="/frontend/common.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a class="nav-link current" href="/setup">Scenariohantering</a>
+        <a class="nav-link" href="/authoring">Scenarioförfattning</a>
+        <a class="nav-link" href="/session">Aktiv session</a>
+      </nav>
+      <div id="root"></div>
+    </div>
+    <script type="text/babel">
+      const { useEffect, useState } = React;
+      const Common = window.IncidentSimCommon;
+
+      function SetupPage() {
+        const [scenario, setScenario] = useState(null);
+        const [availableScenarios, setAvailableScenarios] = useState([]);
+        const [selectedScenarioId, setSelectedScenarioId] = useState(
+          Common.getSelectedScenarioId()
+        );
+        const [loading, setLoading] = useState(false);
+        const [status, setStatus] = useState("");
+        const [error, setError] = useState("");
+
+        const refreshScenarioList = async (options = {}) => {
+          const items = await Common.apiRequest("/scenarios");
+          setAvailableScenarios(items);
+
+          if (items.length === 0) {
+            setSelectedScenarioId("");
+            return items;
+          }
+
+          const preferredScenarioId =
+            options.preferredScenarioId || Common.getPreferredScenarioId();
+          const selectedId =
+            items.find((item) => item.id === preferredScenarioId)?.id || items[0].id;
+          setSelectedScenarioId(selectedId);
+          Common.setSelectedScenarioId(selectedId);
+          return items;
+        };
+
+        const initialize = async () => {
+          setLoading(true);
+          setError("");
+          setStatus("Hämtar scenarion...");
+
+          try {
+            const items = await refreshScenarioList();
+            if (items.length > 0) {
+              const selectedId =
+                items.find((item) => item.id === Common.getPreferredScenarioId())?.id ||
+                items[0].id;
+              const selectedScenario = items.find((item) => item.id === selectedId) || null;
+              setScenario(selectedScenario);
+              Common.setCurrentScenarioId(selectedId);
+              setStatus(`Hittade ${items.length} sparade scenarion i databasen.`);
+            } else {
+              setScenario(null);
+              setStatus(
+                "Inga sparade scenarion hittades. Ladda exempelscenario eller ladda upp en JSON-fil."
+              );
+            }
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          initialize();
+        }, []);
+
+        const loadScenario = async () => {
+          setLoading(true);
+          setError("");
+          setStatus("Laddar exempelscenario...");
+
+          try {
+            const sampleScenario = await Common.apiRequest("/sample-scenarios/default");
+            const savedScenario = await Common.apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(sampleScenario),
+            });
+            setScenario(savedScenario);
+            Common.setCurrentScenarioId(savedScenario.id);
+            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
+            setStatus("Exempelscenario laddat och sparat.");
+          } catch (err) {
+            try {
+              const fallbackScenario = await Common.apiRequest("/sample-scenarios/default");
+              const existing = await Common.apiRequest(`/scenarios/${fallbackScenario.id}`);
+              setScenario(existing);
+              Common.setCurrentScenarioId(existing.id);
+              await refreshScenarioList({ preferredScenarioId: existing.id });
+              setStatus("Befintligt exempelscenario laddat från databasen.");
+            } catch {
+              setError(Common.getErrorMessage(err));
+              setStatus("");
+            }
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const loadScenarioFromDatabase = async () => {
+          if (!selectedScenarioId) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Laddar scenario från databasen...");
+
+          try {
+            const loadedScenario = await Common.apiRequest(`/scenarios/${selectedScenarioId}`);
+            setScenario(loadedScenario);
+            Common.setCurrentScenarioId(loadedScenario.id);
+            setStatus(`Scenario "${loadedScenario.title}" laddat från databasen.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const handleScenarioUpload = async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+
+          if (!file) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus(`Läser in ${file.name}...`);
+
+          try {
+            const payload = await Common.readJsonFile(file);
+            const savedScenario = await Common.apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(payload),
+            });
+            setScenario(savedScenario);
+            Common.setCurrentScenarioId(savedScenario.id);
+            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
+            setStatus(`Scenario "${savedScenario.title}" uppladdat och sparat.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const startSession = async () => {
+          if (!scenario) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Startar session...");
+
+          try {
+            const created = await Common.apiRequest("/sessions", {
+              method: "POST",
+              body: JSON.stringify({
+                scenario_id: scenario.id,
+                audience: "krisledning",
+              }),
+            });
+            Common.setCurrentScenarioId(scenario.id);
+            Common.setCurrentSessionId(created.session_state.session_id);
+            Common.setLatestNarration(created.initial_narration);
+            Common.setStoredDebrief(null);
+            window.location.assign("/session");
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+            setLoading(false);
+          }
+        };
+
+        return (
+          <>
+            <section className="hero">
+              <div className="hero-top">
+                <div className="page-header">
+                  <h1>Scenariohantering</h1>
+                  <p>
+                    Läs in exempelscenario, välj ett sparat scenario från databasen
+                    eller ladda upp ett nytt scenario i JSON-format.
+                  </p>
+                </div>
+              </div>
+              <div className="actions">
+                <button onClick={loadScenario} disabled={loading}>Ladda scenario</button>
+                <a className="button-link secondary" href="/authoring">
+                  Författa från text
+                </a>
+                <button
+                  className="secondary"
+                  onClick={loadScenarioFromDatabase}
+                  disabled={loading || !selectedScenarioId}
+                >
+                  Ladda från databasen
+                </button>
+                <button
+                  className="secondary"
+                  onClick={startSession}
+                  disabled={loading || !scenario}
+                >
+                  Starta session
+                </button>
+              </div>
+              <div className="stack">
+                <div>
+                  <div className="small">Sparade scenarion</div>
+                  <select
+                    value={selectedScenarioId}
+                    onChange={(event) => {
+                      setSelectedScenarioId(event.target.value);
+                      Common.setSelectedScenarioId(event.target.value);
+                    }}
+                    disabled={loading || availableScenarios.length === 0}
+                  >
+                    {availableScenarios.length === 0 ? (
+                      <option value="">Inga sparade scenarion</option>
+                    ) : (
+                      availableScenarios.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} ({item.id})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <div className="small">Ladda upp scenario i JSON-format</div>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleScenarioUpload}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Scenarioöversikt</h2>
+                {scenario ? (
+                  <div className="list">
+                    <div>
+                      <strong>{scenario.title}</strong>
+                      <div className="small">{scenario.description}</div>
+                    </div>
+                    <div className="meta">
+                      <div className="meta-item"><span>Version</span><strong>{scenario.version}</strong></div>
+                      <div className="meta-item"><span>Svårighet</span><strong>{scenario.difficulty}</strong></div>
+                      <div className="meta-item"><span>Tidsram</span><strong>{scenario.timebox_minutes} min</strong></div>
+                      <div className="meta-item"><span>Datadrivna regler</span><strong>{scenario.executable_rules?.length || 0}</strong></div>
+                    </div>
+                    <div>
+                      <div className="small">Mål</div>
+                      <div className="tag-row">
+                        {scenario.training_goals.map((goal) => (
+                          <span key={goal} className="tag">{goal}</span>
+                        ))}
+                      </div>
+                    </div>
+                    {Common.getCurrentSessionId() && (
+                      <div>
+                        <div className="small">Pågående eller senast öppnade session</div>
+                        <div>{Common.getCurrentSessionId()}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="small">Inget scenario laddat ännu.</div>
+                )}
+              </article>
+            </section>
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<SetupPage />);
+    </script>
+  </body>
+</html>

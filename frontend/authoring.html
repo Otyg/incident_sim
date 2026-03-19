@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scenarioförfattning</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="/frontend/common.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a class="nav-link" href="/setup">Scenariohantering</a>
+        <a class="nav-link current" href="/authoring">Scenarioförfattning</a>
+        <a class="nav-link" href="/session">Aktiv session</a>
+      </nav>
+      <div id="root"></div>
+    </div>
+    <script type="text/babel">
+      const { useState } = React;
+      const Common = window.IncidentSimCommon;
+
+      function AuthoringPage() {
+        const [authoringSourceText, setAuthoringSourceText] = useState(
+          Common.getAuthoringSourceText()
+        );
+        const [authoringDraft, setAuthoringDraftState] = useState(
+          Common.getAuthoringDraft()
+        );
+        const [loading, setLoading] = useState(false);
+        const [status, setStatus] = useState("");
+        const [error, setError] = useState("");
+
+        const setDraft = (draft) => {
+          setAuthoringDraftState(draft);
+          Common.setAuthoringDraft(draft);
+        };
+
+        const handleSourceTextChange = (value) => {
+          setAuthoringSourceText(value);
+          Common.setAuthoringSourceText(value);
+        };
+
+        const generateScenarioDraft = async () => {
+          if (!authoringSourceText.trim()) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Genererar scenarioutkast från fri text...");
+
+          try {
+            const draft = await Common.apiRequest("/scenarios/draft-from-text", {
+              method: "POST",
+              body: JSON.stringify({
+                source_text: authoringSourceText.trim(),
+                source_format: "markdown",
+              }),
+            });
+            setDraft(draft);
+            setStatus(`Scenarioutkast "${draft.title}" är klart för granskning.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const saveGeneratedDraft = async () => {
+          if (!authoringDraft) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Sparar genererat scenarioutkast...");
+
+          try {
+            const savedScenario = await Common.apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(authoringDraft),
+            });
+            Common.setCurrentScenarioId(savedScenario.id);
+            Common.setSelectedScenarioId(savedScenario.id);
+            setDraft(savedScenario);
+            setStatus(
+              `Scenario "${savedScenario.title}" sparat och valt i scenariohanteringen.`
+            );
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <>
+            <section className="hero">
+              <div className="hero-top">
+                <div className="page-header">
+                  <h1>Scenarioförfattning</h1>
+                  <p>
+                    Skriv scenariot i fri men strukturerad text, gärna i Markdown.
+                    Backend genererar ett validerat JSON-utkast med faser, injects och
+                    försiktigt föreslagna regler.
+                  </p>
+                </div>
+              </div>
+              <div className="stack" style={{ marginTop: "20px" }}>
+                <div>
+                  <div className="small">Scenario i fri text eller Markdown</div>
+                  <textarea
+                    value={authoringSourceText}
+                    onChange={(event) => handleSourceTextChange(event.target.value)}
+                    disabled={loading}
+                    placeholder={"# Titel\n\n## Bakgrund\nKl. 08:15 ...\n\n## Målgrupper\n- krisledning\n- it-ledning\n\n## Nyckelpunkter\n- ...\n\n## Injects\n- ..."}
+                    style={{ minHeight: "280px" }}
+                  />
+                </div>
+                <div className="actions">
+                  <button
+                    onClick={generateScenarioDraft}
+                    disabled={loading || !authoringSourceText.trim()}
+                  >
+                    Generera utkast
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={saveGeneratedDraft}
+                    disabled={loading || !authoringDraft}
+                  >
+                    Spara scenario
+                  </button>
+                  <a className="button-link secondary" href="/setup">
+                    Till scenariohantering
+                  </a>
+                </div>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Genererat utkast</h2>
+                {authoringDraft ? (
+                  <div className="list">
+                    <div>
+                      <strong>{authoringDraft.title}</strong>
+                      <div className="small">{authoringDraft.description}</div>
+                    </div>
+                    <div className="meta">
+                      <div className="meta-item"><span>Scenario-id</span><strong>{authoringDraft.id}</strong></div>
+                      <div className="meta-item"><span>Faser</span><strong>{authoringDraft.states?.length || 0}</strong></div>
+                      <div className="meta-item"><span>Injects</span><strong>{authoringDraft.inject_catalog?.length || 0}</strong></div>
+                      <div className="meta-item"><span>Regler</span><strong>{authoringDraft.executable_rules?.length || 0}</strong></div>
+                    </div>
+                    <div>
+                      <div className="small">Källtext sparas som original_text</div>
+                      <div>{authoringDraft.original_text ? "Ja" : "Nej"}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Inget utkast genererat ännu.</div>
+                )}
+              </article>
+
+              <article className="panel alt">
+                <h2>JSON-granskning</h2>
+                {authoringDraft ? (
+                  <pre>{JSON.stringify(authoringDraft, null, 2)}</pre>
+                ) : (
+                  <div className="small">
+                    Validerad JSON visas här när utkastet har genererats.
+                  </div>
+                )}
+              </article>
+            </section>
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<AuthoringPage />);
+    </script>
+  </body>
+</html>

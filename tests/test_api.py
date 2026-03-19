@@ -1,7 +1,6 @@
 import asyncio
 import json
 
-
 from src import api as api_module
 from src.main import app
 from src.services.llm_provider import (
@@ -13,6 +12,14 @@ from tests.mock_llm_provider import MockLLMProvider
 
 
 def request_json(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+    status, _, response_body = request_response(method, path, body=body)
+    parsed_body = json.loads(response_body) if response_body else {}
+    return status, parsed_body
+
+
+def request_response(
+    method: str, path: str, body: dict | None = None
+) -> tuple[int, dict[str, str], bytes]:
     messages = []
     payload = json.dumps(body).encode() if body is not None else b""
     delivered = False
@@ -46,9 +53,14 @@ def request_json(method: str, path: str, body: dict | None = None) -> tuple[int,
     asyncio.run(app(scope, receive, send))
 
     status = messages[0]["status"]
-    response_body = messages[1].get("body", b"")
-    parsed_body = json.loads(response_body) if response_body else {}
-    return status, parsed_body
+    headers = {
+        key.decode("latin-1"): value.decode("latin-1")
+        for key, value in messages[0].get("headers", [])
+    }
+    response_body = b"".join(
+        message.get("body", b"") for message in messages if message["type"] == "http.response.body"
+    )
+    return status, headers, response_body
 
 
 def sample_scenario_payload():
@@ -361,6 +373,36 @@ def test_get_default_sample_scenario():
         item["id"] == "hint-communication-communications-team"
         for item in body["interpretation_hints"]
     )
+
+
+def test_frontend_root_redirects_to_setup():
+    response = asyncio.run(api_module.frontend())
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/setup"
+
+
+def test_frontend_setup_page_is_served():
+    response = asyncio.run(api_module.frontend_setup())
+
+    assert str(response.path).endswith("frontend/setup.html")
+
+
+def test_frontend_authoring_page_is_served():
+    response = asyncio.run(api_module.frontend_authoring())
+
+    assert str(response.path).endswith("frontend/authoring.html")
+
+
+def test_frontend_session_page_is_served():
+    response = asyncio.run(api_module.frontend_session())
+
+    assert str(response.path).endswith("frontend/session.html")
+
+
+def test_frontend_static_assets_are_served():
+    assert (api_module.FRONTEND_DIR / "common.js").exists()
+    assert (api_module.FRONTEND_DIR / "styles.css").exists()
 
 
 def test_create_and_get_scenario():

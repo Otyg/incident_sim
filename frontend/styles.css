@@ -1,0 +1,263 @@
+:root {
+  color-scheme: light;
+  --bg: #f4efe5;
+  --panel: #fffdf8;
+  --panel-alt: #f7f1e7;
+  --ink: #1d2a2e;
+  --muted: #5f6c6f;
+  --accent: #0f766e;
+  --accent-soft: #cfece6;
+  --danger: #9f1239;
+  --border: #d8cec0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 28%),
+    linear-gradient(180deg, #f7f2e8 0%, var(--bg) 100%);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+}
+
+button.secondary,
+.button-link.secondary {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+button:disabled,
+.button-link[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.page {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.nav-link.current {
+  background: var(--ink);
+  color: white;
+}
+
+.hero {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(255, 253, 248, 0.96));
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 16px 40px rgba(29, 42, 46, 0.08);
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2rem, 3vw, 3.2rem);
+  line-height: 1;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.hero-top .actions {
+  margin-top: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(29, 42, 46, 0.06);
+}
+
+.panel.alt {
+  background: var(--panel-alt);
+}
+
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.meta,
+.list,
+.stack {
+  display: grid;
+  gap: 10px;
+}
+
+.meta-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(216, 206, 192, 0.7);
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  border-radius: 999px;
+  background: var(--accent-soft);
+  padding: 6px 10px;
+  font-size: 0.95rem;
+}
+
+textarea,
+select,
+input[type="file"] {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  font: inherit;
+  background: white;
+  color: var(--ink);
+}
+
+textarea {
+  min-height: 120px;
+}
+
+.status {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--ink);
+}
+
+.error {
+  background: rgba(159, 18, 57, 0.08);
+  color: var(--danger);
+}
+
+.timeline-item {
+  padding: 14px 0;
+  border-top: 1px solid rgba(216, 206, 192, 0.7);
+}
+
+.timeline-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.page-header {
+  display: grid;
+  gap: 8px;
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.section-title {
+  margin-bottom: 10px;
+}
+
+pre {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page {
+    width: min(100vw - 20px, 1180px);
+    padding-top: 20px;
+  }
+
+  .hero {
+    padding: 22px;
+  }
+
+  .hero-top {
+    display: grid;
+  }
+}

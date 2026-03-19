@@ -42,7 +42,8 @@ import json
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.logging_utils import configure_logging, get_logger
@@ -72,7 +73,11 @@ from src.storage.factory import create_storage_repositories
 configure_logging()
 logger = get_logger(__name__)
 app = FastAPI(title="Incident Exercise Prototype")
-FRONTEND_INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+FRONTEND_INDEX = FRONTEND_DIR / "index.html"
+FRONTEND_SETUP = FRONTEND_DIR / "setup.html"
+FRONTEND_AUTHORING = FRONTEND_DIR / "authoring.html"
+FRONTEND_SESSION = FRONTEND_DIR / "session.html"
 SAMPLE_SCENARIO_PATH = (
     Path(__file__).resolve().parents[1]
     / "data"
@@ -84,6 +89,8 @@ scenario_repository, session_repository = create_storage_repositories()
 TURN_RETRY_BACKOFF_SECONDS = [2, 4, 8, 16]
 scenario_engine = ScenarioEngine()
 action_enricher = ScenarioActionEnricher()
+
+app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
 
 
 class CreateSessionRequest(BaseModel):
@@ -257,18 +264,35 @@ async def health() -> dict:
 
 
 @app.get("/", include_in_schema=False)
-async def frontend() -> FileResponse:
-    """Serve the static browser client entrypoint.
+async def frontend() -> RedirectResponse:
+    """Redirect the browser client root to the setup page.
 
     Returns:
-        FileResponse: The frontend HTML file.
-
-    Raises:
-        RuntimeError: Indirectly if the frontend file cannot be read by the
-            underlying file response implementation.
+        RedirectResponse: Redirect to the frontend setup page.
     """
 
-    return FileResponse(FRONTEND_INDEX)
+    return RedirectResponse(url="/setup", status_code=307)
+
+
+@app.get("/setup", include_in_schema=False)
+async def frontend_setup() -> FileResponse:
+    """Serve the scenario setup page for the browser client."""
+
+    return FileResponse(FRONTEND_SETUP)
+
+
+@app.get("/authoring", include_in_schema=False)
+async def frontend_authoring() -> FileResponse:
+    """Serve the scenario authoring page for the browser client."""
+
+    return FileResponse(FRONTEND_AUTHORING)
+
+
+@app.get("/session", include_in_schema=False)
+async def frontend_session() -> FileResponse:
+    """Serve the active session page for the browser client."""
+
+    return FileResponse(FRONTEND_SESSION)
 
 
 @app.get(

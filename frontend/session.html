@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aktiv session</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="/frontend/common.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a class="nav-link" href="/setup">Scenariohantering</a>
+        <a class="nav-link" href="/authoring">Scenarioförfattning</a>
+        <a class="nav-link current" href="/session">Aktiv session</a>
+      </nav>
+      <div id="root"></div>
+    </div>
+    <script type="text/babel">
+      const { useEffect, useState } = React;
+      const Common = window.IncidentSimCommon;
+
+      function SessionPage() {
+        const [scenario, setScenario] = useState(null);
+        const [session, setSession] = useState(null);
+        const [timeline, setTimeline] = useState([]);
+        const [latestNarration, setLatestNarrationState] = useState(
+          Common.getLatestNarration()
+        );
+        const [debrief, setDebriefState] = useState(Common.getStoredDebrief());
+        const [participantInput, setParticipantInput] = useState("");
+        const [selectedManualPhase, setSelectedManualPhase] = useState("");
+        const [selectedManualInjectId, setSelectedManualInjectId] = useState("");
+        const [loading, setLoading] = useState(false);
+        const [status, setStatus] = useState("");
+        const [error, setError] = useState("");
+
+        const currentTurnScenarioEvents = Common.getCurrentTurnScenarioEvents(session);
+        const sessionEventLog = Common.getSessionEventLog(session);
+        const availableScenarioPhases = Common.getAvailableScenarioPhases(scenario);
+        const availableManualInjects = scenario?.inject_catalog || [];
+        const activeInjectDetails = Common.getActiveInjectDetails(scenario, session);
+
+        const setLatestNarration = (narration) => {
+          setLatestNarrationState(narration);
+          Common.setLatestNarration(narration);
+        };
+
+        const setDebrief = (nextDebrief) => {
+          setDebriefState(nextDebrief);
+          Common.setStoredDebrief(nextDebrief);
+        };
+
+        const loadTimeline = async (sessionId) => {
+          const items = await Common.apiRequest(`/sessions/${sessionId}/timeline`);
+          setTimeline(items);
+          return items;
+        };
+
+        const loadSessionContext = async () => {
+          const sessionId = Common.getCurrentSessionId();
+          if (!sessionId) {
+            setStatus("Ingen aktiv session hittades. Starta en session från scenariohanteringen.");
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Laddar aktiv session...");
+
+          try {
+            const loadedSession = await Common.apiRequest(`/sessions/${sessionId}`);
+            const loadedScenario = await Common.apiRequest(
+              `/scenarios/${loadedSession.scenario_id}`
+            );
+            const loadedTimeline = await loadTimeline(sessionId);
+            const restoredNarration =
+              Common.getLatestNarration() ||
+              Common.deriveLatestNarration({
+                session: loadedSession,
+                scenario: loadedScenario,
+                timeline: loadedTimeline,
+              });
+
+            setSession(loadedSession);
+            setScenario(loadedScenario);
+            setSelectedManualPhase(loadedSession.phase);
+            setSelectedManualInjectId(
+              Common.getPreferredManualInjectId(loadedScenario, loadedSession)
+            );
+            setLatestNarration(restoredNarration);
+            Common.setCurrentScenarioId(loadedScenario.id);
+            setStatus(`Session ${loadedSession.session_id} är laddad.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          loadSessionContext();
+        }, []);
+
+        useEffect(() => {
+          if (session?.phase) {
+            setSelectedManualPhase(session.phase);
+          }
+        }, [session?.phase]);
+
+        useEffect(() => {
+          setSelectedManualInjectId((currentValue) => {
+            const injects = scenario?.inject_catalog || [];
+            if (injects.length === 0) {
+              return "";
+            }
+
+            const activeInjects = session?.active_injects || [];
+            if (currentValue && injects.some((item) => item.id === currentValue)) {
+              return currentValue;
+            }
+
+            return Common.getPreferredManualInjectId(scenario, session);
+          });
+        }, [scenario, session?.active_injects]);
+
+        const changePhaseManually = async () => {
+          if (!session || session.status !== "active" || !selectedManualPhase) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Byter fas manuellt...");
+
+          try {
+            const updated = await Common.apiRequest(`/sessions/${session.session_id}/phase`, {
+              method: "POST",
+              body: JSON.stringify({ phase: selectedManualPhase }),
+            });
+            setSession(updated.session_state);
+            setLatestNarration(updated.narration);
+            setStatus(`Fasen är nu ${updated.session_state.phase}. Lägesbilden är uppdaterad.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const triggerInjectManually = async () => {
+          if (!session || session.status !== "active" || !selectedManualInjectId) {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Triggar inject manuellt...");
+
+          try {
+            const updatedSession = await Common.apiRequest(
+              `/sessions/${session.session_id}/injects`,
+              {
+                method: "POST",
+                body: JSON.stringify({ inject_id: selectedManualInjectId }),
+              }
+            );
+            const injectTitle =
+              availableManualInjects.find((item) => item.id === selectedManualInjectId)?.title ||
+              selectedManualInjectId;
+            setSession(updatedSession);
+            setSelectedManualInjectId(Common.getPreferredManualInjectId(scenario, updatedSession));
+            setStatus(`Injectet "${injectTitle}" är nu aktivt.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const submitTurn = async (event) => {
+          event.preventDefault();
+          if (!session || session.status !== "active" || !participantInput.trim()) {
+            return;
+          }
+
+          const submittedInput = participantInput.trim();
+          const maxAttempts = Common.TURN_RETRY_DELAYS_MS.length + 1;
+
+          setLoading(true);
+          setError("");
+          setStatus("Skickar deltagaråtgärd...");
+
+          try {
+            let turn = null;
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              try {
+                setStatus(
+                  attempt === 1
+                    ? "Skickar deltagaråtgärd..."
+                    : `Försök ${attempt} av ${maxAttempts}: försöker skicka deltagaråtgärden igen...`
+                );
+
+                turn = await Common.apiRequest(`/sessions/${session.session_id}/turns`, {
+                  method: "POST",
+                  headers: {
+                    "X-Retry-Attempt": String(attempt),
+                    "X-Retry-Max-Attempts": String(maxAttempts),
+                  },
+                  body: JSON.stringify({ participant_input: submittedInput }),
+                });
+                break;
+              } catch (err) {
+                const retryable =
+                  err instanceof Common.ApiError && err.body?.retryable === true;
+                const hasAttemptsLeft = attempt < maxAttempts;
+
+                if (!retryable || !hasAttemptsLeft) {
+                  throw err;
+                }
+
+                const retryAfterSeconds =
+                  err.body?.retry_after_seconds ||
+                  Common.TURN_RETRY_DELAYS_MS[
+                    Math.min(attempt - 1, Common.TURN_RETRY_DELAYS_MS.length - 1)
+                  ] / 1000;
+                const providerMessage =
+                  err.body?.detail || "LLM-provider svarade med ett serverfel.";
+                setError(providerMessage);
+                setStatus(`${providerMessage} Nytt försök om ${retryAfterSeconds} sekunder...`);
+                await Common.sleep(retryAfterSeconds * 1000);
+              }
+            }
+
+            if (!turn) {
+              throw new Error("Turn kunde inte sparas efter flera försök.");
+            }
+
+            setSession(turn.state_snapshot);
+            setLatestNarration(turn.narrator_response);
+            setParticipantInput("");
+            setError("");
+            setStatus("Turn sparad och lägesbild uppdaterad.");
+            await loadTimeline(session.session_id);
+          } catch (err) {
+            if (err instanceof Common.ApiError && err.body?.retryable) {
+              setError(
+                err.body?.detail ||
+                  "LLM-provider svarade fortsatt med serverfel efter alla försök."
+              );
+            } else {
+              setError(Common.getErrorMessage(err));
+            }
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const completeScenario = async () => {
+          if (!session || session.status !== "active") {
+            return;
+          }
+
+          setLoading(true);
+          setError("");
+          setStatus("Avslutar scenario och skapar debriefingunderlag...");
+
+          try {
+            const completed = await Common.apiRequest(
+              `/sessions/${session.session_id}/complete`,
+              {
+                method: "POST",
+              }
+            );
+            setSession(completed.session_state);
+            setDebrief(completed.debrief);
+            setStatus("Scenario avslutat. Debriefingunderlaget ar klart.");
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <>
+            <section className="hero">
+              <div className="hero-top">
+                <div className="page-header">
+                  <h1>Aktiv session</h1>
+                  <p>
+                    Ladda om just den här sidan när du jobbar med sessionen. Valt
+                    scenario, session-id och senaste lägesbild återställs lokalt.
+                  </p>
+                </div>
+                <div className="actions">
+                  <a className="button-link secondary" href="/setup">
+                    Till scenariohantering
+                  </a>
+                  <button
+                    onClick={completeScenario}
+                    disabled={loading || !session || session.status !== "active"}
+                  >
+                    Avsluta scenario
+                  </button>
+                </div>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            <section className="grid">
+              <article className="panel alt">
+                <h2>Senaste lägesbild</h2>
+                {latestNarration ? (
+                  <div className="list">
+                    {session?.turn_number === 0 && scenario?.background?.context && (
+                      <div>
+                        <div className="small">Bakgrundskontext</div>
+                        <div>{scenario.background.context}</div>
+                      </div>
+                    )}
+                    <div>{latestNarration.situation_update}</div>
+                    {currentTurnScenarioEvents.length > 0 && (
+                      <div>
+                        <div className="small">Vad ändrades denna turn</div>
+                        <div className="list">
+                          {currentTurnScenarioEvents.map((item, index) => (
+                            <div key={`${item.type}-${index}`}>- {item.text}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="small">Nyckelpunkter</div>
+                      <div className="tag-row">
+                        {latestNarration.key_points.map((point) => (
+                          <span key={point} className="tag">{point}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="small">Beslut att överväga</div>
+                      <div className="list">
+                        {latestNarration.decisions_to_consider.map((item) => (
+                          <div key={item}>- {item}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Ingen lägesbild ännu.</div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>Deltagaråtgärd och kontrollpanel</h2>
+                <form onSubmit={submitTurn}>
+                  <textarea
+                    value={participantInput}
+                    onChange={(event) => setParticipantInput(event.target.value)}
+                    disabled={loading || session?.status !== "active"}
+                    placeholder="Beskriv nästa åtgärd, till exempel: Vi stänger extern VPN och förbereder ett första uttalande."
+                  />
+                  <div className="actions">
+                    <button
+                      type="submit"
+                      disabled={
+                        loading ||
+                        !session ||
+                        session.status !== "active" ||
+                        !participantInput.trim()
+                      }
+                    >
+                      Skicka turn
+                    </button>
+                  </div>
+                </form>
+                {session && (
+                  <div className="stack" style={{ marginTop: "16px" }}>
+                    {availableScenarioPhases.length > 1 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt fasbyte</div>
+                          <select
+                            value={selectedManualPhase || session.phase}
+                            onChange={(event) => setSelectedManualPhase(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableScenarioPhases.map((phase) => (
+                              <option key={phase} value={phase}>
+                                {phase}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={changePhaseManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualPhase ||
+                              selectedManualPhase === session.phase
+                            }
+                          >
+                            Byt fas
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {availableManualInjects.length > 0 && (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Manuellt inject</div>
+                          <select
+                            value={selectedManualInjectId}
+                            onChange={(event) => setSelectedManualInjectId(event.target.value)}
+                            disabled={loading || session.status !== "active"}
+                          >
+                            {availableManualInjects.map((inject) => (
+                              <option key={inject.id} value={inject.id}>
+                                {inject.title} ({inject.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            onClick={triggerInjectManually}
+                            disabled={
+                              loading ||
+                              session.status !== "active" ||
+                              !selectedManualInjectId ||
+                              session.active_injects.includes(selectedManualInjectId)
+                            }
+                          >
+                            Trigga inject
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!session && (
+                  <div className="small">
+                    Ingen aktiv session ännu. Starta en session från scenariohanteringen.
+                  </div>
+                )}
+                {session?.status === "completed" && (
+                  <div className="small">
+                    Sessionen är avslutad. Nya deltagaråtgärder kan inte längre skickas.
+                  </div>
+                )}
+              </article>
+            </section>
+
+            <section className="grid">
+              <article className="panel alt">
+                <h2>Aktuell session</h2>
+                {session ? (
+                  <div className="meta">
+                    <div className="meta-item"><span>Session</span><strong>{session.session_id}</strong></div>
+                    <div className="meta-item"><span>Scenario</span><strong>{session.scenario_id}</strong></div>
+                    <div className="meta-item"><span>Fas</span><strong>{session.phase}</strong></div>
+                    <div className="meta-item"><span>Tid</span><strong>{session.current_time}</strong></div>
+                    <div className="meta-item"><span>Turn</span><strong>{session.turn_number}</strong></div>
+                    <div className="meta-item"><span>Påverkansnivå</span><strong>{session.metrics.impact_level}</strong></div>
+                    <div className="meta-item"><span>Medietryck</span><strong>{session.metrics.media_pressure}</strong></div>
+                    <div className="meta-item"><span>Störning</span><strong>{session.metrics.service_disruption}</strong></div>
+                    <div className="meta-item">
+                      <span>Aktiva injects</span>
+                      <strong>{session.active_injects.length > 0 ? session.active_injects.join(", ") : "Inga"}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>Aktiva injects</h2>
+                {session ? (
+                  activeInjectDetails.length > 0 ? (
+                    <div className="list">
+                      {activeInjectDetails.map((inject) => (
+                        <div key={inject.id} className="timeline-item">
+                          <strong>{inject.title}</strong>
+                          <div className="small">{inject.type} · {inject.id}</div>
+                          <div>{inject.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="small">Inga aktiva injects just nu.</div>
+                  )
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Turn-tidslinje</h2>
+                {timeline.length > 0 ? (
+                  <div className="list">
+                    {timeline
+                      .slice()
+                      .reverse()
+                      .map((turn) => (
+                        <div key={turn.turn_number} className="timeline-item">
+                          <strong>Turn {turn.turn_number} · {turn.state_snapshot.current_time}</strong>
+                          <div>{turn.participant_input}</div>
+                        </div>
+                      ))}
+                  </div>
+                ) : session ? (
+                  <div className="small">
+                    Inga turns spelade ännu. Turn-tidslinjen visas här när övningen går vidare.
+                  </div>
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>System- och scenariohändelser</h2>
+                {sessionEventLog.length > 0 ? (
+                  <div className="list">
+                    {sessionEventLog.map((item, index) => (
+                      <div key={`${item.turn}-${item.type}-${index}`} className="timeline-item">
+                        <strong>Turn {item.turn} · {item.type}</strong>
+                        <div>{item.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : session ? (
+                  <div className="small">
+                    Inga system- eller scenariohändelser loggade ännu.
+                  </div>
+                ) : (
+                  <div className="small">Ingen aktiv session ännu.</div>
+                )}
+              </article>
+            </section>
+
+            {debrief && (
+              <section className="grid">
+                <article className="panel">
+                  <h2 className="section-title">Summering av tidslinjen</h2>
+                  <div className="list">
+                    <div>{debrief.exercise_summary}</div>
+                    {debrief.timeline_summary.map((item) => (
+                      <div key={item.turn_number} className="timeline-item">
+                        <strong>Turn {item.turn_number}: {item.summary}</strong>
+                        <div>{item.outcome}</div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="panel alt">
+                  <h2 className="section-title">Debriefingunderlag</h2>
+                  <div className="list">
+                    <div>
+                      <div className="small">Styrkor</div>
+                      <div className="list">
+                        {debrief.strengths.map((item) => <div key={item}>- {item}</div>)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="small">Utvecklingsområden</div>
+                      <div className="list">
+                        {debrief.development_areas.map((item) => <div key={item}>- {item}</div>)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="small">Debriefingfrågor</div>
+                      <div className="list">
+                        {debrief.debrief_questions.map((item) => <div key={item}>- {item}</div>)}
+                      </div>
+                    </div>
+                    {debrief.recommended_follow_ups.length > 0 && (
+                      <div>
+                        <div className="small">Föreslagna uppföljningar</div>
+                        <div className="list">
+                          {debrief.recommended_follow_ups.map((item) => <div key={item}>- {item}</div>)}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="small">Facilitatornotering</div>
+                      <div>{debrief.facilitator_notes}</div>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            )}
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<SessionPage />);
+    </script>
+  </body>
+</html>
