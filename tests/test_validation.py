@@ -131,6 +131,15 @@ def test_scenario_validation_accepts_valid_payload():
     assert scenario.states[0].phase == "initial-detection"
 
 
+def test_scenario_validation_accepts_original_text():
+    payload = sample_scenario_dict()
+    payload["original_text"] = "# Scenario\n\nFri författningstext."
+
+    scenario = Scenario(**payload)
+
+    assert scenario.original_text == "# Scenario\n\nFri författningstext."
+
+
 def test_scenario_validation_accepts_audience_specific_initial_narration():
     payload = sample_scenario_dict()
     payload["states"][0]["narration"]["by_audience"] = {

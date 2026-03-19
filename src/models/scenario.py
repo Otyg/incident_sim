@@ -511,6 +511,13 @@ class Scenario(BaseModel):
     id: str = Field(
         description="Globalt unikt scenario-id som används vid lagring och hämtning."
     )
+    original_text: str | None = Field(
+        default=None,
+        description=(
+            "Valfri ursprungstext från scenarioförfattaren, till exempel markdown "
+            "som användes för att generera scenario-JSON."
+        ),
+    )
     title: str = Field(description="Scenarioets visningsnamn.")
     version: str = Field(
         description="Scenarioets versionsbeteckning, till exempel 1.0."

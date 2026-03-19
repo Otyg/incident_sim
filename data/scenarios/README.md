@@ -58,6 +58,15 @@ Exempel:
 "id": "scenario-municipality-ransomware-001"
 ```
 
+### `original_text`
+
+Valfri ursprungstext från scenarioförfattaren.
+
+Fältet är tänkt för scenario som först skrivs i fri text eller markdown och
+sedan översätts till JSON. Det används inte dynamiskt av scenariomotorn, men
+gör det möjligt att spara källmaterialet tillsammans med det validerade
+scenariot.
+
 ### `title`
 
 Det namn som visas för användaren.

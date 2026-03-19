@@ -61,6 +61,7 @@ from src.models.scenario import Scenario
 from src.schemas.debrief_response import DebriefResponse
 from src.schemas.interpreted_action import InterpretedAction
 from src.schemas.narrator_response import NarratorResponse
+from src.services.scenario_draft_normalizer import normalize_scenario_payload
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[2] / "data" / "prompts"
@@ -155,6 +156,14 @@ class LLMProvider(ABC):
         self, scenario: Scenario, state: SessionState, timeline: list[Turn]
     ) -> dict[str, Any]:
         """Generate a debrief from scenario, final state and timeline."""
+
+        raise NotImplementedError
+
+    @abstractmethod
+    def generate_scenario_draft(
+        self, source_text: str, source_format: str = "markdown"
+    ) -> dict[str, Any]:
+        """Generate a scenario draft from author-provided source text."""
 
         raise NotImplementedError
 
@@ -336,6 +345,24 @@ def validate_debrief(payload: dict[str, Any]) -> DebriefResponse:
         raise ProviderOutputValidationError("Invalid debrief payload") from exc
 
 
+def validate_scenario(payload: dict[str, Any]) -> Scenario:
+    """Validate raw provider output as a scenario payload."""
+
+    normalized_payload = payload
+    if isinstance(payload, dict):
+        normalized_payload = normalize_scenario_payload(payload)
+
+    try:
+        return Scenario.model_validate(normalized_payload)
+    except ValidationError as exc:
+        logger.warning(
+            "Provider output did not validate as scenario payload: %s",
+            normalized_payload,
+            exc_info=True,
+        )
+        raise ProviderOutputValidationError("Invalid scenario payload") from exc
+
+
 class OllamaProvider(LLMProvider):
     """Runtime provider backed by the official Ollama Python client.
 
@@ -359,17 +386,20 @@ class OllamaProvider(LLMProvider):
         self.interpret_prompt = load_prompt("interpret_action.txt")
         self.narration_prompt = load_prompt("generate_narration.txt")
         self.debrief_prompt = load_prompt("generate_debrief.txt")
+        self.scenario_authoring_prompt = load_prompt("generate_scenario_draft.txt")
         self.host = str(config.get("host") or "http://localhost:11434")
         self.default_model = str(config.get("model") or "llama3.2")
         self.interpret_model = str(config.get("interpret_model") or self.default_model)
         self.narration_model = str(config.get("narration_model") or self.default_model)
+        self.scenario_model = str(config.get("scenario_model") or self.default_model)
         self.api_key = config.get("api_key")
         self.client = self._create_client(self.host, self._build_headers())
         logger.info(
-            "Initialized OllamaProvider host=%s interpret_model=%s narration_model=%s",
+            "Initialized OllamaProvider host=%s interpret_model=%s narration_model=%s scenario_model=%s",
             self.host,
             self.interpret_model,
             self.narration_model,
+            self.scenario_model,
         )
 
     @staticmethod
@@ -424,20 +454,55 @@ class OllamaProvider(LLMProvider):
                 cannot be parsed as a JSON object.
         """
 
+        response_dump = None
+        if hasattr(response, "model_dump"):
+            try:
+                response_dump = response.model_dump()
+            except Exception:
+                response_dump = None
+        elif isinstance(response, dict):
+            response_dump = response
+
+        candidate_contents: list[str] = []
+
         message = getattr(response, "message", None)
-        if message is None and isinstance(response, dict):
-            message = response.get("message")
+        if message is None and isinstance(response_dump, dict):
+            message = response_dump.get("message")
 
-        content = getattr(message, "content", None) if message is not None else None
-        if content is None and isinstance(message, dict):
-            content = message.get("content")
+        if message is not None:
+            content = getattr(message, "content", None)
+            thinking = getattr(message, "thinking", None)
+            if isinstance(message, dict):
+                content = content or message.get("content")
+                thinking = thinking or message.get("thinking")
+            if isinstance(content, str) and content.strip():
+                candidate_contents.append(content)
+            if isinstance(thinking, str) and thinking.strip():
+                candidate_contents.append(thinking)
 
-        if not isinstance(content, str) or not content.strip():
+        if isinstance(response_dump, dict):
+            for key in ("content", "response", "message"):
+                value = response_dump.get(key)
+                if isinstance(value, str) and value.strip():
+                    candidate_contents.append(value)
+                elif isinstance(value, dict):
+                    nested_content = value.get("content")
+                    nested_thinking = value.get("thinking")
+                    if isinstance(nested_content, str) and nested_content.strip():
+                        candidate_contents.append(nested_content)
+                    if isinstance(nested_thinking, str) and nested_thinking.strip():
+                        candidate_contents.append(nested_thinking)
+
+        stripped = None
+        for candidate in candidate_contents:
+            if isinstance(candidate, str) and candidate.strip():
+                stripped = candidate.strip()
+                break
+
+        if not stripped:
             raise ProviderResponseFormatError(
                 "Ollama response did not contain message content"
             )
-
-        stripped = content.strip()
         try:
             parsed = json.loads(stripped)
         except json.JSONDecodeError:
@@ -533,6 +598,8 @@ class OllamaProvider(LLMProvider):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
+                format="json",
+                stream=False,
             )
         except Exception as exc:
             raise self._build_upstream_error(
@@ -659,6 +726,111 @@ class OllamaProvider(LLMProvider):
             provider_stage="generate_debrief",
         )
 
+    def generate_scenario_draft(
+        self, source_text: str, source_format: str = "markdown"
+    ) -> dict[str, Any]:
+        """Generate a scenario draft from author-provided source text."""
+
+        expected_shape = {
+            "id": "string",
+            "title": "string",
+            "version": "string",
+            "description": "string",
+            "audiences": ["krisledning|it-ledning|kommunikation"],
+            "training_goals": ["string"],
+            "difficulty": "low|medium|high",
+            "timebox_minutes": "integer",
+            "background": {
+                "organization_type": "string",
+                "context": "string",
+                "threat_actor": "string",
+                "assumptions": ["string"],
+            },
+            "states": [
+                {
+                    "id": "string",
+                    "phase": "string",
+                    "title": "string",
+                    "description": "string",
+                }
+            ],
+            "actors": [{"id": "string", "name": "string", "role": "string"}],
+            "inject_catalog": [
+                {
+                    "id": "string",
+                    "type": "media|executive|operations|technical|stakeholder",
+                    "title": "string",
+                    "description": "string",
+                    "trigger_conditions": ["string"],
+                    "audience_relevance": ["krisledning|it-ledning|kommunikation"],
+                    "severity": "integer 1-5",
+                }
+            ],
+            "text_matchers": [
+                {
+                    "id": "string",
+                    "field": "action.action_types|action.targets",
+                    "match_type": "contains_any|contains_all",
+                    "patterns": ["string"],
+                    "value": "string",
+                }
+            ],
+            "target_aliases": [
+                {"id": "string", "canonical": "string", "aliases": ["string"]}
+            ],
+            "interpretation_hints": [
+                {
+                    "id": "string",
+                    "when": {
+                        "text_contains_any": ["string"],
+                        "action_types_contains": [
+                            "containment|coordination|communication|escalation|analysis|recovery|monitoring|legal|business_continuity"
+                        ],
+                        "targets_contains": ["string"],
+                    },
+                    "add_action_types": [
+                        "containment|coordination|communication|escalation|analysis|recovery|monitoring|legal|business_continuity"
+                    ],
+                    "add_targets": ["string"],
+                }
+            ],
+            "rules": [{"id": "string", "name": "string"}],
+            "executable_rules": [
+                {
+                    "id": "string",
+                    "name": "string",
+                    "trigger": "session_started|turn_processed",
+                    "conditions": [
+                        {
+                            "fact": "state.phase|state.no_communication_turns|state.metrics.impact_level|state.metrics.media_pressure|state.metrics.service_disruption|state.metrics.leadership_pressure|state.metrics.public_confusion|state.metrics.attack_surface|state.flags.executive_escalation|state.flags.external_comms_sent|state.flags.forensic_analysis_started|state.flags.external_access_restricted|session.turn_number|action.action_types|action.targets",
+                            "operator": "equals|not_equals|gte|lte|contains|not_contains",
+                            "value": "string|integer|boolean",
+                        }
+                    ],
+                    "effects": [
+                        {
+                            "type": "set_phase|add_active_inject|resolve_inject|append_focus_item|append_consequence|increment_metric|set_flag|append_exercise_log"
+                        }
+                    ],
+                    "priority": "low|medium|high",
+                    "once": "boolean",
+                }
+            ],
+            "presentation_guidelines": {
+                "krisledning": {"focus": ["string"], "tone": "string"}
+            },
+        }
+        return self._chat_json(
+            model=self.scenario_model,
+            system_prompt=(
+                f"{self.scenario_authoring_prompt}\n"
+                "Return only a single JSON object and no surrounding prose.\n"
+                f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
+            ),
+            user_prompt=(f"Kallformat: {source_format}\nKalltext:\n{source_text}"),
+            provider_stage="generate_scenario_draft",
+        )
+
 
 class OpenAIProvider(LLMProvider):
     """Stub implementation for a future OpenAI-backed provider.
@@ -679,6 +851,7 @@ class OpenAIProvider(LLMProvider):
         self.interpret_prompt = load_prompt("interpret_action.txt")
         self.narration_prompt = load_prompt("generate_narration.txt")
         self.debrief_prompt = load_prompt("generate_debrief.txt")
+        self.scenario_authoring_prompt = load_prompt("generate_scenario_draft.txt")
         self.config = config or {}
         logger.info("Initialized OpenAIProvider stub")
 
@@ -718,6 +891,13 @@ class OpenAIProvider(LLMProvider):
         self, scenario: Scenario, state: SessionState, timeline: list[Turn]
     ) -> dict[str, Any]:
         """Attempt to generate a debrief with the OpenAI provider."""
+
+        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
+
+    def generate_scenario_draft(
+        self, source_text: str, source_format: str = "markdown"
+    ) -> dict[str, Any]:
+        """Attempt to generate a scenario draft with the OpenAI provider."""
 
         raise ProviderConfigurationError("OpenAIProvider is not implemented yet")
 

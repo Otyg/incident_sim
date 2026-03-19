@@ -8,6 +8,6 @@ Uppgift:
 
 Viktigt:
 - skriv kort, tydligt och operativt
-- bygg pa metrics, flags, active_injects och consequences
+- bygg på metrics, flags, active_injects och consequences
 - hall en facilitatorvanlig ton
 - returnera endast strukturerad JSON som matchar schemat

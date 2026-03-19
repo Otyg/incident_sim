@@ -60,6 +60,7 @@ from src.services.llm_provider import (
     validate_debrief,
     validate_interpreted_action,
     validate_narration,
+    validate_scenario,
 )
 from src.services.scenario_action_enricher import ScenarioActionEnricher
 from src.services.rules_engine import RulesEngine
@@ -137,6 +138,13 @@ class CompleteSessionResponse(BaseModel):
 
     session_state: SessionState
     debrief: DebriefResponse
+
+
+class ScenarioDraftFromTextRequest(BaseModel):
+    """Request body for generating a scenario draft from free-text source."""
+
+    source_text: str = Field(min_length=20)
+    source_format: str = Field(default="markdown", min_length=2)
 
 
 def build_session_state(
@@ -262,7 +270,11 @@ async def frontend() -> FileResponse:
     return FileResponse(FRONTEND_INDEX)
 
 
-@app.get("/sample-scenarios/default", response_model=Scenario)
+@app.get(
+    "/sample-scenarios/default",
+    response_model=Scenario,
+    response_model_exclude_none=True,
+)
 async def get_default_sample_scenario() -> Scenario:
     """Return the bundled sample scenario used by the browser client.
 
@@ -274,7 +286,7 @@ async def get_default_sample_scenario() -> Scenario:
     return load_sample_scenario()
 
 
-@app.post("/scenarios", response_model=Scenario)
+@app.post("/scenarios", response_model=Scenario, response_model_exclude_none=True)
 async def create_scenario(scenario: Scenario) -> Scenario:
     """Store a scenario in the in-memory repository.
 
@@ -293,7 +305,58 @@ async def create_scenario(scenario: Scenario) -> Scenario:
     return scenario_repository.save(scenario)
 
 
-@app.get("/scenarios", response_model=list[Scenario])
+@app.post(
+    "/scenarios/draft-from-text",
+    response_model=Scenario,
+    response_model_exclude_none=True,
+)
+async def create_scenario_draft_from_text(
+    request: ScenarioDraftFromTextRequest,
+) -> Scenario:
+    """Generate but do not persist a scenario draft from source text."""
+
+    try:
+        provider = get_llm_provider()
+        logger.info(
+            "Generating scenario draft source_format=%s source_length=%s provider=%s",
+            request.source_format,
+            len(request.source_text),
+            provider.__class__.__name__,
+        )
+        payload = provider.generate_scenario_draft(
+            request.source_text, request.source_format
+        )
+        if not isinstance(payload, dict):
+            raise ProviderOutputValidationError("Invalid scenario payload")
+
+        payload["original_text"] = request.source_text
+        scenario = validate_scenario(payload)
+        logger.info("Scenario draft generated scenario_id=%s", scenario.id)
+        return scenario
+    except ProviderOutputValidationError as exc:
+        logger.warning(
+            "Scenario draft generation validation failed detail=%s",
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ProviderConfigurationError as exc:
+        logger.warning(
+            "Scenario draft generation configuration failed detail=%s",
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        logger.warning(
+            "Scenario draft generation provider failure detail=%s",
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/scenarios", response_model=list[Scenario], response_model_exclude_none=True)
 async def list_scenarios() -> list[Scenario]:
     """List stored scenarios.
 
@@ -306,7 +369,11 @@ async def list_scenarios() -> list[Scenario]:
     return scenarios
 
 
-@app.get("/scenarios/{scenario_id}", response_model=Scenario)
+@app.get(
+    "/scenarios/{scenario_id}",
+    response_model=Scenario,
+    response_model_exclude_none=True,
+)
 async def get_scenario(scenario_id: str) -> Scenario:
     """Fetch a stored scenario by identifier.
 

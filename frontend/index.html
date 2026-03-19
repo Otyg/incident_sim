@@ -208,6 +208,22 @@
         margin-bottom: 10px;
       }
 
+      .nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      pre {
+        margin: 0;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+
       @media (max-width: 900px) {
         .grid { grid-template-columns: 1fr; }
         .page { width: min(100vw - 20px, 1180px); padding-top: 20px; }
@@ -309,6 +325,8 @@
         const [participantInput, setParticipantInput] = useState("");
         const [selectedManualPhase, setSelectedManualPhase] = useState("");
         const [selectedManualInjectId, setSelectedManualInjectId] = useState("");
+        const [authoringSourceText, setAuthoringSourceText] = useState("");
+        const [authoringDraft, setAuthoringDraft] = useState(null);
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
@@ -398,6 +416,57 @@
           setParticipantInput("");
           setSelectedManualPhase("");
           setSelectedManualInjectId("");
+        };
+
+        const generateScenarioDraft = async () => {
+          if (!authoringSourceText.trim()) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Genererar scenarioutkast från fri text...");
+
+          try {
+            const draft = await apiRequest("/scenarios/draft-from-text", {
+              method: "POST",
+              body: JSON.stringify({
+                source_text: authoringSourceText.trim(),
+                source_format: "markdown",
+              }),
+            });
+            setAuthoringDraft(draft);
+            setStatus(`Scenarioutkast "${draft.title}" är klart för granskning.`);
+          } catch (err) {
+            setError(getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const saveGeneratedDraft = async () => {
+          if (!authoringDraft) return;
+
+          setLoading(true);
+          setError("");
+          setStatus("Sparar genererat scenarioutkast...");
+
+          try {
+            const savedScenario = await apiRequest("/scenarios", {
+              method: "POST",
+              body: JSON.stringify(authoringDraft),
+            });
+            setScenario(savedScenario);
+            setAuthoringDraft(savedScenario);
+            resetSessionView();
+            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
+            setCurrentPage("setup");
+            setStatus(`Scenario "${savedScenario.title}" sparat och valt i scenarioöversikten.`);
+          } catch (err) {
+            setError(getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
         };
 
         const loadScenario = async () => {
@@ -752,6 +821,13 @@
                 <button onClick={loadScenario} disabled={loading}>Ladda scenario</button>
                 <button
                   className="secondary"
+                  onClick={() => setCurrentPage("authoring")}
+                  disabled={loading}
+                >
+                  Författa från text
+                </button>
+                <button
+                  className="secondary"
                   onClick={loadScenarioFromDatabase}
                   disabled={loading || !selectedScenarioId}
                 >
@@ -796,6 +872,90 @@
 
             <section className="grid">
               {renderScenarioOverview()}
+            </section>
+          </>
+        );
+
+        const renderAuthoringPage = () => (
+          <>
+            <section className="hero">
+              <div className="hero-top">
+                <div className="page-header">
+                  <h1>Scenarioförfattning</h1>
+                  <p>
+                    Skriv scenariot i fri men strukturerad text, gärna i Markdown. Backend genererar ett validerat JSON-utkast med faser, injects och försiktigt föreslagna regler.
+                  </p>
+                </div>
+                <div className="actions">
+                  <button className="secondary" onClick={() => setCurrentPage("setup")} disabled={loading}>
+                    Till scenarioöversikt
+                  </button>
+                </div>
+              </div>
+              <div className="stack" style={{ marginTop: "20px" }}>
+                <div>
+                  <div className="small">Scenario i fri text eller Markdown</div>
+                  <textarea
+                    value={authoringSourceText}
+                    onChange={(event) => setAuthoringSourceText(event.target.value)}
+                    disabled={loading}
+                    placeholder={"# Titel\n\n## Bakgrund\nKl. 08:15 ...\n\n## Målgrupper\n- krisledning\n- it-ledning\n\n## Nyckelpunkter\n- ...\n\n## Injects\n- ..."}
+                    style={{ minHeight: "280px" }}
+                  />
+                </div>
+                <div className="actions">
+                  <button
+                    onClick={generateScenarioDraft}
+                    disabled={loading || !authoringSourceText.trim()}
+                  >
+                    Generera utkast
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={saveGeneratedDraft}
+                    disabled={loading || !authoringDraft}
+                  >
+                    Spara scenario
+                  </button>
+                </div>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            <section className="grid">
+              <article className="panel">
+                <h2>Genererat utkast</h2>
+                {authoringDraft ? (
+                  <div className="list">
+                    <div>
+                      <strong>{authoringDraft.title}</strong>
+                      <div className="small">{authoringDraft.description}</div>
+                    </div>
+                    <div className="meta">
+                      <div className="meta-item"><span>Scenario-id</span><strong>{authoringDraft.id}</strong></div>
+                      <div className="meta-item"><span>Faser</span><strong>{authoringDraft.states?.length || 0}</strong></div>
+                      <div className="meta-item"><span>Injects</span><strong>{authoringDraft.inject_catalog?.length || 0}</strong></div>
+                      <div className="meta-item"><span>Regler</span><strong>{authoringDraft.executable_rules?.length || 0}</strong></div>
+                    </div>
+                    <div>
+                      <div className="small">Källtext sparas som original_text</div>
+                      <div>{authoringDraft.original_text ? "Ja" : "Nej"}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="small">Inget utkast genererat ännu.</div>
+                )}
+              </article>
+
+              <article className="panel alt">
+                <h2>JSON-granskning</h2>
+                {authoringDraft ? (
+                  <pre>{JSON.stringify(authoringDraft, null, 2)}</pre>
+                ) : (
+                  <div className="small">Validerad JSON visas här när utkastet har genererats.</div>
+                )}
+              </article>
             </section>
           </>
         );
@@ -1115,7 +1275,32 @@
 
         return (
           <div className="page">
-            {currentPage === "setup" ? renderSetupPage() : renderSessionPage()}
+            <div className="nav">
+              <button
+                className={currentPage === "setup" ? "" : "secondary"}
+                onClick={() => setCurrentPage("setup")}
+                disabled={loading}
+              >
+                Scenariohantering
+              </button>
+              <button
+                className={currentPage === "authoring" ? "" : "secondary"}
+                onClick={() => setCurrentPage("authoring")}
+                disabled={loading}
+              >
+                Scenarioförfattning
+              </button>
+              <button
+                className={currentPage === "session" ? "" : "secondary"}
+                onClick={() => setCurrentPage("session")}
+                disabled={loading || !session}
+              >
+                Aktiv session
+              </button>
+            </div>
+            {currentPage === "setup" && renderSetupPage()}
+            {currentPage === "authoring" && renderAuthoringPage()}
+            {currentPage === "session" && renderSessionPage()}
           </div>
         );
       }

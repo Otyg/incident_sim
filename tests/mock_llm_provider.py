@@ -40,7 +40,7 @@ class MockLLMProvider(LLMProvider):
             "action_types": list(dict.fromkeys(action_types)),
             "targets": list(dict.fromkeys(targets)),
             "intent": "Begransa paverkan och forbattra lagesuppfattningen.",
-            "expected_effects": ["Mojlig minskning av risk beroende pa utfallet."],
+            "expected_effects": ["Mojlig minskning av risk beroende på utfallet."],
             "risks": ["Atgarderna kan ge sidoeffekter i verksamheten."],
             "uncertainties": [
                 "Den fulla omfattningen av incidenten ar fortfarande oklar."
@@ -98,7 +98,7 @@ class MockLLMProvider(LLMProvider):
                 "Behöver ledningen eskaleras ytterligare?",
                 "Behöver extern kommunikation skickas nu?",
             ],
-            "facilitator_notes": "Responsen bygger pa aktuella metrics, flags och aktiva injects i session state.",
+            "facilitator_notes": "Responsen bygger på aktuella metrics, flags och aktiva injects i session state.",
         }
 
     def generate_debrief(
@@ -126,7 +126,7 @@ class MockLLMProvider(LLMProvider):
                 }
             ],
             "strengths": [
-                "Deltagarna tog incidenten pa allvar och agerade strukturerat.",
+                "Deltagarna tog incidenten på allvar och agerade strukturerat.",
                 "Ovningen skapade underlag for diskussion om prioriteringar och kommunikation.",
             ],
             "development_areas": [
@@ -143,4 +143,99 @@ class MockLLMProvider(LLMProvider):
                 "Verifiera hur extern kommunikation ska samordnas i ett tidigt skede.",
             ],
             "facilitator_notes": "Anvand tidslinjen som grund och borja med de viktigaste besluten innan detaljer diskuteras.",
+        }
+
+    def generate_scenario_draft(
+        self, source_text: str, source_format: str = "markdown"
+    ) -> dict:
+        return {
+            "id": "scenario-draft-001",
+            "title": "Scenarioutkast från fri text",
+            "version": "1.0",
+            "description": "Automatiskt genererat scenarioutkast baserat på fri text.",
+            "audiences": ["krisledning", "it-ledning", "kommunikation"],
+            "training_goals": [
+                "Öva initial lägesuppfattning under osäkerhet",
+                "Öva samordning mellan IT, ledning och kommunikation",
+            ],
+            "difficulty": "medium",
+            "timebox_minutes": 90,
+            "background": {
+                "organization_type": "kommun",
+                "context": "Scenarioförfattaren beskriver ett osäkert men allvarligt störningsläge med flera samtidiga signaler.",
+                "threat_actor": "okänd angripare",
+                "assumptions": [
+                    "Scenarioförfattningen skrevs i fri text",
+                    "Facilitatorn kan justera detaljer innan scenariot sparas",
+                ],
+            },
+            "states": [
+                {
+                    "id": "state-initial-detection",
+                    "phase": "initial-detection",
+                    "title": "Initial detektion",
+                    "description": "Det första läget i det automatiskt genererade scenarioutkastet.",
+                    "time": "08:15",
+                    "known_facts": ["Flera användare rapporterar störningar."],
+                    "unknowns": ["Omfattningen är fortfarande oklar."],
+                    "affected_systems": ["Inloggning", "Fildelning"],
+                    "business_impact": [
+                        "Kritiska verksamhetsfunktioner riskerar att påverkas."
+                    ],
+                    "impact_level": 3,
+                    "narration": {
+                        "default": {
+                            "situation_update": "Kl. 08:15 har ni en splittrad men allvarlig lägesbild där flera användare rapporterar störningar och kritiska funktioner kan vara påverkade.",
+                            "key_points": [
+                                "Flera samtidiga incidentindikationer har rapporterats.",
+                                "Det är fortfarande oklart om påverkan är antagonistisk eller naturlig.",
+                            ],
+                            "new_consequences": [],
+                            "injects": [],
+                            "decisions_to_consider": [
+                                "Behöver läget eskaleras omedelbart?",
+                                "Vilken första teknisk analys behöver startas nu?",
+                            ],
+                            "facilitator_notes": "Detta utkast är automatiskt genererat från fri text.",
+                        }
+                    },
+                },
+                {
+                    "id": "state-containment",
+                    "phase": "containment",
+                    "title": "Containment",
+                    "description": "Fokus ligger på att begränsa fortsatt påverkan.",
+                },
+            ],
+            "actors": [
+                {
+                    "id": "actor-it-lead",
+                    "name": "IT-ledning",
+                    "role": "leder teknisk felsökning och prioritering",
+                }
+            ],
+            "inject_catalog": [
+                {
+                    "id": "inject-executive-001",
+                    "type": "executive",
+                    "title": "Ledningen vill ha snabb lägesbild",
+                    "description": "En chef begär omedelbar återkoppling om påverkan och åtgärder.",
+                    "trigger_conditions": [
+                        "Osäkerhet kvarstår",
+                        "Kritiska funktioner påverkas",
+                    ],
+                    "audience_relevance": ["krisledning", "it-ledning"],
+                    "severity": 3,
+                }
+            ],
+            "text_matchers": [],
+            "target_aliases": [],
+            "interpretation_hints": [],
+            "rules": [],
+            "executable_rules": [],
+            "presentation_guidelines": {
+                "krisledning": {"focus": ["beslut"], "tone": "strategisk"},
+                "it-ledning": {"focus": ["teknisk analys"], "tone": "operativ"},
+                "kommunikation": {"focus": ["budskap"], "tone": "samordnad"},
+            },
         }
