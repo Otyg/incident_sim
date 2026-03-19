@@ -58,7 +58,9 @@ def request_response(
         for key, value in messages[0].get("headers", [])
     }
     response_body = b"".join(
-        message.get("body", b"") for message in messages if message["type"] == "http.response.body"
+        message.get("body", b"")
+        for message in messages
+        if message["type"] == "http.response.body"
     )
     return status, headers, response_body
 

@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Session state models used during exercise execution and persistence."""
+
 from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -43,17 +45,23 @@ ShortText = Annotated[str, StringConstraints(min_length=2)]
 
 
 class ParticipantActionLog(BaseModel):
+    """Compact audit entry for a participant action in a specific turn."""
+
     turn: int = Field(ge=1)
     summary: ShortText
 
 
 class ExerciseLogItem(BaseModel):
+    """Timeline log entry recorded during scenario execution."""
+
     turn: int = Field(ge=0)
     type: ShortText
     text: ShortText
 
 
 class SessionMetrics(BaseModel):
+    """Operational metrics used to track scenario pressure and impact."""
+
     impact_level: int = Field(ge=1, le=5)
     media_pressure: int = Field(ge=0)
     service_disruption: int = Field(ge=0)
@@ -63,6 +71,8 @@ class SessionMetrics(BaseModel):
 
 
 class SessionFlags(BaseModel):
+    """Boolean markers for important state changes in the exercise."""
+
     executive_escalation: bool = False
     external_comms_sent: bool = False
     forensic_analysis_started: bool = False
@@ -70,6 +80,8 @@ class SessionFlags(BaseModel):
 
 
 class SessionState(BaseModel):
+    """Complete persisted state snapshot for an active or finished session."""
+
     session_id: NonEmptyStr
     scenario_id: NonEmptyStr
     scenario_version: NonEmptyStr

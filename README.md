@@ -55,6 +55,7 @@ På scenariostarten finns följande delar:
 
 - `Scenarioöversikt`: visar vilket scenario som är inläst, dess beskrivning, mål och tidsram.
 - `Scenariokontroller`: visar sparade scenarion i databasen och låter användaren ladda upp nya scenarion i JSON-format.
+- `Scenarioexport och scenarioimport`: backend stöder även nedladdning av ett sparat scenario som JSON samt uppdatering av ett befintligt scenario från en uppladdad JSON-fil.
 
 På sessionssidan finns följande delar:
 
@@ -96,6 +97,12 @@ llm_provider:
     model: llama3.2
     interpret_model: llama3.2
     narration_model: llama3.2
+    scenario_model: llama3.2
+    prompts:
+      interpret: interpret_action.txt
+      narration: generate_narration.txt
+      debrief: generate_debrief.txt
+      scenario_authoring: generate_scenario_draft.txt
     api_key: null
   openai:
     api_key: null
@@ -187,7 +194,8 @@ Det viktigaste för en administratör är:
 - `host` styr vart anropen skickas
 - `api_key` används när providern kräver autentisering
 - `model` är standardmodell
-- `interpret_model` och `narration_model` kan användas om olika steg ska ha olika modeller
+- `interpret_model`, `narration_model` och `scenario_model` kan användas om olika steg ska ha olika modeller
+- `prompts` låter dig byta promptfil per steg utan kodändringar
 
 Efter ändring i `config.yaml` startas appen om för att läsa in ny konfiguration.
 
@@ -219,12 +227,12 @@ Providerlagret är byggt för att kunna utökas utan att API-lagret behöver gö
 
 En utvecklare som vill lägga till en ny provider gör normalt följande:
 
-1. Skapa en ny klass i [src/services/llm_provider.py](src/services/llm_provider.py) eller bryt ut den till en närliggande modul om filen blir för stor.
-2. Låt klassen implementera `LLMProvider`.
+1. Skapa en ny providerklass i `src/services/providers/`, gärna ovanpå den gemensamma basklassen `StructuredLLMProvider` i [src/services/providers/base.py](src/services/providers/base.py) om providern använder samma strukturerade taskflöden.
+2. Låt klassen implementera `LLMProvider` direkt eller indirekt via basklassen.
 3. Säkerställ att `interpret_action()` returnerar en `dict` som matchar `InterpretedAction`.
 4. Säkerställ att `generate_narration()` returnerar en `dict` som matchar `NarratorResponse`.
 5. Lägg till ett nytt konfigurationsblock i `config.yaml` under `llm_provider`.
-6. Uppdatera `get_llm_provider()` så att den kan välja den nya providern.
+6. Uppdatera `get_llm_provider()` i [src/services/llm_provider.py](src/services/llm_provider.py) så att den kan välja den nya providern.
 7. Lägg till tester för konfiguration, felhantering och payload-format.
 
 Designregler som bör följas:
@@ -232,6 +240,20 @@ Designregler som bör följas:
 - låt autentisering, host och modellval komma från `config.yaml`
 - håll affärslogik utanför providern
 - återanvänd promptfilerna eller lägg till nya promptfiler om formatet kräver det
+
+## Scenarioimport och scenarioexport
+
+Backend har nu två kompletterande endpoints för sparade scenarion:
+
+- `GET /scenarios/{scenario_id}/download`: laddar ner scenariot som en JSON-fil
+- `PUT /scenarios/{scenario_id}/upload`: ersätter ett befintligt scenario med en uppladdad JSON-fil
+
+Vid uppdatering gäller:
+
+- målscenariot måste redan finnas i databasen
+- den uppladdade filen måste vara giltig UTF-8-kodad JSON
+- den uppladdade JSON-filen måste validera som `Scenario`
+- `id` i den uppladdade filen måste matcha `scenario_id` i URL:en
 
 ## Mock-provider, Ollama och andra providers
 

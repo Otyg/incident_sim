@@ -47,6 +47,13 @@ from src.services.scenario_engine import ScenarioEngine
 
 
 class RulesEngine:
+    """Apply deterministic session updates around participant turns.
+
+    The engine adds audit trail data and simple communication-derived state
+    changes before delegating scenario-specific rule execution to
+    ``ScenarioEngine``.
+    """
+
     def __init__(self) -> None:
         self.scenario_engine = ScenarioEngine()
 

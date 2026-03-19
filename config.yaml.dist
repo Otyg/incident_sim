@@ -46,6 +46,14 @@ llm_provider:
     # strukturerad output och schemaföljsamhet.
     scenario_model: qwen3.5:cloud
 
+    # Promptfiler som används för respektive steg i Ollama-providerflödet.
+    # Sökvägarna tolkas relativt `data/prompts/`.
+    prompts:
+      interpret: interpret_action.txt
+      narration: generate_narration.txt
+      debrief: generate_debrief.txt
+      scenario_authoring: generate_scenario_draft.txt
+
     # API-nyckel för autentisering mot Ollama Cloud.
     api_key: YOUR_OLLAMA_API_KEY
 
