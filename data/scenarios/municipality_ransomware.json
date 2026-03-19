@@ -201,6 +201,112 @@
       "severity": 3
     }
   ],
+  "text_matchers": [
+    {
+      "id": "matcher-containment-external-access",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "extern åtkomst",
+        "extern access",
+        "vpn",
+        "fjärråtkomst"
+      ],
+      "value": "containment"
+    },
+    {
+      "id": "matcher-target-vpn",
+      "field": "action.targets",
+      "match_type": "contains_any",
+      "patterns": [
+        "vpn",
+        "fjärråtkomst"
+      ],
+      "value": "vpn"
+    },
+    {
+      "id": "matcher-analysis-forensics",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "forensik",
+        "forensisk",
+        "bevissäkring"
+      ],
+      "value": "analysis"
+    }
+  ],
+  "interpretation_hints": [
+    {
+      "id": "hint-target-external-access",
+      "when": {
+        "action_types_contains": [
+          "containment"
+        ],
+        "text_contains_any": [
+          "extern åtkomst",
+          "extern access",
+          "vpn",
+          "fjärråtkomst"
+        ]
+      },
+      "add_targets": [
+        "external_access"
+      ]
+    },
+    {
+      "id": "hint-target-forensics",
+      "when": {
+        "action_types_contains": [
+          "analysis"
+        ],
+        "text_contains_any": [
+          "forensik",
+          "forensisk",
+          "bevissäkring"
+        ]
+      },
+      "add_targets": [
+        "forensics"
+      ]
+    },
+    {
+      "id": "hint-escalation-executive-team",
+      "when": {
+        "text_contains_any": [
+          "krisledning",
+          "krisledningsgruppen",
+          "ledning",
+          "kommundirektör"
+        ]
+      },
+      "add_action_types": [
+        "escalation"
+      ],
+      "add_targets": [
+        "executive_team"
+      ]
+    },
+    {
+      "id": "hint-communication-communications-team",
+      "when": {
+        "text_contains_any": [
+          "kommunikation",
+          "kommunicera",
+          "allmänhet",
+          "myndigheter",
+          "media",
+          "press"
+        ]
+      },
+      "add_action_types": [
+        "communication"
+      ],
+      "add_targets": [
+        "communications_team"
+      ]
+    }
+  ],
   "rules": [
     {
       "id": "rule-containment-external-access",
@@ -258,6 +364,55 @@
       "once": true
     },
     {
+      "id": "rule-restrict-external-access",
+      "name": "Markera begränsad extern åtkomst",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "containment"
+        },
+        {
+          "fact": "action.targets",
+          "operator": "contains",
+          "value": "external_access"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.external_access_restricted",
+          "value": true
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.attack_surface",
+          "amount": -1
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.service_disruption",
+          "amount": 1
+        },
+        {
+          "type": "append_consequence",
+          "item": "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster."
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Hantera påverkan på externa tjänster."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "system_consequence",
+          "message": "Extern attackyta minskar, men tjänstepåverkan ökar externt."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
       "id": "rule-phase-containment",
       "name": "Byt till containment vid extern begränsning",
       "trigger": "turn_processed",
@@ -286,6 +441,150 @@
       ],
       "priority": "high",
       "once": true
+    },
+    {
+      "id": "rule-start-forensic-analysis",
+      "name": "Markera påbörjad forensisk analys",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "analysis"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.forensic_analysis_started",
+          "value": true
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Forensisk analys har påbörjats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-executive-escalation",
+      "name": "Markera eskalering till ledning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "escalation"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.executive_escalation",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Förbered ledningsbeslut och eskalering."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Eskalering till ledningen har markerats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-external-communication",
+      "name": "Markera extern kommunikation",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "communication"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.external_comms_sent",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Samordna fortsatt extern kommunikation."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Extern kommunikation har markerats som påbörjad."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-missing-communication-pressure",
+      "name": "Utebliven kommunikation ökar trycket",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.no_communication_turns",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.media_pressure",
+          "amount": 1
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.public_confusion",
+          "amount": 1
+        },
+        {
+          "type": "append_consequence",
+          "item": "Fördröjd kommunikation ökar medietrycket."
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Ta fram ett första externt budskap."
+        }
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "rule-leadership-pressure",
+      "name": "Öka ledningstryck vid allvarligt läge utan eskalering",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.impact_level",
+          "operator": "gte",
+          "value": 3
+        },
+        {
+          "fact": "state.flags.executive_escalation",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.leadership_pressure",
+          "amount": 1
+        }
+      ],
+      "priority": "low"
     },
     {
       "id": "rule-activate-ops-inject",

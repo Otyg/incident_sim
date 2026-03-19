@@ -61,6 +61,7 @@ from src.services.llm_provider import (
     validate_interpreted_action,
     validate_narration,
 )
+from src.services.scenario_action_enricher import ScenarioActionEnricher
 from src.services.rules_engine import RulesEngine
 from src.services.scenario_engine import ScenarioEngine
 from src.storage.factory import create_storage_repositories
@@ -80,6 +81,7 @@ SAMPLE_SCENARIO_PATH = (
 scenario_repository, session_repository = create_storage_repositories()
 TURN_RETRY_BACKOFF_SECONDS = [2, 4, 8, 16]
 scenario_engine = ScenarioEngine()
+action_enricher = ScenarioActionEnricher()
 
 
 class CreateSessionRequest(BaseModel):
@@ -785,13 +787,6 @@ async def post_turn(
         interpreted = validate_interpreted_action(
             provider.interpret_action(request.participant_input)
         )
-        logger.info(
-            "Participant action interpreted session_id=%s action_types=%s priority=%s",
-            session_id,
-            interpreted.action_types,
-            interpreted.priority,
-        )
-
         scenario = scenario_repository.get(state.scenario_id)
         if not scenario:
             logger.error(
@@ -801,11 +796,31 @@ async def post_turn(
             )
             raise HTTPException(status_code=404, detail="Scenario not found")
 
+        logger.info(
+            "Participant action interpreted session_id=%s action_types=%s targets=%s priority=%s",
+            session_id,
+            interpreted.action_types,
+            interpreted.targets,
+            interpreted.priority,
+        )
+        enriched = action_enricher.enrich(
+            scenario, request.participant_input, interpreted
+        )
+        if enriched.log_messages:
+            logger.info(
+                "Participant action enriched session_id=%s action_types=%s targets=%s support=%s",
+                session_id,
+                enriched.action.action_types,
+                enriched.action.targets,
+                enriched.log_messages,
+            )
+
         updated = engine.apply(
             scenario,
             state,
-            interpreted,
+            enriched.action,
             request.participant_input,
+            interpretation_log_messages=enriched.log_messages,
         )
         activated_state = None
         if updated.phase != state.phase:

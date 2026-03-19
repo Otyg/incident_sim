@@ -32,12 +32,13 @@
 
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
 
+from src.schemas.interpreted_action import ActionType
 from src.schemas.narrator_response import NarratorResponse
 
 Difficulty = str
@@ -55,6 +56,7 @@ ConditionOperator = Literal[
 ]
 ConditionFact = Literal[
     "state.phase",
+    "state.no_communication_turns",
     "state.metrics.impact_level",
     "state.metrics.media_pressure",
     "state.metrics.service_disruption",
@@ -93,6 +95,8 @@ FlagPath = Literal[
     "state.flags.forensic_analysis_started",
     "state.flags.external_access_restricted",
 ]
+TextMatcherField = Literal["action.action_types", "action.targets"]
+TextMatcherMatchType = Literal["contains_any", "contains_all"]
 
 
 SCENARIO_SCHEMA_PATH = (
@@ -261,6 +265,105 @@ class InjectDefinition(BaseModel):
     )
 
 
+class TextMatcher(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för textmatcharen.")
+    field: TextMatcherField = Field(
+        description="Vilket tolkningsfält som ska kompletteras vid match."
+    )
+    match_type: TextMatcherMatchType = Field(
+        description="Hur deltagartexten ska matchas mot angivna mönster."
+    )
+    patterns: list[str] = Field(
+        min_length=1,
+        description="Case-insensitive textmönster som används mot rå deltagartext.",
+    )
+    value: str = Field(
+        min_length=1,
+        description="Vilket värde som ska läggas till i angivet tolkningsfält vid träff.",
+    )
+
+    @model_validator(mode="after")
+    def validate_field_value_combo(self) -> "TextMatcher":
+        """Ensure matcher values are valid for the selected target field."""
+
+        if self.field == "action.action_types" and self.value not in get_args(
+            ActionType
+        ):
+            raise ValueError(
+                "TextMatcher value must be a supported action type when field is action.action_types"
+            )
+        return self
+
+
+class InterpretationHintCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text_contains_any: list[str] = Field(
+        default_factory=list,
+        description="Rå deltagartext måste innehålla minst ett av dessa textmönster.",
+    )
+    action_types_contains: list[ActionType] = Field(
+        default_factory=list,
+        description="Redan tolkade action_types som måste finnas innan hinton används.",
+    )
+    targets_contains: list[str] = Field(
+        default_factory=list,
+        description="Redan tolkade targets som måste finnas innan hinton används.",
+    )
+
+    @model_validator(mode="after")
+    def require_at_least_one_condition(self) -> "InterpretationHintCondition":
+        """Require at least one explicit condition for the hint."""
+
+        if not (
+            self.text_contains_any
+            or self.action_types_contains
+            or self.targets_contains
+        ):
+            raise ValueError(
+                "InterpretationHintCondition must define at least one condition"
+            )
+        return self
+
+
+class InterpretationHint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stabilt unikt id för tolkstödet.")
+    when: InterpretationHintCondition = Field(
+        description="Villkor som måste vara uppfyllda för att hinton ska användas."
+    )
+    add_action_types: list[ActionType] = Field(
+        default_factory=list,
+        description="Action types som adderas om hinton träffar.",
+    )
+    add_targets: list[str] = Field(
+        default_factory=list,
+        description="Targets som adderas om hinton träffar.",
+    )
+    confidence_boost: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Valfritt metadatafält för framtida användning när tolkstöd ska kunna "
+            "påverka confidence. Används inte dynamiskt ännu."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_at_least_one_effect(self) -> "InterpretationHint":
+        """Require at least one additiv effekt for the hint."""
+
+        if not (self.add_action_types or self.add_targets):
+            raise ValueError(
+                "InterpretationHint must define add_action_types or add_targets"
+            )
+        return self
+
+
 class RuleDefinition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -414,6 +517,20 @@ class Scenario(BaseModel):
         default_factory=list,
         description="Katalog över möjliga injects som kan användas under övningen.",
     )
+    text_matchers: list[TextMatcher] = Field(
+        default_factory=list,
+        description=(
+            "Enkla, scenariodefinierade textmatchningar mot rå deltagartext som "
+            "kan komplettera tolkade action_types eller targets."
+        ),
+    )
+    interpretation_hints: list[InterpretationHint] = Field(
+        default_factory=list,
+        description=(
+            "Deklarativa tolkhints som kan komplettera LLM-tolkningen med "
+            "ytterligare action_types eller targets när deras villkor matchar."
+        ),
+    )
     rules: list[RuleDefinition] = Field(
         default_factory=list,
         description=(
@@ -450,6 +567,14 @@ class Scenario(BaseModel):
         phase_ids = [state.phase for state in self.states]
         if len(phase_ids) != len(set(phase_ids)):
             raise ValueError("Scenario states must use unique phases")
+
+        text_matcher_ids = [matcher.id for matcher in self.text_matchers]
+        if len(text_matcher_ids) != len(set(text_matcher_ids)):
+            raise ValueError("Scenario text_matchers must use unique ids")
+
+        interpretation_hint_ids = [hint.id for hint in self.interpretation_hints]
+        if len(interpretation_hint_ids) != len(set(interpretation_hint_ids)):
+            raise ValueError("Scenario interpretation_hints must use unique ids")
 
         initial_state = self.states[0]
         if initial_state.time is None:

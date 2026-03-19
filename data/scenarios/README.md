@@ -31,8 +31,11 @@ Nuvarande läge:
 - `states[0]` används dynamiskt som startläge när en session skapas.
 - `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
+- `text_matchers[]` används dynamiskt för enkel, scenariostyrd matchning mot rå deltagartext innan regelmotorn körs.
+- `interpretation_hints[]` används dynamiskt för att additivt komplettera LLM-tolkningen före regelutvärdering.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
-- Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
+- `executable_rules[]` används dynamiskt för scenariostyrda stateändringar, flaggor, metrics, injects och loggrader.
+- Den faktiska generiska turn-motorn finns i [rules_engine.py](../../src/services/rules_engine.py), medan scenariobunden domänlogik i första hand bör ligga i scenariot.
 
 Det betyder att scenarioförfattaren nu kan styra faser, inject-aktivering och vissa stateförändringar direkt i JSON, medan mer avancerad logik fortfarande kan kräva backendkod.
 
@@ -336,6 +339,113 @@ Använd dem därför som:
 - underlag för framtida automation
 - stöd för facilitatorn
 
+## `text_matchers`
+
+`text_matchers` beskriver enkla, scenariodefinierade textmatchningar mot rå deltagartext.
+
+Tanken är att scenariot ska kunna säga att vissa ord eller fraser bör komplettera den strukturerade tolkningen, till exempel att `extern åtkomst` bör leda till target `external_access`.
+
+De används dynamiskt efter LLM-tolkningen och före regelmotorn. Matchningen är additiv: den kompletterar den redan tolkade actionn i stället för att skriva över den.
+
+Varje textmatcher innehåller:
+
+- `id`
+- `field`
+- `match_type`
+- `patterns`
+- `value`
+
+### `field`
+
+Tillåtna värden i v1:
+
+- `action.action_types`
+- `action.targets`
+
+### `match_type`
+
+Tillåtna värden i v1:
+
+- `contains_any`
+- `contains_all`
+
+### `patterns`
+
+Lista med textmönster som ska jämföras mot rå deltagartext.
+
+Rekommendation:
+
+- använd korta, konkreta uttryck
+- skriv flera vanliga varianter om ni vet att deltagare uttrycker sig olika
+- håll dem scenario- och domänspecifika
+
+### `value`
+
+Det värde som ska adderas till fältet när matchningen träffar.
+
+Exempel:
+
+```json
+{
+  "id": "matcher-external-access",
+  "field": "action.targets",
+  "match_type": "contains_any",
+  "patterns": ["extern åtkomst", "extern access", "vpn"],
+  "value": "external_access"
+}
+```
+
+## `interpretation_hints`
+
+`interpretation_hints` beskriver deklarativa tolkhints som kan komplettera LLM-tolkningen med ytterligare `action_types` eller `targets`.
+
+Tanken är att scenariot ska kunna uttrycka att:
+
+- viss råtext i kombination med en redan tolkad åtgärdstyp bör ge extra targets
+- vissa kombinationer av action types och targets bör förstärkas deterministiskt
+
+De används dynamiskt efter `text_matchers` och före regelmotorn. Hints är additiva och används för att komplettera `action_types` eller `targets`, inte för att skriva över befintlig tolkning.
+
+Varje hint innehåller:
+
+- `id`
+- `when`
+- `add_action_types` eller `add_targets`
+- valfritt `confidence_boost`
+
+### `when`
+
+`when` måste innehålla minst ett villkor i v1:
+
+- `text_contains_any`
+- `action_types_contains`
+- `targets_contains`
+
+### `add_action_types`
+
+Action types som ska läggas till om hinton träffar.
+
+### `add_targets`
+
+Targets som ska läggas till om hinton träffar.
+
+### `confidence_boost`
+
+Valfritt metadatafält för framtida bruk. Det finns med i modellen nu, men används ännu inte dynamiskt.
+
+Exempel:
+
+```json
+{
+  "id": "hint-containment-external-access",
+  "when": {
+    "action_types_contains": ["containment"],
+    "text_contains_any": ["extern åtkomst", "vpn"]
+  },
+  "add_targets": ["external_access"]
+}
+```
+
 ## `executable_rules`
 
 Det här är den körbara delen av scenariot i v1.
@@ -366,6 +476,7 @@ Varje villkor består av:
 Tillåtna `fact` i v1:
 
 - `state.phase`
+- `state.no_communication_turns`
 - `state.metrics.*`
 - `state.flags.*`
 - `session.turn_number`

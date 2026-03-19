@@ -425,6 +425,164 @@
       },
       "required": ["id", "type", "title", "description", "severity"]
     },
+    "TextMatcher": {
+      "type": "object",
+      "title": "TextMatcher",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt unikt id för textmatcharen."
+        },
+        "field": {
+          "type": "string",
+          "title": "Field",
+          "description": "Vilket tolkningsfält som ska kompletteras vid match.",
+          "enum": ["action.action_types", "action.targets"]
+        },
+        "match_type": {
+          "type": "string",
+          "title": "Match Type",
+          "description": "Hur deltagartexten ska matchas mot angivna mönster.",
+          "enum": ["contains_any", "contains_all"]
+        },
+        "patterns": {
+          "type": "array",
+          "title": "Patterns",
+          "description": "Case-insensitive textmönster som används mot rå deltagartext.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Value",
+          "description": "Vilket värde som ska läggas till i angivet tolkningsfält vid träff."
+        }
+      },
+      "required": ["id", "field", "match_type", "patterns", "value"]
+    },
+    "InterpretationHintCondition": {
+      "type": "object",
+      "title": "InterpretationHintCondition",
+      "additionalProperties": false,
+      "properties": {
+        "text_contains_any": {
+          "type": "array",
+          "title": "Text Contains Any",
+          "description": "Rå deltagartext måste innehålla minst ett av dessa textmönster.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "action_types_contains": {
+          "type": "array",
+          "title": "Action Types Contains",
+          "description": "Redan tolkade action_types som måste finnas innan hinton används.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "containment",
+              "coordination",
+              "communication",
+              "escalation",
+              "analysis",
+              "recovery",
+              "monitoring",
+              "legal",
+              "business_continuity"
+            ]
+          }
+        },
+        "targets_contains": {
+          "type": "array",
+          "title": "Targets Contains",
+          "description": "Redan tolkade targets som måste finnas innan hinton används.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["text_contains_any"]
+        },
+        {
+          "required": ["action_types_contains"]
+        },
+        {
+          "required": ["targets_contains"]
+        }
+      ]
+    },
+    "InterpretationHint": {
+      "type": "object",
+      "title": "InterpretationHint",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Id",
+          "description": "Stabilt unikt id för tolkstödet."
+        },
+        "when": {
+          "$ref": "#/$defs/InterpretationHintCondition",
+          "description": "Villkor som måste vara uppfyllda för att hinton ska användas."
+        },
+        "add_action_types": {
+          "type": "array",
+          "title": "Add Action Types",
+          "description": "Action types som adderas om hinton träffar.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "containment",
+              "coordination",
+              "communication",
+              "escalation",
+              "analysis",
+              "recovery",
+              "monitoring",
+              "legal",
+              "business_continuity"
+            ]
+          }
+        },
+        "add_targets": {
+          "type": "array",
+          "title": "Add Targets",
+          "description": "Targets som adderas om hinton träffar.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confidence_boost": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "title": "Confidence Boost",
+          "description": "Valfritt metadatafält för framtida användning när tolkstöd ska kunna påverka confidence."
+        }
+      },
+      "required": ["id", "when"],
+      "anyOf": [
+        {
+          "required": ["add_action_types"]
+        },
+        {
+          "required": ["add_targets"]
+        }
+      ]
+    },
     "RuleDefinition": {
       "type": "object",
       "title": "RuleDefinition",
@@ -495,6 +653,7 @@
           "description": "Vilket state- eller actionfält som villkoret läser.",
           "enum": [
             "state.phase",
+            "state.no_communication_turns",
             "state.metrics.impact_level",
             "state.metrics.media_pressure",
             "state.metrics.service_disruption",
@@ -792,6 +951,18 @@
       "title": "Inject Catalog",
       "description": "Katalog över möjliga injects som kan användas under övningen.",
       "items": { "$ref": "#/$defs/InjectDefinition" }
+    },
+    "text_matchers": {
+      "type": "array",
+      "title": "Text Matchers",
+      "description": "Enkla, scenariodefinierade textmatchningar mot rå deltagartext som kan komplettera tolkade action_types eller targets.",
+      "items": { "$ref": "#/$defs/TextMatcher" }
+    },
+    "interpretation_hints": {
+      "type": "array",
+      "title": "Interpretation Hints",
+      "description": "Deklarativa tolkhints som kan komplettera LLM-tolkningen med ytterligare action_types eller targets när deras villkor matchar.",
+      "items": { "$ref": "#/$defs/InterpretationHint" }
     },
     "rules": {
       "type": "array",

@@ -51,21 +51,6 @@ class RulesEngine:
         self.scenario_engine = ScenarioEngine()
 
     @staticmethod
-    def _add_focus_item(state: SessionState, item: str) -> None:
-        """Append a focus item only if it is not already present.
-
-        Args:
-            state: Session state being updated.
-            item: Focus item text to preserve once in the list.
-
-        Returns:
-            None: The state object is mutated in place.
-        """
-
-        if item not in state.focus_items:
-            state.focus_items.append(item)
-
-    @staticmethod
     def _advance_time(current_time: str, minutes: int = 15) -> str:
         """Advance a HH:MM timestamp by a fixed number of minutes."""
 
@@ -82,6 +67,7 @@ class RulesEngine:
         state: SessionState,
         interpreted_action: InterpretedAction,
         raw_input: str,
+        interpretation_log_messages: list[str] | None = None,
     ) -> SessionState:
         """Apply deterministic rules to a session state.
 
@@ -109,49 +95,20 @@ class RulesEngine:
                 turn=updated.turn_number, type="participant_action", text=raw_input
             )
         )
-
-        action_types = set(interpreted_action.action_types)
-        targets = set(interpreted_action.targets)
-
-        if "containment" in action_types and (
-            "external_access" in targets or "vpn" in targets
-        ):
-            updated.metrics.attack_surface = max(0, updated.metrics.attack_surface - 1)
-            updated.metrics.service_disruption += 1
-            updated.flags.external_access_restricted = True
-            updated.consequences.append(
-                "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster."
-            )
-            self._add_focus_item(updated, "Hantera påverkan på externa tjänster.")
+        for message in interpretation_log_messages or []:
             updated.exercise_log.append(
                 ExerciseLogItem(
                     turn=updated.turn_number,
-                    type="system_consequence",
-                    text="Extern attackyta minskar, men tjänstepåverkan ökar externt.",
+                    type="interpretation_support",
+                    text=message,
                 )
             )
 
-        if "analysis" in action_types or "forensics" in targets:
-            updated.flags.forensic_analysis_started = True
-
-        if "escalation" in action_types or "executive_team" in targets:
-            updated.flags.executive_escalation = True
-            self._add_focus_item(updated, "Förbered ledningsbeslut och eskalering.")
-
-        if "communication" in action_types:
+        if "communication" in interpreted_action.action_types:
             updated.flags.external_comms_sent = True
             updated.no_communication_turns = 0
-            self._add_focus_item(updated, "Samordna fortsatt extern kommunikation.")
         else:
             updated.no_communication_turns += 1
-            if updated.no_communication_turns >= 2:
-                updated.metrics.media_pressure += 1
-                updated.metrics.public_confusion += 1
-                updated.consequences.append("Fördröjd kommunikation ökar medietrycket.")
-                self._add_focus_item(updated, "Ta fram ett första externt budskap.")
-
-        if updated.metrics.impact_level >= 3 and not updated.flags.executive_escalation:
-            updated.metrics.leadership_pressure += 1
 
         return self.scenario_engine.apply(
             scenario=scenario,

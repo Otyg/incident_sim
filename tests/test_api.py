@@ -109,6 +109,25 @@ def sample_scenario_payload():
 
 def datadriven_scenario_payload():
     payload = sample_scenario_payload()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-containment-external-access",
+            "field": "action.action_types",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "extern access", "vpn"],
+            "value": "containment",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-target-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "extern access", "vpn"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
     payload["states"][1].update(
         {
             "known_facts": ["Extern åtkomst har begränsats."],
@@ -156,6 +175,55 @@ def datadriven_scenario_payload():
     ]
     payload["executable_rules"] = [
         {
+            "id": "rule-restrict-external-access",
+            "name": "Markera begränsad extern åtkomst",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                },
+                {
+                    "fact": "action.targets",
+                    "operator": "contains",
+                    "value": "external_access",
+                },
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_access_restricted",
+                    "value": True,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.attack_surface",
+                    "amount": -1,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.service_disruption",
+                    "amount": 1,
+                },
+                {
+                    "type": "append_consequence",
+                    "item": "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster.",
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Hantera påverkan på externa tjänster.",
+                },
+                {
+                    "type": "append_exercise_log",
+                    "log_type": "system_consequence",
+                    "message": "Extern attackyta minskar, men tjänstepåverkan ökar externt.",
+                },
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
             "id": "rule-session-start",
             "name": "Startregel",
             "trigger": "session_started",
@@ -192,6 +260,73 @@ def datadriven_scenario_payload():
     return payload
 
 
+def enrichment_driven_scenario_payload():
+    payload = sample_scenario_payload()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-containment",
+            "field": "action.action_types",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "extern access"],
+            "value": "containment",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "extern access"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
+    payload["executable_rules"] = [
+        {
+            "id": "rule-restrict-external-access",
+            "name": "Markera begränsad extern åtkomst",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                },
+                {
+                    "fact": "action.targets",
+                    "operator": "contains",
+                    "value": "external_access",
+                },
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_access_restricted",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
+            "id": "rule-phase-change",
+            "name": "Containment byter fas",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.external_access_restricted",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+            "priority": "high",
+            "once": True,
+        },
+    ]
+    return payload
+
+
 def test_get_default_sample_scenario():
     status, body = request_json("GET", "/sample-scenarios/default")
 
@@ -200,6 +335,12 @@ def test_get_default_sample_scenario():
     assert body["difficulty"] == "high"
     assert "kommunikation" in body["audiences"]
     assert len(body["inject_catalog"]) >= 2
+    assert len(body["text_matchers"]) >= 3
+    assert any(item["id"] == "matcher-target-vpn" for item in body["text_matchers"])
+    assert any(
+        item["id"] == "hint-communication-communications-team"
+        for item in body["interpretation_hints"]
+    )
 
 
 def test_create_and_get_scenario():
@@ -398,6 +539,118 @@ def test_post_turn_applies_datadriven_phase_change(monkeypatch):
     )
 
 
+def test_post_turn_applies_scenario_action_enrichment_before_rules(monkeypatch):
+    class SparseInterpretationProvider(MockLLMProvider):
+        def interpret_action(self, participant_input: str) -> dict:
+            return {
+                "action_summary": "Sparsam tolkning for att testa scenario-driven enrichment.",
+                "action_types": ["monitoring"],
+                "targets": [],
+                "intent": "Testa att scenariot kompletterar tolkningen.",
+                "expected_effects": [],
+                "risks": [],
+                "uncertainties": [],
+                "priority": "high",
+                "confidence": 0.6,
+            }
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: SparseInterpretationProvider(),
+    )
+    request_json("POST", "/scenarios", enrichment_driven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi beslutar att stänga extern åtkomst omedelbart."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "containment"
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"] == "Textmatchning träffade: matcher-containment"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"] == "Interpretation hint använd: hint-external-access"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+
+
+def test_default_sample_scenario_enrichment_supports_communication_and_escalation(
+    monkeypatch,
+):
+    class SparseInterpretationProvider(MockLLMProvider):
+        def interpret_action(self, participant_input: str) -> dict:
+            return {
+                "action_summary": "Sparsam tolkning for att testa sample scenario enrichment.",
+                "action_types": ["monitoring"],
+                "targets": [],
+                "intent": "Testa att samplescenariot kompletterar tolkningen.",
+                "expected_effects": [],
+                "risks": [],
+                "uncertainties": [],
+                "priority": "high",
+                "confidence": 0.6,
+            }
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: SparseInterpretationProvider(),
+    )
+    sample = api_module.load_sample_scenario()
+    api_module.scenario_repository.save(sample)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {
+            "scenario_id": sample.id,
+            "audience": "krisledning",
+        },
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {
+            "participant_input": "Krisledningsgruppen ansvarar för kommunikation till allmänhet, media och myndigheter."
+        },
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["flags"]["executive_escalation"] is True
+    assert body["state_snapshot"]["flags"]["external_comms_sent"] is True
+    assert (
+        "Förbered ledningsbeslut och eskalering."
+        in body["state_snapshot"]["focus_items"]
+    )
+    assert (
+        "Samordna fortsatt extern kommunikation."
+        in body["state_snapshot"]["focus_items"]
+    )
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"] == "Interpretation hint använd: hint-escalation-executive-team"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"]
+        == "Interpretation hint använd: hint-communication-communications-team"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+
+
 def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
     class NarrationMustNotBeGeneratedProvider(MockLLMProvider):
         def generate_narration(self, state):  # pragma: no cover - defensive
@@ -446,6 +699,27 @@ def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
     )
     scenario["executable_rules"] = [
         {
+            "id": "rule-mark-executive-escalation",
+            "name": "Markera eskalering till ledning",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "escalation",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.executive_escalation",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
             "id": "rule-phase-escalation",
             "name": "Byt till escalation vid eskalering till ledning",
             "trigger": "turn_processed",
@@ -459,7 +733,7 @@ def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
             "effects": [{"type": "set_phase", "phase": "escalation"}],
             "priority": "high",
             "once": True,
-        }
+        },
     ]
     request_json("POST", "/scenarios", scenario)
     _, session = request_json(
@@ -498,6 +772,27 @@ def test_post_turn_handles_partial_state_without_optional_runtime_fields(monkeyp
     )
     scenario["executable_rules"] = [
         {
+            "id": "rule-start-forensic-analysis",
+            "name": "Markera påbörjad forensisk analys",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "analysis",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.forensic_analysis_started",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
             "id": "rule-phase-recovery",
             "name": "Byt till recovery efter analys",
             "trigger": "turn_processed",
@@ -511,7 +806,7 @@ def test_post_turn_handles_partial_state_without_optional_runtime_fields(monkeyp
             "effects": [{"type": "set_phase", "phase": "recovery"}],
             "priority": "high",
             "once": True,
-        }
+        },
     ]
     request_json("POST", "/scenarios", scenario)
     _, session = request_json(
@@ -586,7 +881,10 @@ def test_manual_phase_change_updates_session_when_phase_is_defined(monkeypatch):
 
     assert status == 200
     assert body["session_state"]["phase"] == "containment"
-    assert body["session_state"]["affected_systems"] == ["VPN", "Federerade inloggningar"]
+    assert body["session_state"]["affected_systems"] == [
+        "VPN",
+        "Federerade inloggningar",
+    ]
     assert body["narration"]["situation_update"].startswith(
         "Kl. 08:30 har ni gått in i en tydlig containmentfas."
     )
