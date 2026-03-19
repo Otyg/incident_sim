@@ -126,8 +126,7 @@ def test_scenario_engine_triggers_contains_rule_on_action_type():
     assert updated.phase == "containment"
     assert any(
         item.type == "scenario_event"
-        and item.text
-        == "Regel triggad: rule-containment-phase (Containment byter fas)"
+        and item.text == "Regel triggad: rule-containment-phase (Containment byter fas)"
         for item in updated.exercise_log
     )
 

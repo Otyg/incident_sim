@@ -288,9 +288,8 @@ class TextMatcher(BaseModel):
     def validate_field_value_combo(self) -> "TextMatcher":
         """Ensure matcher values are valid for the selected target field."""
 
-        if (
-            self.field == "action.action_types"
-            and self.value not in get_args(ActionType)
+        if self.field == "action.action_types" and self.value not in get_args(
+            ActionType
         ):
             raise ValueError(
                 "TextMatcher value must be a supported action type when field is action.action_types"
@@ -323,7 +322,9 @@ class InterpretationHintCondition(BaseModel):
             or self.action_types_contains
             or self.targets_contains
         ):
-            raise ValueError("InterpretationHintCondition must define at least one condition")
+            raise ValueError(
+                "InterpretationHintCondition must define at least one condition"
+            )
         return self
 
 

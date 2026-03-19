@@ -311,7 +311,10 @@ def test_scenario_validation_accepts_no_communication_turns_as_rule_fact():
 
     scenario = Scenario(**payload)
 
-    assert scenario.executable_rules[0].conditions[0].fact == "state.no_communication_turns"
+    assert (
+        scenario.executable_rules[0].conditions[0].fact
+        == "state.no_communication_turns"
+    )
 
 
 def test_scenario_validation_rejects_invalid_executable_rule_operator():

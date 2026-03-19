@@ -52,7 +52,21 @@ def make_scenario() -> Scenario:
                     "match_type": "contains_any",
                     "patterns": ["extern åtkomst", "isolera"],
                     "value": "containment",
-                }
+                },
+                {
+                    "id": "matcher-vpn",
+                    "field": "action.targets",
+                    "match_type": "contains_any",
+                    "patterns": ["vpn"],
+                    "value": "vpn",
+                },
+                {
+                    "id": "matcher-analysis",
+                    "field": "action.action_types",
+                    "match_type": "contains_any",
+                    "patterns": ["forensik", "bevissäkring"],
+                    "value": "analysis",
+                },
             ],
             "interpretation_hints": [
                 {
@@ -62,7 +76,15 @@ def make_scenario() -> Scenario:
                         "text_contains_any": ["extern åtkomst", "vpn"],
                     },
                     "add_targets": ["external_access"],
-                }
+                },
+                {
+                    "id": "hint-forensics",
+                    "when": {
+                        "action_types_contains": ["analysis"],
+                        "text_contains_any": ["forensik", "bevissäkring"],
+                    },
+                    "add_targets": ["forensics"],
+                },
             ],
             "rules": [],
             "executable_rules": [],
@@ -110,5 +132,21 @@ def test_enricher_avoids_duplicate_values_and_logs_only_when_something_added():
     )
 
     assert result.action.action_types == ["containment"]
-    assert result.action.targets == ["external_access"]
-    assert result.log_messages == []
+    assert result.action.targets == ["external_access", "vpn"]
+    assert result.log_messages == ["Textmatchning träffade: matcher-vpn"]
+
+
+def test_enricher_can_chain_vpn_and_forensics_support():
+    result = ScenarioActionEnricher().enrich(
+        make_scenario(),
+        "Vi stänger vpn och fokuserar på forensik och bevissäkring.",
+        make_action(["monitoring"], []),
+    )
+
+    assert result.action.action_types == ["monitoring", "analysis"]
+    assert result.action.targets == ["vpn", "forensics"]
+    assert result.log_messages == [
+        "Textmatchning träffade: matcher-vpn",
+        "Textmatchning träffade: matcher-analysis",
+        "Interpretation hint använd: hint-forensics",
+    ]

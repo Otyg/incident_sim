@@ -213,6 +213,27 @@
         "fjärråtkomst"
       ],
       "value": "containment"
+    },
+    {
+      "id": "matcher-target-vpn",
+      "field": "action.targets",
+      "match_type": "contains_any",
+      "patterns": [
+        "vpn",
+        "fjärråtkomst"
+      ],
+      "value": "vpn"
+    },
+    {
+      "id": "matcher-analysis-forensics",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "forensik",
+        "forensisk",
+        "bevissäkring"
+      ],
+      "value": "analysis"
     }
   ],
   "interpretation_hints": [
@@ -231,6 +252,58 @@
       },
       "add_targets": [
         "external_access"
+      ]
+    },
+    {
+      "id": "hint-target-forensics",
+      "when": {
+        "action_types_contains": [
+          "analysis"
+        ],
+        "text_contains_any": [
+          "forensik",
+          "forensisk",
+          "bevissäkring"
+        ]
+      },
+      "add_targets": [
+        "forensics"
+      ]
+    },
+    {
+      "id": "hint-escalation-executive-team",
+      "when": {
+        "text_contains_any": [
+          "krisledning",
+          "krisledningsgruppen",
+          "ledning",
+          "kommundirektör"
+        ]
+      },
+      "add_action_types": [
+        "escalation"
+      ],
+      "add_targets": [
+        "executive_team"
+      ]
+    },
+    {
+      "id": "hint-communication-communications-team",
+      "when": {
+        "text_contains_any": [
+          "kommunikation",
+          "kommunicera",
+          "allmänhet",
+          "myndigheter",
+          "media",
+          "press"
+        ]
+      },
+      "add_action_types": [
+        "communication"
+      ],
+      "add_targets": [
+        "communications_team"
       ]
     }
   ],

@@ -93,7 +93,9 @@ class ScenarioActionEnricher:
                 return False
 
         if hint.when.targets_contains:
-            if not all(target in action.targets for target in hint.when.targets_contains):
+            if not all(
+                target in action.targets for target in hint.when.targets_contains
+            ):
                 return False
 
         return True
@@ -137,8 +139,6 @@ class ScenarioActionEnricher:
 
             if added_any:
                 log_messages.append(f"Interpretation hint använd: {hint.id}")
-                logger.info(
-                    "Scenario interpretation hint matched hint_id=%s", hint.id
-                )
+                logger.info("Scenario interpretation hint matched hint_id=%s", hint.id)
 
         return EnrichedActionResult(action=updated, log_messages=log_messages)

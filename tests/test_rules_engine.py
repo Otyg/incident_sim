@@ -260,46 +260,51 @@ def make_datadriven_scenario() -> Scenario:
                         "value": 2,
                     }
                 ],
-                "effects": [{"type": "add_active_inject", "inject_id": "inject-ops-001"}],
+                "effects": [
+                    {"type": "add_active_inject", "inject_id": "inject-ops-001"}
+                ],
                 "priority": "high",
                 "once": True,
             },
-        {
-            "id": "rule-phase-containment",
-            "name": "Byt till containment",
-            "trigger": "turn_processed",
-            "conditions": [
-                {
-                    "fact": "state.flags.external_access_restricted",
-                    "operator": "equals",
-                    "value": True,
-                },
-                {
-                    "fact": "state.phase",
-                    "operator": "equals",
-                    "value": "initial-detection",
-                },
-            ],
-            "effects": [{"type": "set_phase", "phase": "containment"}],
-            "priority": "medium",
-            "once": True,
-        },
-        {
-            "id": "rule-activate-media-inject",
-            "name": "Aktivera media-inject",
-            "trigger": "turn_processed",
-            "conditions": [
-                {
-                    "fact": "state.metrics.media_pressure",
-                    "operator": "gte",
-                    "value": 2,
-                }
-            ],
-            "effects": [{"type": "add_active_inject", "inject_id": "inject-media-001"}],
-            "priority": "medium",
-            "once": True,
-        },
-    ])
+            {
+                "id": "rule-phase-containment",
+                "name": "Byt till containment",
+                "trigger": "turn_processed",
+                "conditions": [
+                    {
+                        "fact": "state.flags.external_access_restricted",
+                        "operator": "equals",
+                        "value": True,
+                    },
+                    {
+                        "fact": "state.phase",
+                        "operator": "equals",
+                        "value": "initial-detection",
+                    },
+                ],
+                "effects": [{"type": "set_phase", "phase": "containment"}],
+                "priority": "medium",
+                "once": True,
+            },
+            {
+                "id": "rule-activate-media-inject",
+                "name": "Aktivera media-inject",
+                "trigger": "turn_processed",
+                "conditions": [
+                    {
+                        "fact": "state.metrics.media_pressure",
+                        "operator": "gte",
+                        "value": 2,
+                    }
+                ],
+                "effects": [
+                    {"type": "add_active_inject", "inject_id": "inject-media-001"}
+                ],
+                "priority": "medium",
+                "once": True,
+            },
+        ]
+    )
     return Scenario.model_validate(payload)
 
 
