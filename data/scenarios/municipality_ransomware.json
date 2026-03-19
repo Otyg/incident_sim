@@ -207,6 +207,8 @@
       "field": "action.action_types",
       "match_type": "contains_any",
       "patterns": [
+        "extern",
+        "externa",
         "extern åtkomst",
         "extern access",
         "vpn",

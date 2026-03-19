@@ -33,6 +33,8 @@
 """Scenario-driven enrichment of interpreted participant actions."""
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
+import re
 
 from src.logging_utils import get_logger
 from src.models.scenario import InterpretationHint, Scenario, TargetAlias, TextMatcher
@@ -64,6 +66,35 @@ class ScenarioActionEnricher:
     def _normalize(text: str) -> str:
         return text.casefold()
 
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        return [token for token in re.split(r"[^\w]+", text.casefold()) if token]
+
+    def _fuzzy_alias_match(self, candidate: str, alias_value: str) -> bool:
+        if candidate == alias_value:
+            return True
+        if alias_value in candidate or candidate in alias_value:
+            return True
+
+        alias_tokens = [token for token in self._tokenize(alias_value) if len(token) >= 4]
+        candidate_tokens = [
+            token for token in self._tokenize(candidate) if len(token) >= 4
+        ]
+        if alias_tokens and candidate_tokens:
+            alias_tokens_match = all(
+                any(
+                    alias_token == candidate_token
+                    or alias_token in candidate_token
+                    or candidate_token in alias_token
+                    for candidate_token in candidate_tokens
+                )
+                for alias_token in alias_tokens
+            )
+            if alias_tokens_match:
+                return True
+
+        return SequenceMatcher(a=candidate, b=alias_value).ratio() >= 0.82
+
     def _matches_text(self, matcher: TextMatcher, normalized_text: str) -> bool:
         normalized_patterns = [
             self._normalize(pattern) for pattern in matcher.patterns if pattern.strip()
@@ -82,7 +113,10 @@ class ScenarioActionEnricher:
             self._normalize(item) for item in alias.aliases if item.strip()
         ]
         for original, normalized_target in normalized_targets:
-            if normalized_target in normalized_aliases:
+            if any(
+                self._fuzzy_alias_match(normalized_target, normalized_alias)
+                for normalized_alias in normalized_aliases
+            ):
                 return True, original
         canonical = self._normalize(alias.canonical)
         for normalized_alias in normalized_aliases:

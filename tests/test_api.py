@@ -609,7 +609,10 @@ def test_post_turn_normalizes_provider_targets_with_scenario_aliases(monkeypatch
             return {
                 "action_summary": "Provider returnerar mänskliga labels för targets.",
                 "action_types": ["containment"],
-                "targets": ["Intern infrastruktur", "Externa anslutningar"],
+                "targets": [
+                    "Intern infrastruktur",
+                    "Externa nätverksanslutningar",
+                ],
                 "intent": "Blockera angriparens externa väg in.",
                 "expected_effects": [],
                 "risks": [],
@@ -637,7 +640,7 @@ def test_post_turn_normalizes_provider_targets_with_scenario_aliases(monkeypatch
     assert any(
         item["type"] == "interpretation_support"
         and item["text"]
-        == "Target normaliserad: Externa anslutningar -> external_access (alias-external-access)"
+        == "Target normaliserad: Externa nätverksanslutningar -> external_access (alias-external-access)"
         for item in body["state_snapshot"]["exercise_log"]
     )
     assert body["state_snapshot"]["flags"]["external_access_restricted"] is True

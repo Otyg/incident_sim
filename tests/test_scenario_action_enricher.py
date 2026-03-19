@@ -175,3 +175,19 @@ def test_enricher_normalizes_provider_targets_before_rules_and_hints():
     assert result.log_messages == [
         "Target normaliserad: Externa anslutningar -> external_access (alias-external-access)"
     ]
+
+
+def test_enricher_fuzzily_normalizes_provider_target_synonyms():
+    result = ScenarioActionEnricher().enrich(
+        make_scenario(),
+        "Blockera extern åtkomst.",
+        make_action(["containment"], ["Externa nätverksanslutningar"]),
+    )
+
+    assert result.action.targets == [
+        "Externa nätverksanslutningar",
+        "external_access",
+    ]
+    assert result.log_messages == [
+        "Target normaliserad: Externa nätverksanslutningar -> external_access (alias-external-access)"
+    ]
