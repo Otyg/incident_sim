@@ -82,6 +82,7 @@ class RulesEngine:
         state: SessionState,
         interpreted_action: InterpretedAction,
         raw_input: str,
+        interpretation_log_messages: list[str] | None = None,
     ) -> SessionState:
         """Apply deterministic rules to a session state.
 
@@ -109,6 +110,14 @@ class RulesEngine:
                 turn=updated.turn_number, type="participant_action", text=raw_input
             )
         )
+        for message in interpretation_log_messages or []:
+            updated.exercise_log.append(
+                ExerciseLogItem(
+                    turn=updated.turn_number,
+                    type="interpretation_support",
+                    text=message,
+                )
+            )
 
         action_types = set(interpreted_action.action_types)
         targets = set(interpreted_action.targets)

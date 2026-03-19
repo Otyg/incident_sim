@@ -192,6 +192,47 @@ def datadriven_scenario_payload():
     return payload
 
 
+def enrichment_driven_scenario_payload():
+    payload = sample_scenario_payload()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-containment",
+            "field": "action.action_types",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "extern access"],
+            "value": "containment",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "extern access"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
+    payload["executable_rules"] = [
+        {
+            "id": "rule-phase-change",
+            "name": "Containment byter fas",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.external_access_restricted",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [{"type": "set_phase", "phase": "containment"}],
+            "priority": "high",
+            "once": True,
+        }
+    ]
+    return payload
+
+
 def test_get_default_sample_scenario():
     status, body = request_json("GET", "/sample-scenarios/default")
 
@@ -395,6 +436,53 @@ def test_post_turn_applies_datadriven_phase_change(monkeypatch):
     assert (
         "Berorda system: VPN, Federerade inloggningar."
         in body["narrator_response"]["key_points"]
+    )
+
+
+def test_post_turn_applies_scenario_action_enrichment_before_rules(monkeypatch):
+    class SparseInterpretationProvider(MockLLMProvider):
+        def interpret_action(self, participant_input: str) -> dict:
+            return {
+                "action_summary": "Sparsam tolkning for att testa scenario-driven enrichment.",
+                "action_types": ["monitoring"],
+                "targets": [],
+                "intent": "Testa att scenariot kompletterar tolkningen.",
+                "expected_effects": [],
+                "risks": [],
+                "uncertainties": [],
+                "priority": "high",
+                "confidence": 0.6,
+            }
+
+    monkeypatch.setattr(
+        api_module,
+        "get_llm_provider",
+        lambda: SparseInterpretationProvider(),
+    )
+    request_json("POST", "/scenarios", enrichment_driven_scenario_payload())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi beslutar att stänga extern åtkomst omedelbart."},
+    )
+
+    assert status == 200
+    assert body["state_snapshot"]["phase"] == "containment"
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"] == "Textmatchning träffade: matcher-containment"
+        for item in body["state_snapshot"]["exercise_log"]
+    )
+    assert any(
+        item["type"] == "interpretation_support"
+        and item["text"] == "Interpretation hint använd: hint-external-access"
+        for item in body["state_snapshot"]["exercise_log"]
     )
 
 
