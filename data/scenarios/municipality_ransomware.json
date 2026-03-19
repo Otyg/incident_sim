@@ -370,6 +370,150 @@
       "once": true
     },
     {
+      "id": "rule-start-forensic-analysis",
+      "name": "Markera påbörjad forensisk analys",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "analysis"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.forensic_analysis_started",
+          "value": true
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Forensisk analys har påbörjats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-executive-escalation",
+      "name": "Markera eskalering till ledning",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "escalation"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.executive_escalation",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Förbered ledningsbeslut och eskalering."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Eskalering till ledningen har markerats."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-mark-external-communication",
+      "name": "Markera extern kommunikation",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "action.action_types",
+          "operator": "contains",
+          "value": "communication"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_flag",
+          "flag": "state.flags.external_comms_sent",
+          "value": true
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Samordna fortsatt extern kommunikation."
+        },
+        {
+          "type": "append_exercise_log",
+          "log_type": "scenario_event",
+          "message": "Extern kommunikation har markerats som påbörjad."
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-missing-communication-pressure",
+      "name": "Utebliven kommunikation ökar trycket",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.no_communication_turns",
+          "operator": "gte",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.media_pressure",
+          "amount": 1
+        },
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.public_confusion",
+          "amount": 1
+        },
+        {
+          "type": "append_consequence",
+          "item": "Fördröjd kommunikation ökar medietrycket."
+        },
+        {
+          "type": "append_focus_item",
+          "item": "Ta fram ett första externt budskap."
+        }
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "rule-leadership-pressure",
+      "name": "Öka ledningstryck vid allvarligt läge utan eskalering",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.metrics.impact_level",
+          "operator": "gte",
+          "value": 3
+        },
+        {
+          "fact": "state.flags.executive_escalation",
+          "operator": "equals",
+          "value": false
+        }
+      ],
+      "effects": [
+        {
+          "type": "increment_metric",
+          "metric": "state.metrics.leadership_pressure",
+          "amount": 1
+        }
+      ],
+      "priority": "low"
+    },
+    {
       "id": "rule-activate-ops-inject",
       "name": "Aktivera operations-inject vid ökad störning",
       "trigger": "turn_processed",

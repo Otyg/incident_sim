@@ -110,6 +110,7 @@ class ScenarioEngine:
     ) -> str | int | bool | list[str]:
         fact_map = {
             "state.phase": state.phase,
+            "state.no_communication_turns": state.no_communication_turns,
             "state.metrics.impact_level": state.metrics.impact_level,
             "state.metrics.media_pressure": state.metrics.media_pressure,
             "state.metrics.service_disruption": state.metrics.service_disruption,

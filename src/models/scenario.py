@@ -56,6 +56,7 @@ ConditionOperator = Literal[
 ]
 ConditionFact = Literal[
     "state.phase",
+    "state.no_communication_turns",
     "state.metrics.impact_level",
     "state.metrics.media_pressure",
     "state.metrics.service_disruption",

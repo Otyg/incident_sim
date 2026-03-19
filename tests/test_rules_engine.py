@@ -117,6 +117,135 @@ def make_datadriven_scenario() -> Scenario:
             "priority": "high",
             "once": True,
         },
+        {
+            "id": "rule-start-forensic-analysis",
+            "name": "Markera påbörjad forensisk analys",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "analysis",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.forensic_analysis_started",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
+            "id": "rule-mark-executive-escalation",
+            "name": "Markera eskalering till ledning",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "escalation",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.executive_escalation",
+                    "value": True,
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Förbered ledningsbeslut och eskalering.",
+                },
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
+            "id": "rule-mark-external-communication",
+            "name": "Markera extern kommunikation",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "communication",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_comms_sent",
+                    "value": True,
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Samordna fortsatt extern kommunikation.",
+                },
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
+            "id": "rule-missing-communication-pressure",
+            "name": "Utebliven kommunikation ökar trycket",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.no_communication_turns",
+                    "operator": "gte",
+                    "value": 2,
+                }
+            ],
+            "effects": [
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.media_pressure",
+                    "amount": 1,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.public_confusion",
+                    "amount": 1,
+                },
+                {
+                    "type": "append_consequence",
+                    "item": "Fördröjd kommunikation ökar medietrycket.",
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Ta fram ett första externt budskap.",
+                },
+            ],
+            "priority": "medium",
+        },
+        {
+            "id": "rule-leadership-pressure",
+            "name": "Öka ledningstryck vid allvarligt läge utan eskalering",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.metrics.impact_level",
+                    "operator": "gte",
+                    "value": 3,
+                },
+                {
+                    "fact": "state.flags.executive_escalation",
+                    "operator": "equals",
+                    "value": False,
+                },
+            ],
+            "effects": [
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.leadership_pressure",
+                    "amount": 1,
+                }
+            ],
+            "priority": "low",
+        },
     ]
     payload["executable_rules"].extend(
         [
@@ -236,7 +365,7 @@ def test_rules_engine_updates_focus_items_for_core_rules(
     action, raw_input, expected_focus_item
 ):
     updated = RulesEngine().apply(
-        make_legacy_scenario(), make_state(), action, raw_input
+        make_datadriven_scenario(), make_state(), action, raw_input
     )
 
     assert expected_focus_item in updated.focus_items
@@ -317,7 +446,7 @@ def test_rules_engine_resets_no_communication_counter_when_communication_occurs(
     state.no_communication_turns = 2
 
     updated = RulesEngine().apply(
-        make_legacy_scenario(),
+        make_datadriven_scenario(),
         state,
         make_action(
             ["communication"], ["media"], "Vi går ut med ett första uttalande."
@@ -327,17 +456,30 @@ def test_rules_engine_resets_no_communication_counter_when_communication_occurs(
 
     assert updated.no_communication_turns == 0
     assert updated.flags.external_comms_sent is True
+    assert "Samordna fortsatt extern kommunikation." in updated.focus_items
 
 
 def test_rules_engine_marks_executive_escalation():
     updated = RulesEngine().apply(
-        make_legacy_scenario(),
+        make_datadriven_scenario(),
         make_state(),
         make_action(["escalation"], ["executive_team"], "Eskalerar till ledningen."),
         "Vi eskalerar till ledningen.",
     )
 
     assert updated.flags.executive_escalation is True
+    assert "Förbered ledningsbeslut och eskalering." in updated.focus_items
+
+
+def test_rules_engine_marks_forensic_analysis_via_scenario_rules():
+    updated = RulesEngine().apply(
+        make_datadriven_scenario(),
+        make_state(),
+        make_action(["analysis"], ["forensics"], "Vi startar forensisk analys."),
+        "Vi startar forensisk analys.",
+    )
+
+    assert updated.flags.forensic_analysis_started is True
 
 
 def test_rules_engine_advances_session_time_each_turn():

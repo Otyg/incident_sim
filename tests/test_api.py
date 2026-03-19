@@ -628,6 +628,27 @@ def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
     )
     scenario["executable_rules"] = [
         {
+            "id": "rule-mark-executive-escalation",
+            "name": "Markera eskalering till ledning",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "escalation",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.executive_escalation",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
+        {
             "id": "rule-phase-escalation",
             "name": "Byt till escalation vid eskalering till ledning",
             "trigger": "turn_processed",
@@ -679,6 +700,27 @@ def test_post_turn_handles_partial_state_without_optional_runtime_fields(monkeyp
         }
     )
     scenario["executable_rules"] = [
+        {
+            "id": "rule-start-forensic-analysis",
+            "name": "Markera påbörjad forensisk analys",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "analysis",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.forensic_analysis_started",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
         {
             "id": "rule-phase-recovery",
             "name": "Byt till recovery efter analys",
