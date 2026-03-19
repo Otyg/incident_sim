@@ -109,6 +109,25 @@ def sample_scenario_payload():
 
 def datadriven_scenario_payload():
     payload = sample_scenario_payload()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-containment-external-access",
+            "field": "action.action_types",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "extern access", "vpn"],
+            "value": "containment",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-target-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "extern access", "vpn"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
     payload["states"][1].update(
         {
             "known_facts": ["Extern åtkomst har begränsats."],
@@ -155,6 +174,55 @@ def datadriven_scenario_payload():
         },
     ]
     payload["executable_rules"] = [
+        {
+            "id": "rule-restrict-external-access",
+            "name": "Markera begränsad extern åtkomst",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                },
+                {
+                    "fact": "action.targets",
+                    "operator": "contains",
+                    "value": "external_access",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_access_restricted",
+                    "value": True,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.attack_surface",
+                    "amount": -1,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.service_disruption",
+                    "amount": 1,
+                },
+                {
+                    "type": "append_consequence",
+                    "item": "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster.",
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Hantera påverkan på externa tjänster.",
+                },
+                {
+                    "type": "append_exercise_log",
+                    "log_type": "system_consequence",
+                    "message": "Extern attackyta minskar, men tjänstepåverkan ökar externt.",
+                },
+            ],
+            "priority": "high",
+            "once": True,
+        },
         {
             "id": "rule-session-start",
             "name": "Startregel",
@@ -214,6 +282,32 @@ def enrichment_driven_scenario_payload():
         }
     ]
     payload["executable_rules"] = [
+        {
+            "id": "rule-restrict-external-access",
+            "name": "Markera begränsad extern åtkomst",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                },
+                {
+                    "fact": "action.targets",
+                    "operator": "contains",
+                    "value": "external_access",
+                }
+            ],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_access_restricted",
+                    "value": True,
+                }
+            ],
+            "priority": "high",
+            "once": True,
+        },
         {
             "id": "rule-phase-change",
             "name": "Containment byter fas",

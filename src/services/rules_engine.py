@@ -122,24 +122,6 @@ class RulesEngine:
         action_types = set(interpreted_action.action_types)
         targets = set(interpreted_action.targets)
 
-        if "containment" in action_types and (
-            "external_access" in targets or "vpn" in targets
-        ):
-            updated.metrics.attack_surface = max(0, updated.metrics.attack_surface - 1)
-            updated.metrics.service_disruption += 1
-            updated.flags.external_access_restricted = True
-            updated.consequences.append(
-                "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster."
-            )
-            self._add_focus_item(updated, "Hantera påverkan på externa tjänster.")
-            updated.exercise_log.append(
-                ExerciseLogItem(
-                    turn=updated.turn_number,
-                    type="system_consequence",
-                    text="Extern attackyta minskar, men tjänstepåverkan ökar externt.",
-                )
-            )
-
         if "analysis" in action_types or "forensics" in targets:
             updated.flags.forensic_analysis_started = True
 

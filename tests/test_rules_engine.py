@@ -69,20 +69,72 @@ def make_datadriven_scenario() -> Scenario:
     payload = make_legacy_scenario().model_dump(exclude_none=True)
     payload["executable_rules"] = [
         {
-            "id": "rule-activate-ops-inject",
-            "name": "Aktivera operations-inject",
+            "id": "rule-restrict-external-access",
+            "name": "Markera begränsad extern åtkomst",
             "trigger": "turn_processed",
             "conditions": [
                 {
-                    "fact": "state.metrics.service_disruption",
-                    "operator": "gte",
-                    "value": 2,
-                }
+                    "fact": "action.action_types",
+                    "operator": "contains",
+                    "value": "containment",
+                },
+                {
+                    "fact": "action.targets",
+                    "operator": "contains",
+                    "value": "external_access",
+                },
             ],
-            "effects": [{"type": "add_active_inject", "inject_id": "inject-ops-001"}],
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "flag": "state.flags.external_access_restricted",
+                    "value": True,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.attack_surface",
+                    "amount": -1,
+                },
+                {
+                    "type": "increment_metric",
+                    "metric": "state.metrics.service_disruption",
+                    "amount": 1,
+                },
+                {
+                    "type": "append_consequence",
+                    "item": "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster.",
+                },
+                {
+                    "type": "append_focus_item",
+                    "item": "Hantera påverkan på externa tjänster.",
+                },
+                {
+                    "type": "append_exercise_log",
+                    "log_type": "system_consequence",
+                    "message": "Extern attackyta minskar, men tjänstepåverkan ökar externt.",
+                },
+            ],
             "priority": "high",
             "once": True,
         },
+    ]
+    payload["executable_rules"].extend(
+        [
+            {
+                "id": "rule-activate-ops-inject",
+                "name": "Aktivera operations-inject",
+                "trigger": "turn_processed",
+                "conditions": [
+                    {
+                        "fact": "state.metrics.service_disruption",
+                        "operator": "gte",
+                        "value": 2,
+                    }
+                ],
+                "effects": [{"type": "add_active_inject", "inject_id": "inject-ops-001"}],
+                "priority": "high",
+                "once": True,
+            },
         {
             "id": "rule-phase-containment",
             "name": "Byt till containment",
@@ -118,7 +170,7 @@ def make_datadriven_scenario() -> Scenario:
             "priority": "medium",
             "once": True,
         },
-    ]
+    ])
     return Scenario.model_validate(payload)
 
 
@@ -166,13 +218,6 @@ def make_action(
     [
         (
             make_action(
-                ["containment"], ["vpn", "external_access"], "Stänger extern VPN."
-            ),
-            "Vi stänger extern VPN.",
-            "Hantera påverkan på externa tjänster.",
-        ),
-        (
-            make_action(
                 ["communication"], ["media"], "Vi går ut med ett första uttalande."
             ),
             "Vi går ut med ett första uttalande.",
@@ -197,6 +242,20 @@ def test_rules_engine_updates_focus_items_for_core_rules(
     assert expected_focus_item in updated.focus_items
 
 
+def test_rules_engine_does_not_apply_containment_domain_logic_without_scenario_rules():
+    updated = RulesEngine().apply(
+        make_legacy_scenario(),
+        make_state(),
+        make_action(["containment"], ["vpn", "external_access"], "Stänger extern VPN."),
+        "Vi stänger extern VPN.",
+    )
+
+    assert updated.metrics.attack_surface == 3
+    assert updated.metrics.service_disruption == 1
+    assert updated.flags.external_access_restricted is False
+    assert "Hantera påverkan på externa tjänster." not in updated.focus_items
+
+
 def test_rules_engine_updates_containment_effects():
     updated = RulesEngine().apply(
         make_datadriven_scenario(),
@@ -216,6 +275,7 @@ def test_rules_engine_updates_containment_effects():
         "Begränsad extern åtkomst minskar attackytan men påverkar externa tjänster."
         in updated.consequences
     )
+    assert "Hantera påverkan på externa tjänster." in updated.focus_items
 
 
 @pytest.mark.parametrize(
