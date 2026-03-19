@@ -9,6 +9,6 @@ Uppgift:
 
 Viktigt:
 - skriv kort, tydligt och facilitatorvanligt
-- bygg pa faktisk tidslinje och slutligt session state
+- bygg på faktisk tidslinje och slutligt session state
 - var konkret och handlingsinriktad
 - returnera endast strukturerad JSON som matchar schemat

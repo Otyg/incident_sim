@@ -14,6 +14,7 @@ from src.services.llm_provider import (
     load_llm_config,
     validate_interpreted_action,
     validate_narration,
+    validate_scenario,
 )
 from tests.mock_llm_provider import MockLLMProvider
 
@@ -52,10 +53,17 @@ def test_mock_llm_provider_returns_validated_structures():
         )
     )
     narration = provider.generate_narration(make_state())
+    scenario = validate_scenario(
+        {
+            **provider.generate_scenario_draft("# Scenario", "markdown"),
+            "original_text": "# Scenario",
+        }
+    )
 
     assert interpreted.priority == "high"
     assert interpreted.action_types
     assert narration["key_points"]
+    assert scenario.original_text == "# Scenario"
 
 
 def test_get_llm_provider_defaults_to_ollama(monkeypatch):
@@ -194,7 +202,7 @@ def test_ollama_provider_supports_cloud_host_and_api_key(monkeypatch):
 
 def test_ollama_provider_interpret_action_parses_json_response(monkeypatch):
     class FakeClient:
-        def chat(self, *, model, messages):
+        def chat(self, *, model, messages, format, stream):
             return {
                 "message": {
                     "content": (
@@ -220,9 +228,266 @@ def test_ollama_provider_interpret_action_parses_json_response(monkeypatch):
     assert payload["priority"] == "medium"
 
 
+def test_ollama_provider_generate_scenario_draft_parses_json_response(monkeypatch):
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            return {
+                "message": {
+                    "content": (
+                        '{"id":"scenario-draft-001","title":"Scenarioutkast","version":"1.0",'
+                        '"description":"Kort sammanfattning av utkastet.","audiences":["krisledning"],'
+                        '"training_goals":["Öva lägesuppfattning"],"difficulty":"medium","timebox_minutes":60,'
+                        '"background":{"organization_type":"kommun","context":"Testkontext för utkast.",'
+                        '"threat_actor":"okänd angripare","assumptions":[]},'
+                        '"states":[{"id":"state-initial-detection","phase":"initial-detection",'
+                        '"title":"Initial detektion","description":"Första läget.","time":"08:15",'
+                        '"impact_level":2,"narration":{"default":{"situation_update":"Det här är ett tillräckligt långt startnarrativ för att validera scenarioutkastet.",'
+                        '"key_points":["A","B"],"new_consequences":[],"injects":[],"decisions_to_consider":["Vad nu?"],"facilitator_notes":"Notering."}}}],'
+                        '"actors":[],"inject_catalog":[],"text_matchers":[],"target_aliases":[],"interpretation_hints":[],'
+                        '"rules":[],"executable_rules":[],"presentation_guidelines":{"krisledning":{"focus":["beslut"],"tone":"strategisk"}}}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    payload = OllamaProvider({"model": "llama3.2"}).generate_scenario_draft(
+        "# Scenario", "markdown"
+    )
+
+    assert payload["id"] == "scenario-draft-001"
+    assert payload["states"][0]["phase"] == "initial-detection"
+
+
+def test_ollama_provider_extracts_json_from_thinking_when_content_is_missing(
+    monkeypatch,
+):
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            return {
+                "message": {
+                    "content": None,
+                    "thinking": (
+                        '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                        '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                        '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                        '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6}'
+                    ),
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    payload = OllamaProvider({"model": "llama3.2"}).interpret_action(
+        "Vi samlar teamet."
+    )
+
+    assert payload["priority"] == "medium"
+
+
+def test_ollama_provider_passes_json_format_to_client(monkeypatch):
+    captured = {}
+
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            captured["format"] = format
+            captured["stream"] = stream
+            return {
+                "message": {
+                    "content": (
+                        '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                        '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                        '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                        '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    OllamaProvider({"model": "llama3.2"}).interpret_action("Vi samlar teamet.")
+
+    assert captured["format"] == "json"
+    assert captured["stream"] is False
+
+
+def test_validate_scenario_downgrades_incomplete_executable_rules():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["original_text"] = "# Scenario"
+    payload["executable_rules"] = [
+        {
+            "id": "webbhosting-driftregel-1",
+            "name": "Rollback dröjer av prestigeskäl",
+            "conditions": ["Rollback försenas"],
+            "effects": ["Kommunikation dröjer"],
+        }
+    ]
+
+    scenario = validate_scenario(payload)
+
+    assert scenario.executable_rules == []
+    assert scenario.rules[0].id == "webbhosting-driftregel-1"
+    assert scenario.rules[0].name == "Rollback dröjer av prestigeskäl"
+
+
+def test_validate_scenario_normalizes_duplicate_phases_and_special_characters():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["id"] = "Webbhosting / Drift?!"
+    payload["original_text"] = "# Scenario"
+    payload["states"] = [
+        {
+            **payload["states"][0],
+            "id": "State: Initial / Detektion",
+            "phase": "Initial Detektion!!!",
+            "title": "Initial Detektion",
+        },
+        {
+            **payload["states"][1],
+            "id": "State: Initial / Detektion",
+            "phase": "Initial Detektion!!!",
+            "title": "Initial Detektion",
+        },
+    ]
+
+    scenario = validate_scenario(payload)
+
+    assert scenario.id == "webbhosting-drift"
+    assert scenario.states[0].id == "state-initial-detektion"
+    assert scenario.states[0].phase == "initial-detektion"
+    assert scenario.states[1].phase == "initial-detektion-2"
+
+
+def test_validate_scenario_drops_invalid_set_flag_effects():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["original_text"] = "# Scenario"
+    payload["executable_rules"] = [
+        {
+            "id": "rule-declare-incident",
+            "name": "Försök sätta incidentflagga",
+            "trigger": "turn_processed",
+            "effects": [
+                {
+                    "type": "set_flag",
+                    "value": "incident_declared",
+                }
+            ],
+        }
+    ]
+
+    scenario = validate_scenario(payload)
+
+    assert scenario.executable_rules == []
+    assert scenario.rules[0].id == "rule-declare-incident"
+
+
+def test_validate_scenario_maps_inject_effect_value_to_inject_id():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["original_text"] = "# Scenario"
+    payload["executable_rules"] = [
+        {
+            "id": "rule-trigger-inject",
+            "name": "Aktivera inject",
+            "trigger": "turn_processed",
+            "effects": [
+                {
+                    "type": "add_active_inject",
+                    "value": "inject-executive-001",
+                }
+            ],
+        }
+    ]
+
+    scenario = validate_scenario(payload)
+
+    assert len(scenario.executable_rules) == 1
+    assert scenario.executable_rules[0].effects[0].inject_id == "inject-executive-001"
+
+
+def test_validate_scenario_drops_unsupported_condition_facts():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["original_text"] = "# Scenario"
+    payload["executable_rules"] = [
+        {
+            "id": "rule-rollback-condition",
+            "name": "Ogiltig rollback-flagga",
+            "trigger": "turn_processed",
+            "conditions": [
+                {
+                    "fact": "state.flags.rollback_initiated",
+                    "operator": "equals",
+                    "value": True,
+                }
+            ],
+            "effects": [
+                {
+                    "type": "append_consequence",
+                    "item": "Rollback har påbörjats.",
+                }
+            ],
+        }
+    ]
+
+    scenario = validate_scenario(payload)
+
+    assert len(scenario.executable_rules) == 1
+    assert scenario.executable_rules[0].conditions == []
+    assert scenario.executable_rules[0].effects[0].type == "append_consequence"
+
+
+def test_validate_scenario_fills_missing_initial_state_runtime_fields():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft(
+        "# Scenario\n\nKlockan är 09:12.", "markdown"
+    )
+    payload["original_text"] = "# Scenario\n\nKlockan är 09:12."
+    payload["states"][0].pop("time", None)
+    payload["states"][0].pop("impact_level", None)
+    payload["states"][0].pop("narration", None)
+
+    scenario = validate_scenario(payload)
+
+    assert scenario.states[0].time == "09:12"
+    assert scenario.states[0].impact_level == 3
+    assert scenario.states[0].narration is not None
+
+
+def test_validate_scenario_converts_string_state_narration_to_object():
+    provider = MockLLMProvider()
+    payload = provider.generate_scenario_draft("# Scenario", "markdown")
+    payload["original_text"] = "# Scenario"
+    payload["states"][1]["narration"] = (
+        "Fler kunder rapporterar problem. Övervakningen visar flera HTTP-checkar går röda."
+    )
+
+    scenario = validate_scenario(payload)
+
+    assert scenario.states[1].narration is not None
+    assert (
+        scenario.states[1].narration.default.situation_update
+        == "Fler kunder rapporterar problem. Övervakningen visar flera HTTP-checkar går röda."
+    )
+
+
 def test_ollama_provider_raises_for_non_json_content(monkeypatch):
     class FakeClient:
-        def chat(self, *, model, messages):
+        def chat(self, *, model, messages, format, stream):
             return {"message": {"content": "inte json"}}
 
     monkeypatch.setattr(
@@ -242,7 +507,7 @@ def test_ollama_provider_marks_500_errors_as_retryable(monkeypatch):
             self.status_code = status_code
 
     class FakeClient:
-        def chat(self, *, model, messages):
+        def chat(self, *, model, messages, format, stream):
             raise FakeUpstreamError("internal error", 500)
 
     monkeypatch.setattr(
@@ -266,7 +531,7 @@ def test_ollama_provider_marks_404_errors_as_non_retryable(monkeypatch):
             self.status_code = status_code
 
     class FakeClient:
-        def chat(self, *, model, messages):
+        def chat(self, *, model, messages, format, stream):
             raise FakeUpstreamError("not found", 404)
 
     monkeypatch.setattr(

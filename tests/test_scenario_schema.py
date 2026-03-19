@@ -29,6 +29,15 @@ def test_scenario_schema_includes_level_descriptions():
     assert "femgradig skala" in severity_description
 
 
+def test_scenario_schema_includes_original_text_field():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    original_text_schema = schema["properties"]["original_text"]
+
+    assert "string" in original_text_schema["type"]
+    assert "ursprungstext" in original_text_schema["description"]
+
+
 def test_scenario_schema_includes_executable_rule_definition():
     schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
 

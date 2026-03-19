@@ -371,6 +371,75 @@ def test_create_and_get_scenario():
     assert get_body["title"] == scenario["title"]
 
 
+def test_generate_scenario_draft_from_text(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    status, body = request_json(
+        "POST",
+        "/scenarios/draft-from-text",
+        {
+            "source_text": "# Scenario\n\nKl. 08:15 rapporteras stora störningar i inloggning och fildelning.",
+            "source_format": "markdown",
+        },
+    )
+
+    assert status == 200
+    assert body["id"] == "scenario-draft-001"
+    assert body["original_text"].startswith("# Scenario")
+    assert body["states"][0]["phase"] == "initial-detection"
+    assert _contains_none(body) is False
+
+
+def test_generated_scenario_draft_can_be_saved_without_null_cleanup(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    draft_status, draft_body = request_json(
+        "POST",
+        "/scenarios/draft-from-text",
+        {
+            "source_text": "# Scenario\n\nKl. 08:15 rapporteras stora störningar i inloggning och fildelning.",
+            "source_format": "markdown",
+        },
+    )
+    save_status, save_body = request_json("POST", "/scenarios", draft_body)
+
+    assert draft_status == 200
+    assert save_status == 200
+    assert save_body["id"] == draft_body["id"]
+
+
+def _contains_none(value):
+    if value is None:
+        return True
+    if isinstance(value, dict):
+        return any(_contains_none(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_none(item) for item in value)
+    return False
+
+
+def test_generate_scenario_draft_from_text_rejects_invalid_provider_output(monkeypatch):
+    class BadProvider(MockLLMProvider):
+        def generate_scenario_draft(
+            self, source_text: str, source_format: str = "markdown"
+        ) -> dict:
+            return {"id": "broken"}
+
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: BadProvider())
+
+    status, body = request_json(
+        "POST",
+        "/scenarios/draft-from-text",
+        {
+            "source_text": "# Scenario\n\nKl. 08:15 rapporteras stora störningar i inloggning och fildelning.",
+            "source_format": "markdown",
+        },
+    )
+
+    assert status == 502
+    assert body["detail"] == "Invalid scenario payload"
+
+
 def test_list_scenarios_returns_saved_scenarios_in_id_order():
     scenario_b = sample_scenario_payload()
     scenario_b["id"] = "scenario-002"
@@ -740,7 +809,7 @@ def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
             "impact_level": 4,
             "narration": {
                 "default": {
-                    "situation_update": "Laget har eskalerat och tydliga tecken pa spridning mellan centrala miljoer har nu konstaterats.",
+                    "situation_update": "Laget har eskalerat och tydliga tecken på spridning mellan centrala miljoer har nu konstaterats.",
                     "key_points": [
                         "Ledningen behover fatta samordnade beslut om prioriteringar.",
                         "Teknisk och verksamhetsmassig paverkan okar samtidigt.",
@@ -815,7 +884,7 @@ def test_post_turn_uses_scenario_authored_narration_for_full_state(monkeypatch):
         "Skadan ar mer omfattande an tidigare antaget."
     ]
     assert body["narrator_response"]["situation_update"] == (
-        "Laget har eskalerat och tydliga tecken pa spridning mellan centrala miljoer har nu konstaterats."
+        "Laget har eskalerat och tydliga tecken på spridning mellan centrala miljoer har nu konstaterats."
     )
 
 

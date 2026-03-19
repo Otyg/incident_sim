@@ -41,6 +41,11 @@ llm_provider:
     # resonemang och mer nyanserad narrativ återkoppling.
     narration_model: glm-5:cloud
 
+    # Modell för scenarioförfattning från fri text till scenario-JSON.
+    # Samma default som interpret_model fungerar bra när modellen är stark på
+    # strukturerad output och schemaföljsamhet.
+    scenario_model: qwen3.5:cloud
+
     # API-nyckel för autentisering mot Ollama Cloud.
     api_key: YOUR_OLLAMA_API_KEY
 

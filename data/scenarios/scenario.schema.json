@@ -906,6 +906,12 @@
       "title": "Id",
       "description": "Globalt unikt scenario-id som används vid lagring och hämtning."
     },
+    "original_text": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "title": "Original Text",
+      "description": "Valfri ursprungstext från scenarioförfattaren, till exempel markdown som användes för att generera scenario-JSON."
+    },
     "title": {
       "type": "string",
       "minLength": 2,
