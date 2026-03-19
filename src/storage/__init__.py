@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Storage backends and repository factories for scenarios and sessions."""
+
 from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
 from src.storage.tinydb_json import TinyDBScenarioRepository, TinyDBSessionRepository
 

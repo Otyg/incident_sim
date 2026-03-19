@@ -41,10 +41,10 @@ provider layer.
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from src.logging_utils import configure_logging, get_logger
 from src.models.scenario import Audience, Scenario
@@ -253,6 +253,47 @@ def load_sample_scenario() -> Scenario:
     return Scenario.model_validate(payload)
 
 
+async def read_uploaded_scenario(upload: UploadFile) -> Scenario:
+    """Read and validate an uploaded scenario JSON file.
+
+    Args:
+        upload: Uploaded file expected to contain a complete scenario document.
+
+    Returns:
+        Scenario: Validated scenario parsed from the uploaded JSON payload.
+
+    Raises:
+        HTTPException: If the file is not UTF-8 JSON or does not validate as a
+            scenario.
+    """
+
+    try:
+        payload = json.loads((await upload.read()).decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file must be UTF-8 encoded JSON",
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file did not contain valid JSON",
+        ) from exc
+
+    try:
+        return Scenario.model_validate(payload)
+    except ValidationError as exc:
+        logger.warning(
+            "Uploaded scenario JSON failed validation filename=%s",
+            upload.filename,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Uploaded scenario was invalid: {exc}",
+        ) from exc
+
+
 @app.get("/health")
 async def health() -> dict:
     """Return a simple liveness response for backend health checks.
@@ -321,7 +362,7 @@ async def get_default_sample_scenario() -> Scenario:
 
 @app.post("/scenarios", response_model=Scenario, response_model_exclude_none=True)
 async def create_scenario(scenario: Scenario) -> Scenario:
-    """Store a scenario in the in-memory repository.
+    """Store a scenario in the configured scenario repository.
 
     Args:
         scenario: Validated scenario payload to persist.
@@ -427,6 +468,89 @@ async def get_scenario(scenario_id: str) -> Scenario:
 
     logger.info("Fetched scenario scenario_id=%s", scenario_id)
     return scenario
+
+
+@app.get("/scenarios/{scenario_id}/download")
+async def download_scenario(scenario_id: str) -> Response:
+    """Download a stored scenario as a JSON attachment.
+
+    Args:
+        scenario_id: Identifier of the scenario to export.
+
+    Returns:
+        Response: JSON response with attachment headers for file download.
+
+    Raises:
+        HTTPException: If the scenario does not exist.
+    """
+
+    scenario = scenario_repository.get(scenario_id)
+    if not scenario:
+        logger.warning(
+            "Scenario download failed because scenario was missing scenario_id=%s",
+            scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    logger.info("Downloading scenario scenario_id=%s", scenario_id)
+    return Response(
+        content=scenario.model_dump_json(indent=2, exclude_none=True),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{scenario_id}.json"'},
+    )
+
+
+@app.put(
+    "/scenarios/{scenario_id}/upload",
+    response_model=Scenario,
+    response_model_exclude_none=True,
+)
+async def update_scenario_from_upload(
+    scenario_id: str, file: UploadFile = File(...)
+) -> Scenario:
+    """Replace an existing stored scenario from an uploaded JSON file.
+
+    Args:
+        scenario_id: Identifier of the stored scenario to replace.
+        file: Uploaded JSON file containing the replacement scenario.
+
+    Returns:
+        Scenario: The stored replacement scenario.
+
+    Raises:
+        HTTPException: If the scenario does not exist, the upload is invalid or
+            the uploaded scenario id does not match ``scenario_id``.
+    """
+
+    existing = scenario_repository.get(scenario_id)
+    if not existing:
+        logger.warning(
+            "Scenario upload update failed because scenario was missing scenario_id=%s",
+            scenario_id,
+        )
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    scenario = await read_uploaded_scenario(file)
+    if scenario.id != scenario_id:
+        logger.warning(
+            "Scenario upload update rejected due to id mismatch scenario_id=%s uploaded_id=%s",
+            scenario_id,
+            scenario.id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Uploaded scenario id must match the target scenario id "
+                f"({scenario_id})"
+            ),
+        )
+
+    logger.info(
+        "Updating scenario from uploaded file scenario_id=%s filename=%s",
+        scenario_id,
+        file.filename,
+    )
+    return scenario_repository.save(scenario)
 
 
 @app.post("/sessions", response_model=CreateSessionResponse)

@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Schema for structured narration returned after each scenario step."""
+
 from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -42,12 +44,16 @@ TextBlock = Annotated[str, StringConstraints(min_length=3)]
 
 
 class NarratorInject(BaseModel):
+    """Suggested inject to present to participants or facilitators."""
+
     type: InjectType
     title: ShortText
     message: TextBlock
 
 
 class NarratorResponse(BaseModel):
+    """Validated narration package shown after scenario progression."""
+
     situation_update: str = Field(min_length=10)
     key_points: List[PointText] = Field(min_length=2, max_length=5)
     new_consequences: List[PointText] = Field(default_factory=list)

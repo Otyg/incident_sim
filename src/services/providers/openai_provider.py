@@ -29,4 +29,46 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-"""Pydantic domain models for scenarios, sessions and turns."""
+
+"""OpenAI runtime provider stub.
+
+The structured task flow is already inherited from ``StructuredLLMProvider``;
+this module currently only keeps placeholder transport configuration for a
+future implementation.
+"""
+
+from typing import Any
+
+from src.logging_utils import get_logger
+from src.services.llm_provider import ProviderConfigurationError
+from src.services.providers.base import StructuredLLMProvider
+
+
+logger = get_logger(__name__)
+
+
+class OpenAIProvider(StructuredLLMProvider):
+    """Stub implementation for a future OpenAI-backed provider."""
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        """Create an OpenAI provider stub from config data."""
+
+        super().__init__(config)
+        self.default_model = str(self.config.get("model") or "")
+        self.interpret_model = str(
+            self.config.get("interpret_model") or self.default_model
+        )
+        self.narration_model = str(
+            self.config.get("narration_model") or self.default_model
+        )
+        self.scenario_model = str(
+            self.config.get("scenario_model") or self.default_model
+        )
+        logger.info("Initialized OpenAIProvider stub")
+
+    def _chat_json(
+        self, model: str, system_prompt: str, user_prompt: str, provider_stage: str
+    ) -> dict[str, Any]:
+        """Attempt to execute a structured request with the OpenAI provider."""
+
+        raise ProviderConfigurationError("OpenAIProvider is not implemented yet")

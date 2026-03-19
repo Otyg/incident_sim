@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Scenario domain models and JSON Schema-backed validation helpers."""
+
 import json
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -129,6 +131,8 @@ def validate_scenario_payload(payload: Any) -> Any:
 
 
 class Background(BaseModel):
+    """Background context that frames the scenario before the exercise starts."""
+
     model_config = ConfigDict(extra="allow")
 
     organization_type: str = Field(
@@ -147,6 +151,8 @@ class Background(BaseModel):
 
 
 class StateNarrationConfig(BaseModel):
+    """Scenario-authored narration variants for a specific state."""
+
     model_config = ConfigDict(extra="forbid")
 
     default: NarratorResponse | None = Field(
@@ -170,6 +176,8 @@ class StateNarrationConfig(BaseModel):
 
 
 class ScenarioStateDefinition(BaseModel):
+    """Definition of a single scenario state or phase snapshot."""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(
@@ -222,6 +230,8 @@ class ScenarioStateDefinition(BaseModel):
 
 
 class Actor(BaseModel):
+    """Named actor participating in or affecting the scenario."""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(
@@ -234,6 +244,8 @@ class Actor(BaseModel):
 
 
 class InjectDefinition(BaseModel):
+    """Definition of a facilitator inject available during the exercise."""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(
@@ -266,6 +278,8 @@ class InjectDefinition(BaseModel):
 
 
 class TextMatcher(BaseModel):
+    """Declarative text matcher used to enrich interpreted actions."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(description="Stabilt unikt id för textmatcharen.")
@@ -298,6 +312,8 @@ class TextMatcher(BaseModel):
 
 
 class InterpretationHintCondition(BaseModel):
+    """Conditions that decide when a scenario interpretation hint applies."""
+
     model_config = ConfigDict(extra="forbid")
 
     text_contains_any: list[str] = Field(
@@ -329,6 +345,8 @@ class InterpretationHintCondition(BaseModel):
 
 
 class InterpretationHint(BaseModel):
+    """Scenario-authored hint that adds structured interpretation metadata."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(description="Stabilt unikt id för tolkstödet.")
@@ -365,6 +383,8 @@ class InterpretationHint(BaseModel):
 
 
 class TargetAlias(BaseModel):
+    """Canonical target name together with accepted alias spellings."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(description="Stabilt unikt id för target-normaliseringen.")
@@ -390,6 +410,8 @@ class TargetAlias(BaseModel):
 
 
 class RuleDefinition(BaseModel):
+    """Human-readable legacy rule description stored with the scenario."""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(
@@ -412,6 +434,8 @@ class RuleDefinition(BaseModel):
 
 
 class ExecutableRuleCondition(BaseModel):
+    """Machine-readable condition within an executable scenario rule."""
+
     model_config = ConfigDict(extra="forbid")
 
     fact: ConditionFact = Field(
@@ -424,6 +448,8 @@ class ExecutableRuleCondition(BaseModel):
 
 
 class ScenarioRuleEffect(BaseModel):
+    """Machine-readable effect executed when a scenario rule matches."""
+
     model_config = ConfigDict(extra="forbid")
 
     type: EffectType = Field(
@@ -468,6 +494,8 @@ class ScenarioRuleEffect(BaseModel):
 
 
 class ExecutableRule(BaseModel):
+    """Executable scenario rule evaluated by the deterministic engine."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(description="Stabilt unikt id för den exekverbara regeln.")
@@ -494,6 +522,8 @@ class ExecutableRule(BaseModel):
 
 
 class PresentationGuideline(BaseModel):
+    """Audience-specific guidance for presenting the scenario."""
+
     model_config = ConfigDict(extra="allow")
 
     focus: list[str] = Field(
@@ -506,6 +536,8 @@ class PresentationGuideline(BaseModel):
 
 
 class Scenario(BaseModel):
+    """Top-level persisted scenario document used by the application."""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(

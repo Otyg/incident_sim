@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Schema for structured debrief material after session completion."""
+
 from typing import Annotated, List
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -41,12 +43,16 @@ TextBlock = Annotated[str, StringConstraints(min_length=3)]
 
 
 class DebriefTimelineEntry(BaseModel):
+    """One summarized timeline entry in the generated debrief."""
+
     turn_number: int = Field(ge=1)
     summary: ShortText
     outcome: TextBlock
 
 
 class DebriefResponse(BaseModel):
+    """Validated debrief response returned when a session is completed."""
+
     exercise_summary: str = Field(min_length=10)
     timeline_summary: List[DebriefTimelineEntry] = Field(min_length=1, max_length=8)
     strengths: List[PointText] = Field(min_length=2, max_length=6)

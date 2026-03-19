@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Schema for structured participant action interpretation output."""
+
 from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -52,6 +54,8 @@ NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 
 
 class InterpretedAction(BaseModel):
+    """Validated structured representation of a participant action."""
+
     action_summary: str = Field(min_length=3)
     action_types: List[ActionType] = Field(min_length=1)
     targets: List[NonEmptyStr] = Field(default_factory=list)

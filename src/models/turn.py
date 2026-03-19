@@ -30,6 +30,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""Turn-level record model for persisted participant interactions."""
+
 from pydantic import BaseModel, Field
 
 from src.models.session import SessionState
@@ -38,6 +40,8 @@ from src.schemas.narrator_response import NarratorResponse
 
 
 class Turn(BaseModel):
+    """Single processed turn containing input, interpretation and outcome."""
+
     turn_number: int = Field(ge=1)
     participant_input: str = Field(min_length=3)
     interpreted_action: InterpretedAction

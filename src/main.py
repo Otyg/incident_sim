@@ -30,4 +30,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+"""ASGI entrypoint for local development and production serving."""
+
 from src.api import app
