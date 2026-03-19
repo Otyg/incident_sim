@@ -37,3 +37,15 @@ def test_scenario_schema_includes_executable_rule_definition():
     ]
 
     assert "datadrivna scenariomotorn" in executable_rule_description
+
+
+def test_scenario_schema_includes_interpretation_support_definitions():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    text_matchers_description = schema["properties"]["text_matchers"]["description"]
+    interpretation_hints_description = schema["properties"]["interpretation_hints"][
+        "description"
+    ]
+
+    assert "rå deltagartext" in text_matchers_description
+    assert "LLM-tolkningen" in interpretation_hints_description

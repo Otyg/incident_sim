@@ -31,6 +31,7 @@ Nuvarande läge:
 - `states[0]` används dynamiskt som startläge när en session skapas.
 - `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
+- `text_matchers[]` och `interpretation_hints[]` valideras och lagras, men kopplas in i turn-flödet först i nästa implementeringssteg.
 - `rules[]` beskriver scenariots tänkta orsak-verkan-samband, men backend läser idag inte in och kör dessa regler generiskt från scenariot.
 - Den faktiska deterministiska regelmotorn finns i [rules_engine.py](../../src/services/rules_engine.py).
 
@@ -335,6 +336,113 @@ Använd dem därför som:
 - dokumentation för scenarioförfattare
 - underlag för framtida automation
 - stöd för facilitatorn
+
+## `text_matchers`
+
+`text_matchers` beskriver enkla, scenariodefinierade textmatchningar mot rå deltagartext.
+
+Tanken är att scenariot ska kunna säga att vissa ord eller fraser bör komplettera den strukturerade tolkningen, till exempel att `extern åtkomst` bör leda till target `external_access`.
+
+Fälten är nu validerade och dokumenterade, men de används inte dynamiskt förrän nästa implementeringssteg.
+
+Varje textmatcher innehåller:
+
+- `id`
+- `field`
+- `match_type`
+- `patterns`
+- `value`
+
+### `field`
+
+Tillåtna värden i v1:
+
+- `action.action_types`
+- `action.targets`
+
+### `match_type`
+
+Tillåtna värden i v1:
+
+- `contains_any`
+- `contains_all`
+
+### `patterns`
+
+Lista med textmönster som ska jämföras mot rå deltagartext.
+
+Rekommendation:
+
+- använd korta, konkreta uttryck
+- skriv flera vanliga varianter om ni vet att deltagare uttrycker sig olika
+- håll dem scenario- och domänspecifika
+
+### `value`
+
+Det värde som ska adderas till fältet när matchningen träffar.
+
+Exempel:
+
+```json
+{
+  "id": "matcher-external-access",
+  "field": "action.targets",
+  "match_type": "contains_any",
+  "patterns": ["extern åtkomst", "extern access", "vpn"],
+  "value": "external_access"
+}
+```
+
+## `interpretation_hints`
+
+`interpretation_hints` beskriver deklarativa tolkhints som kan komplettera LLM-tolkningen med ytterligare `action_types` eller `targets`.
+
+Tanken är att scenariot ska kunna uttrycka att:
+
+- viss råtext i kombination med en redan tolkad åtgärdstyp bör ge extra targets
+- vissa kombinationer av action types och targets bör förstärkas deterministiskt
+
+Även dessa fält är nu validerade och dokumenterade, men de används inte dynamiskt förrän nästa implementeringssteg.
+
+Varje hint innehåller:
+
+- `id`
+- `when`
+- `add_action_types` eller `add_targets`
+- valfritt `confidence_boost`
+
+### `when`
+
+`when` måste innehålla minst ett villkor i v1:
+
+- `text_contains_any`
+- `action_types_contains`
+- `targets_contains`
+
+### `add_action_types`
+
+Action types som ska läggas till om hinton träffar.
+
+### `add_targets`
+
+Targets som ska läggas till om hinton träffar.
+
+### `confidence_boost`
+
+Valfritt metadatafält för framtida bruk. Det finns med i modellen nu, men används ännu inte dynamiskt.
+
+Exempel:
+
+```json
+{
+  "id": "hint-containment-external-access",
+  "when": {
+    "action_types_contains": ["containment"],
+    "text_contains_any": ["extern åtkomst", "vpn"]
+  },
+  "add_targets": ["external_access"]
+}
+```
 
 ## `executable_rules`
 

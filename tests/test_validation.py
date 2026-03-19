@@ -59,6 +59,8 @@ def sample_scenario_dict():
         ],
         "actors": [],
         "inject_catalog": [],
+        "text_matchers": [],
+        "interpretation_hints": [],
         "rules": [],
         "presentation_guidelines": {
             "krisledning": {"focus": ["beslut"], "tone": "strategisk"},
@@ -187,6 +189,77 @@ def test_scenario_validation_accepts_executable_rules():
 
     assert scenario.executable_rules[0].trigger == "turn_processed"
     assert scenario.executable_rules[0].effects[0].type == "set_phase"
+
+
+def test_scenario_validation_accepts_text_matchers_and_interpretation_hints():
+    payload = sample_scenario_dict()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-external-access",
+            "field": "action.targets",
+            "match_type": "contains_any",
+            "patterns": ["extern åtkomst", "vpn"],
+            "value": "external_access",
+        }
+    ]
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-containment-external-access",
+            "when": {
+                "action_types_contains": ["containment"],
+                "text_contains_any": ["extern åtkomst", "vpn"],
+            },
+            "add_targets": ["external_access"],
+        }
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.text_matchers[0].field == "action.targets"
+    assert scenario.interpretation_hints[0].add_targets == ["external_access"]
+
+
+def test_scenario_validation_rejects_invalid_text_matcher_field():
+    payload = sample_scenario_dict()
+    payload["text_matchers"] = [
+        {
+            "id": "matcher-invalid",
+            "field": "state.phase",
+            "match_type": "contains_any",
+            "patterns": ["containment"],
+            "value": "containment",
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_interpretation_hint_without_conditions():
+    payload = sample_scenario_dict()
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-empty",
+            "when": {},
+            "add_targets": ["external_access"],
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_interpretation_hint_without_effects():
+    payload = sample_scenario_dict()
+    payload["interpretation_hints"] = [
+        {
+            "id": "hint-no-effects",
+            "when": {"text_contains_any": ["extern åtkomst"]},
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
 
 
 def test_scenario_validation_rejects_duplicate_state_phases():
