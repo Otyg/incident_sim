@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scenariorapport</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="/frontend/common.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a class="nav-link" href="/setup">Scenariohantering</a>
+        <a class="nav-link" href="/authoring">Scenarioförfattning</a>
+        <a class="nav-link" href="/session">Aktiv session</a>
+        <a class="nav-link current" href="/report">Rapport</a>
+      </nav>
+      <div id="root"></div>
+    </div>
+    <script type="text/babel">
+      const { useEffect, useState } = React;
+      const Common = window.IncidentSimCommon;
+
+      function ReportPage() {
+        const [scenario, setScenario] = useState(null);
+        const [session, setSession] = useState(null);
+        const [timeline, setTimeline] = useState([]);
+        const [debrief, setDebrief] = useState(Common.getStoredDebrief());
+        const [loading, setLoading] = useState(false);
+        const [status, setStatus] = useState("");
+        const [error, setError] = useState("");
+
+        useEffect(() => {
+          const loadReportContext = async () => {
+            const sessionId = Common.getCurrentSessionId();
+            if (!sessionId) {
+              setStatus("Ingen avslutad session hittades. Avsluta ett scenario först.");
+              return;
+            }
+
+            setLoading(true);
+            setError("");
+            setStatus("Laddar rapportunderlag...");
+
+            try {
+              const loadedSession = await Common.apiRequest(`/sessions/${sessionId}`);
+              const loadedScenario = await Common.apiRequest(
+                `/scenarios/${loadedSession.scenario_id}`
+              );
+              const loadedTimeline = await Common.apiRequest(
+                `/sessions/${sessionId}/timeline`
+              );
+
+              setSession(loadedSession);
+              setScenario(loadedScenario);
+              setTimeline(loadedTimeline);
+              setStatus("Rapportunderlaget är klart.");
+
+              const query = new URLSearchParams(window.location.search);
+              if (query.get("print") === "1") {
+                window.setTimeout(() => window.print(), 250);
+              }
+            } catch (err) {
+              setError(Common.getErrorMessage(err));
+              setStatus("");
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          loadReportContext();
+        }, []);
+
+        const groupedEvents = (session?.exercise_log || []).reduce((accumulator, item) => {
+          if (item.type === "participant_action") {
+            return accumulator;
+          }
+
+          const turnKey = String(item.turn);
+          const currentItems = accumulator[turnKey] || [];
+          currentItems.push(item);
+          accumulator[turnKey] = currentItems;
+          return accumulator;
+        }, {});
+
+        return (
+          <div className="report-shell">
+            <section className="hero">
+              <div className="hero-top">
+                <div className="report-header">
+                  <h1>Scenariorapport</h1>
+                  <p>
+                    Rapporten sammanfattar scenarioinformation, händelsetidslinje,
+                    slutlig summering och debrief-underlag. Använd exportknappen för
+                    att spara sidan som PDF.
+                  </p>
+                </div>
+                <div className="actions">
+                  <a className="button-link secondary" href="/session">
+                    Till sessionen
+                  </a>
+                  <button onClick={() => window.print()} disabled={loading || !session}>
+                    Exportera till PDF
+                  </button>
+                </div>
+              </div>
+              {status && <div className="status">{status}</div>}
+              {error && <div className="status error">{error}</div>}
+            </section>
+
+            {scenario && session && (
+              <>
+                <section className="report-grid">
+                  <article className="panel">
+                    <h2>Scenarioinformation</h2>
+                    <div className="list">
+                      <div>
+                        <strong>{scenario.title}</strong>
+                        <div className="small">{scenario.description}</div>
+                      </div>
+                      <div className="meta">
+                        <div className="meta-item"><span>Scenario-id</span><strong>{scenario.id}</strong></div>
+                        <div className="meta-item"><span>Version</span><strong>{scenario.version}</strong></div>
+                        <div className="meta-item"><span>Publik</span><strong>{scenario.audiences.join(", ")}</strong></div>
+                        <div className="meta-item"><span>Svårighet</span><strong>{scenario.difficulty}</strong></div>
+                        <div className="meta-item"><span>Tidsram</span><strong>{scenario.timebox_minutes} min</strong></div>
+                        <div className="meta-item"><span>Session</span><strong>{session.session_id}</strong></div>
+                        <div className="meta-item"><span>Status</span><strong>{session.status}</strong></div>
+                        <div className="meta-item"><span>Slutfas</span><strong>{session.phase}</strong></div>
+                        <div className="meta-item"><span>Sista tid</span><strong>{session.current_time}</strong></div>
+                        <div className="meta-item"><span>Antal turns</span><strong>{timeline.length}</strong></div>
+                      </div>
+                      <div>
+                        <div className="small">Övningsmål</div>
+                        <div className="tag-row">
+                          {scenario.training_goals.map((goal) => (
+                            <span key={goal} className="tag">{goal}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="panel alt">
+                    <h2>Slutlig sessionsbild</h2>
+                    <div className="list">
+                      <div>
+                        <div className="small">Kända fakta</div>
+                        <div className="list">
+                          {session.known_facts.length > 0 ? (
+                            session.known_facts.map((item) => <div key={item}>- {item}</div>)
+                          ) : (
+                            <div className="small">Inga sparade fakta.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="small">Påverkade system</div>
+                        <div className="list">
+                          {session.affected_systems.length > 0 ? (
+                            session.affected_systems.map((item) => <div key={item}>- {item}</div>)
+                          ) : (
+                            <div className="small">Inga sparade system.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="small">Konsekvenser</div>
+                        <div className="list">
+                          {session.consequences.length > 0 ? (
+                            session.consequences.map((item) => <div key={item}>- {item}</div>)
+                          ) : (
+                            <div className="small">Inga dokumenterade konsekvenser.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </section>
+
+                {scenario.original_text && (
+                  <section className="panel">
+                    <h2>Ursprunglig scenariotext</h2>
+                    <div className="report-text">
+                      <pre>{scenario.original_text}</pre>
+                    </div>
+                  </section>
+                )}
+
+                <section className="panel">
+                  <h2>Händelsetidslinje</h2>
+                  {timeline.length > 0 ? (
+                    <div className="list">
+                      {timeline.map((turn) => (
+                        <div key={turn.turn_number} className="timeline-item">
+                          <strong>Turn {turn.turn_number} · {turn.state_snapshot.current_time}</strong>
+                          <div className="small">Deltagaråtgärd</div>
+                          <div>{turn.participant_input}</div>
+                          <div className="small">Tolkad åtgärd</div>
+                          <div>{turn.interpreted_action.action_summary}</div>
+                          <div className="small">Lägesbild efter turn</div>
+                          <div>{turn.narrator_response.situation_update}</div>
+                          {groupedEvents[String(turn.turn_number)]?.length > 0 && (
+                            <div>
+                              <div className="small">System- och scenariohändelser</div>
+                              <div className="list">
+                                {groupedEvents[String(turn.turn_number)].map((item, index) => (
+                                  <div key={`${turn.turn_number}-${item.type}-${index}`}>
+                                    - {item.type}: {item.text}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="small">Ingen tidslinje tillgänglig.</div>
+                  )}
+                </section>
+
+                <section className="report-grid">
+                  <article className="panel">
+                    <h2>Summering</h2>
+                    {debrief ? (
+                      <div className="list">
+                        <div>{debrief.exercise_summary}</div>
+                        {debrief.timeline_summary.map((item) => (
+                          <div key={item.turn_number} className="timeline-item">
+                            <strong>Turn {item.turn_number}: {item.summary}</strong>
+                            <div>{item.outcome}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="small">
+                        Debrief-underlaget finns inte sparat lokalt. Rapporten kan
+                        fortfarande exporteras med scenario och tidslinje.
+                      </div>
+                    )}
+                  </article>
+
+                  <article className="panel alt">
+                    <h2>Debrief-underlag</h2>
+                    {debrief ? (
+                      <div className="list">
+                        <div>
+                          <div className="small">Styrkor</div>
+                          <div className="list">
+                            {debrief.strengths.map((item) => <div key={item}>- {item}</div>)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="small">Utvecklingsområden</div>
+                          <div className="list">
+                            {debrief.development_areas.map((item) => <div key={item}>- {item}</div>)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="small">Debriefingfrågor</div>
+                          <div className="list">
+                            {debrief.debrief_questions.map((item) => <div key={item}>- {item}</div>)}
+                          </div>
+                        </div>
+                        {debrief.recommended_follow_ups.length > 0 && (
+                          <div>
+                            <div className="small">Föreslagna uppföljningar</div>
+                            <div className="list">
+                              {debrief.recommended_follow_ups.map((item) => <div key={item}>- {item}</div>)}
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <div className="small">Facilitatornotering</div>
+                          <div>{debrief.facilitator_notes}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="small">Debrief-underlaget är inte tillgängligt.</div>
+                    )}
+                  </article>
+                </section>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<ReportPage />);
+    </script>
+  </body>
+</html>

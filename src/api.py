@@ -78,6 +78,7 @@ FRONTEND_INDEX = FRONTEND_DIR / "index.html"
 FRONTEND_SETUP = FRONTEND_DIR / "setup.html"
 FRONTEND_AUTHORING = FRONTEND_DIR / "authoring.html"
 FRONTEND_SESSION = FRONTEND_DIR / "session.html"
+FRONTEND_REPORT = FRONTEND_DIR / "report.html"
 SAMPLE_SCENARIO_PATH = (
     Path(__file__).resolve().parents[1]
     / "data"
@@ -293,6 +294,13 @@ async def frontend_session() -> FileResponse:
     """Serve the active session page for the browser client."""
 
     return FileResponse(FRONTEND_SESSION)
+
+
+@app.get("/report", include_in_schema=False)
+async def frontend_report() -> FileResponse:
+    """Serve the printable report page for completed sessions."""
+
+    return FileResponse(FRONTEND_REPORT)
 
 
 @app.get(

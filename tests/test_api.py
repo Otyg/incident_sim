@@ -400,6 +400,12 @@ def test_frontend_session_page_is_served():
     assert str(response.path).endswith("frontend/session.html")
 
 
+def test_frontend_report_page_is_served():
+    response = asyncio.run(api_module.frontend_report())
+
+    assert str(response.path).endswith("frontend/report.html")
+
+
 def test_frontend_static_assets_are_served():
     assert (api_module.FRONTEND_DIR / "common.js").exists()
     assert (api_module.FRONTEND_DIR / "styles.css").exists()
