@@ -47,6 +47,7 @@ To add a new provider, a developer typically needs to:
 """
 
 import json
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -107,7 +108,18 @@ class ProviderConfigurationError(LLMProviderError):
 class ProviderResponseFormatError(LLMProviderError):
     """Raised when provider text output cannot be parsed into JSON."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider_stage: str | None = None,
+        raw_response_excerpt: str | None = None,
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.provider_stage = provider_stage
+        self.raw_response_excerpt = raw_response_excerpt
+        self.retryable = retryable
 
 
 class LLMProvider(ABC):
@@ -440,7 +452,54 @@ class OllamaProvider(LLMProvider):
         return {"Authorization": f"Bearer {self.api_key}"}
 
     @staticmethod
-    def _extract_json_payload(response: Any) -> dict[str, Any]:
+    def _build_raw_response_excerpt(
+        response_dump: Any, candidate_contents: list[str]
+    ) -> str | None:
+        """Build a compact loggable preview of the raw provider response."""
+
+        excerpt_source = None
+        for candidate in candidate_contents:
+            if isinstance(candidate, str) and candidate.strip():
+                excerpt_source = candidate.strip()
+                break
+
+        if excerpt_source is None and response_dump is not None:
+            try:
+                excerpt_source = json.dumps(response_dump, ensure_ascii=False)
+            except TypeError:
+                excerpt_source = str(response_dump)
+
+        if excerpt_source is None:
+            return None
+
+        compact = re.sub(r"\s+", " ", excerpt_source).strip()
+        return compact[:2000]
+
+    @staticmethod
+    def _repair_json_text(text: str) -> str:
+        """Apply conservative repairs for common LLM JSON formatting mistakes."""
+
+        repaired = text.strip()
+
+        fenced_match = re.search(
+            r"```(?:json)?\s*(\{.*\}|\[.*\])\s*```",
+            repaired,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if fenced_match:
+            repaired = fenced_match.group(1).strip()
+
+        repaired = (
+            repaired.replace("\u201c", '"')
+            .replace("\u201d", '"')
+            .replace("\u2018", "'")
+            .replace("\u2019", "'")
+        )
+        repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+        return repaired
+
+    @staticmethod
+    def _extract_json_payload(response: Any, *, provider_stage: str) -> dict[str, Any]:
         """Extract and parse JSON content from an Ollama chat response.
 
         Args:
@@ -499,29 +558,87 @@ class OllamaProvider(LLMProvider):
                 stripped = candidate.strip()
                 break
 
+        raw_response_excerpt = OllamaProvider._build_raw_response_excerpt(
+            response_dump, candidate_contents
+        )
+
         if not stripped:
+            logger.warning(
+                "Ollama response was missing message content stage=%s raw_excerpt=%s",
+                provider_stage,
+                raw_response_excerpt,
+            )
             raise ProviderResponseFormatError(
-                "Ollama response did not contain message content"
+                "Ollama response did not contain message content",
+                provider_stage=provider_stage,
+                raw_response_excerpt=raw_response_excerpt,
             )
         try:
             parsed = json.loads(stripped)
         except json.JSONDecodeError:
+            repaired = OllamaProvider._repair_json_text(stripped)
+            if repaired != stripped:
+                try:
+                    parsed = json.loads(repaired)
+                except json.JSONDecodeError:
+                    parsed = None
+                else:
+                    if not isinstance(parsed, dict):
+                        logger.warning(
+                            "Ollama repaired JSON was not an object stage=%s raw_excerpt=%s",
+                            provider_stage,
+                            raw_response_excerpt,
+                        )
+                        raise ProviderResponseFormatError(
+                            "Ollama response JSON must be an object",
+                            provider_stage=provider_stage,
+                            raw_response_excerpt=raw_response_excerpt,
+                        )
+                    logger.info(
+                        "Ollama response JSON repaired successfully stage=%s",
+                        provider_stage,
+                    )
+                    return parsed
+
             start = stripped.find("{")
             end = stripped.rfind("}")
             if start == -1 or end == -1 or end <= start:
+                logger.warning(
+                    "Ollama response was not valid JSON stage=%s raw_excerpt=%s",
+                    provider_stage,
+                    raw_response_excerpt,
+                )
                 raise ProviderResponseFormatError(
-                    "Ollama response was not valid JSON"
+                    "Ollama response was not valid JSON",
+                    provider_stage=provider_stage,
+                    raw_response_excerpt=raw_response_excerpt,
                 ) from None
 
             try:
                 parsed = json.loads(stripped[start : end + 1])
             except json.JSONDecodeError as exc:
+                logger.warning(
+                    "Ollama response was not valid JSON after substring extraction stage=%s raw_excerpt=%s",
+                    provider_stage,
+                    raw_response_excerpt,
+                )
                 raise ProviderResponseFormatError(
-                    "Ollama response was not valid JSON"
+                    "Ollama response was not valid JSON",
+                    provider_stage=provider_stage,
+                    raw_response_excerpt=raw_response_excerpt,
                 ) from exc
 
         if not isinstance(parsed, dict):
-            raise ProviderResponseFormatError("Ollama response JSON must be an object")
+            logger.warning(
+                "Ollama response JSON was not an object stage=%s raw_excerpt=%s",
+                provider_stage,
+                raw_response_excerpt,
+            )
+            raise ProviderResponseFormatError(
+                "Ollama response JSON must be an object",
+                provider_stage=provider_stage,
+                raw_response_excerpt=raw_response_excerpt,
+            )
 
         return parsed
 
@@ -611,7 +728,7 @@ class OllamaProvider(LLMProvider):
         logger.info(
             "Ollama request completed for model=%s stage=%s", model, provider_stage
         )
-        return self._extract_json_payload(response)
+        return self._extract_json_payload(response, provider_stage=provider_stage)
 
     def interpret_action(self, participant_input: str) -> dict[str, Any]:
         """Interpret participant text via Ollama.

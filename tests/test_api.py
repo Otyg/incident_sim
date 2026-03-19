@@ -4,7 +4,11 @@ import json
 
 from src import api as api_module
 from src.main import app
-from src.services.llm_provider import OpenAIProvider, ProviderUpstreamError
+from src.services.llm_provider import (
+    OpenAIProvider,
+    ProviderResponseFormatError,
+    ProviderUpstreamError,
+)
 from tests.mock_llm_provider import MockLLMProvider
 
 
@@ -1374,6 +1378,45 @@ def test_post_turn_returns_non_retryable_metadata_for_provider_400(monkeypatch):
     assert body["retryable"] is False
     assert body["retry_after_seconds"] is None
     assert body["upstream_status_code"] == 400
+
+
+def test_post_turn_returns_retry_metadata_for_provider_response_format_error(
+    monkeypatch,
+):
+    class FormatErrorProvider:
+        def interpret_action(self, participant_input: str) -> dict:
+            return MockLLMProvider().interpret_action(participant_input)
+
+        def generate_narration(self, state) -> dict:
+            raise ProviderResponseFormatError(
+                "Ollama response was not valid JSON",
+                provider_stage="generate_narration",
+                raw_response_excerpt='{"broken": true "oops"}',
+                retryable=True,
+            )
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: FormatErrorProvider())
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 502
+    assert body["error_code"] == "llm_provider_retryable_failure"
+    assert body["retryable"] is True
+    assert body["retry_after_seconds"] == 2
+    assert body["provider_stage"] == "generate_narration"
+    assert body["upstream_status_code"] is None
 
 
 def test_get_timeline_returns_turns_in_order(monkeypatch):

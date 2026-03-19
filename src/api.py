@@ -55,6 +55,7 @@ from src.services.llm_provider import (
     LLMProviderError,
     ProviderConfigurationError,
     ProviderOutputValidationError,
+    ProviderResponseFormatError,
     ProviderUpstreamError,
     get_llm_provider,
     validate_debrief,
@@ -1004,6 +1005,51 @@ async def post_turn(
                     "max_attempts": max_attempts,
                     "provider_stage": exc.provider_stage,
                     "upstream_status_code": exc.upstream_status_code,
+                },
+            )
+
+        if isinstance(exc, ProviderResponseFormatError):
+            retry_after_seconds = None
+            if exc.retryable and attempt < max_attempts:
+                retry_index = min(attempt - 1, len(TURN_RETRY_BACKOFF_SECONDS) - 1)
+                retry_after_seconds = TURN_RETRY_BACKOFF_SECONDS[retry_index]
+                logger.warning(
+                    "Retryable provider response format error session_id=%s stage=%s attempt=%s max_attempts=%s retry_after_seconds=%s raw_excerpt=%s",
+                    session_id,
+                    exc.provider_stage,
+                    attempt,
+                    max_attempts,
+                    retry_after_seconds,
+                    exc.raw_response_excerpt,
+                    exc_info=True,
+                )
+            else:
+                logger.error(
+                    "Provider response format error stopped turn processing session_id=%s stage=%s retryable=%s attempt=%s max_attempts=%s raw_excerpt=%s",
+                    session_id,
+                    exc.provider_stage,
+                    exc.retryable,
+                    attempt,
+                    max_attempts,
+                    exc.raw_response_excerpt,
+                    exc_info=True,
+                )
+
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "detail": str(exc),
+                    "error_code": (
+                        "llm_provider_retryable_failure"
+                        if exc.retryable
+                        else "llm_provider_response_format_failure"
+                    ),
+                    "retryable": exc.retryable,
+                    "retry_after_seconds": retry_after_seconds,
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "provider_stage": exc.provider_stage,
+                    "upstream_status_code": None,
                 },
             )
 

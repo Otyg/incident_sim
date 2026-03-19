@@ -500,6 +500,81 @@ def test_ollama_provider_raises_for_non_json_content(monkeypatch):
         OllamaProvider({"model": "llama3.2"}).interpret_action("Vi samlar teamet.")
 
 
+def test_ollama_provider_response_format_error_includes_stage_and_excerpt(monkeypatch):
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            return {"message": {"content": '{"broken": true "oops"}'}}
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    with pytest.raises(ProviderResponseFormatError) as exc_info:
+        OllamaProvider({"model": "llama3.2"}).generate_narration(make_state())
+
+    assert exc_info.value.provider_stage == "generate_narration"
+    assert exc_info.value.retryable is True
+    assert '"oops"' in (exc_info.value.raw_response_excerpt or "")
+
+
+def test_ollama_provider_repairs_trailing_comma_json(monkeypatch):
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            return {
+                "message": {
+                    "content": (
+                        '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                        '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                        '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                        '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6,}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    payload = OllamaProvider({"model": "llama3.2"}).interpret_action(
+        "Vi samlar teamet."
+    )
+
+    assert payload["priority"] == "medium"
+
+
+def test_ollama_provider_repairs_fenced_json(monkeypatch):
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            return {
+                "message": {
+                    "content": (
+                        "```json\n"
+                        '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                        '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                        '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                        '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6}'
+                        "\n```"
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    payload = OllamaProvider({"model": "llama3.2"}).interpret_action(
+        "Vi samlar teamet."
+    )
+
+    assert payload["action_types"] == ["coordination"]
+
+
 def test_ollama_provider_marks_500_errors_as_retryable(monkeypatch):
     class FakeUpstreamError(Exception):
         def __init__(self, message: str, status_code: int) -> None:
