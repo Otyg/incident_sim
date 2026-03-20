@@ -1,0 +1,1778 @@
+{
+  "id": "datalake-under-tryck",
+  "original_text": "# Tabletop-övning: Datalake under tryck – långvarig incident med misstänkt dataexfiltration\n\n## Syfte\nAtt öva operativ it-personal på ett större akutsjukhus i att hantera en utdragen cyberincident där ett inledande prestandaproblem gradvis visar sig vara en pågående säkerhetsincident med misstänkt exfiltration av känsliga uppgifter från sjukhusets datalake.\n\nÖvningen ska särskilt träna deltagarna i att arbeta strukturerat över flera timmar genom skiftande faser: initial analys, incidentklassning, eskalering, isolering/begränsning, drift under störning, återställning och övergång till fortsatt utredning.\n\n## Mål\nÖvningen ska ge deltagarna möjlighet att träna på att:\n\n- identifiera när ett diffust driftproblem bör behandlas som en säkerhetsincident\n- bygga och kontinuerligt uppdatera en gemensam lägesbild under osäkerhet\n- prioritera mellan driftstabilitet, patientsäkerhetsnära beroenden och informationssäkerhet\n- fatta beslut om loggsäkring, isolering, kontospärr, trafikbegränsning och återställning\n- samverka med säkerhetsfunktion, nätverk, plattformsansvariga, laboratorieverksamhet, ledning och kommunikation\n- hantera långvarig incidentledning med flera beslutspunkter och motstridiga behov\n- formulera korrekt och proportionerlig kommunikation under osäkerhet\n- planera för kontrollerad återgång till stabil drift utan att förstöra spår eller förvärra incidenten\n\n## Omfattning och avgränsningar\nÖvningen omfattar:\n\n- operativ it-drift under incidentens första 4–5 timmar\n- samordning mellan drift, säkerhet och berörda verksamhetsfunktioner\n- hantering av tekniska och organisatoriska beslut i realtid\n- beslut om eskalering, isolering, fortsatt drift, återställning och kommunikation\n- bedömning av indirekt påverkan på vårdverksamhet och laboratorieflöden\n\nÖvningen omfattar inte:\n\n- full forensisk analys\n- juridisk detaljhantering eller faktisk myndighetsanmälan\n- faktisk återuppbyggnad av miljön\n- exploitutveckling eller teknisk reproduktion av angreppet\n- detaljerad analys av angriparens metod\n\nDold spelledarinformation:\nAngriparen har fått fotfäste genom en externt inkommen CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek i ett analysflöde. Detta är scenariots tekniska rotorsak men är inte sannolikt något deltagarna kommer att upptäcka under övningen. Fokus ska ligga på drift- och incidenthantering, inte på att “lösa mysteriet”.\n\n## Scenarioöversikt\nEtt större akutsjukhus har en central datalake som används för analys, uppföljning, forskning, laboratoriestöd och integration mot ett antal närliggande stödsystem. Miljön innehåller bland annat patientuppgifter, provresultat, metadata, pseudonymiserade forskningsuttag, loggdata och genomikrelaterade dataset.\n\nÖvningen startar med att flera användare upplever att kommunikation med datalake-miljön är segare än vanligt. Detta verkar först vara en klassisk driftstörning: högre svarstider, längre batchtider och enstaka timeouter. Under de följande timmarna växer bilden till att omfatta onormala dataflöden, ovanliga servicekontobeteenden, eskalerande verksamhetspåverkan, svåra beslut om isolering och frågan om hur återställning ska göras utan att tappa kontroll över bevis eller skapa ytterligare risk.\n\nÖvningen är designad så att deltagarna först behöver tänka som driftpersonal, sedan som incidentledande teknikfunktion och slutligen som operativ återställningsorganisation.\n\n## Förutsättningar\nAnta följande miljö:\n\n- sjukhuset har ett centralt datalake-kluster med lagringsnoder, beräkningsnoder och API/åtkomstlager\n- datalake används av laboratorieplattformar, BI/analys, forskningsstöd och ett antal sekundära integrationsflöden\n- vissa dataflöden från externa parter tas emot genom kontrollerade inläsningsprocesser\n- åtkomst styrs via användarkonton, servicekonton, jobbköer och API-nycklar\n- driftövervakning, nätverksloggning och säkerhetsloggning finns men är splittrade mellan flera verktyg\n- SOC eller motsvarande säkerhetsfunktion finns, men är inte initialt inne i händelsen\n- det finns rutiner för informationssäkerhetsincidenter och personuppgiftsincidenter, men it-drift är första linjen för upptäckt\n- miljön är inte direkt det primära patientjournalsystemet, men flera laboratorie- och analysprocesser påverkar vårdverksamheten indirekt\n- sjukhuset har en chef i beredskap och etablerade kommunikationsvägar för driftstörningar\n\n## Deltagare/målgrupp\nPrimär målgrupp:\n\n- operativ it-driftpersonal\n- driftledare/jourhavande\n- plattformsansvariga för lagring, integration, nätverk eller dataplattform\n- incidentledande tekniska resurser i linjen\n\nSekundära roller som kan bemannas eller spelas av spelledare:\n\n- SOC/informationssäkerhetsfunktion\n- nätverksspecialist\n- systemförvaltare för datalake eller analysplattform\n- representant från kliniskt laboratorium/genomikfunktion\n- chef i beredskap / it-ledning\n- informationssäkerhetsansvarig\n- dataskyddsfunktion/jurist\n- kommunikationsansvarig\n- representant från verksamheten (laboratorium, forskning, analysstöd)\n\n## Spelregler\n- Övningen är diskussionsbaserad och ska inte genomföras tekniskt i produktionsmiljö.\n- Deltagarna beskriver vilka åtgärder de skulle ta, i vilken ordning, med vilket syfte och med vilka risker.\n- Spelledaren lämnar ny information genom injects när tiden går framåt eller när gruppens frågor motiverar det.\n- Deltagarna ska utgå från ofullständig information och tydligt skilja mellan fakta, antaganden och hypoteser.\n- Fokus ligger på operativ hantering, eskalering, prioritering, dokumentation och kommunikation.\n- Deltagarna behöver inte hitta exakt root cause för att lyckas i övningen.\n- Beslut ska uttryckas konkret: vem gör vad, när och på vilken grund.\n- Gruppen bör kontinuerligt uppdatera lägesbild, beroenden, risker och nästa beslutspunkt.\n\n## Tidsplan och upplägg\nFörslag för 4 timmar och 30 minuter:\n\n- 00:00–00:15: Introduktion, roller, regler och scenariostart\n- 00:15–00:50: Fas 1 – Initial analys och triage\n- 00:50–01:30: Fas 2 – Eskalering och incidentklassning\n- 01:30–02:15: Fas 3 – Begränsning och isolering\n- 02:15–02:25: Kort paus\n- 02:25–03:15: Fas 4 – Fortsatt drift under incident\n- 03:15–04:00: Fas 5 – Återställning och kontrollerad återgång\n- 04:00–04:30: Fas 6 – Stabilisering, överlämning och debrief\n\nOm ni vill spela närmare 5 timmar kan varje fas förlängas med mer diskussionstid och fler följdfrågor från spelledaren.\n\n## Injects / Händelseutveckling\n\n# Fas 1 – Initial analys\nMålet i denna fas är att se hur driftorganisationen tar emot svaga signaler, avgränsar problemet och etablerar en första lägesbild.\n\n### Inject 1.1 – Seg kommunikation mot datalake\nTid i spel: 09:05\n\nFlera användare från analys- och laboratoriemiljön rapporterar att datalake känns segare än vanligt. Filer öppnas långsamt, sökningar tar längre tid och vissa större läsoperationer timeoutar. Ett internt analysteam säger att detta började “någon gång på morgonen”.\n\nÖvervakningen visar:\n\n- förhöjd latenstid mot datalake-gränssnitt och lagringslager\n- högre nätverksvolym än normalt från datalake-zonen\n- CPU och minne på kärnnoder ser förhöjda men inte kritiska ut\n- inga tydliga diskfel eller hårdvarularm\n- inga registrerade planerade förändringar för morgonen\n\nSpelledarstöd:\n- nattens planerade batcher ska enligt schema vara färdiga\n- det finns ännu inget säkerhetslarm\n- det går att nå miljön, men den svarar långsamt\n\n### Inject 1.2 – Olika team beskriver olika symptom\nTid i spel: 09:20\n\nLaboratoriepersonalen säger att hämtning av historiska dataset för analys går märkbart långsammare än normalt. Forskningsstödet uppger att API-anrop mot datalake ibland lyckas, ibland svarar långsamt. Ett BI-team rapporterar att deras planerade rapportkörning dragit ut på tiden.\n\nYtterligare observationer:\n\n- vissa jobbköer verkar längre än normalt\n- svarstider är ojämna snarare än konsekvent dåliga\n- ett fåtal servicekonton genererar mer aktivitet än väntat\n\nSpelledarstöd:\n- om deltagarna frågar efter nyliga deploymentar: inga är registrerade i ordinarie change-fönster\n- om de frågar efter beroenden: flera analys- och laboratorieflöden nyttjar samma lagrings- och åtkomstlager\n\n### Inject 1.3 – Första tecknet på onormal utgående trafik\nTid i spel: 09:35\n\nNätverksteamet uppmärksammar att datalake-zonen har ovanligt hög utgående trafik till externa IP-adresser. Trafiken är TLS-krypterad och matchar inte omedelbart kända integrationspartner. Volymen är tillräcklig för att kunna bidra till prestandaproblemet.\n\nSpelledarstöd:\n- trafiken verkar ha ökat gradvis sedan tidig morgon\n- ingen känd underhållsaktivitet förklarar beteendet\n- det finns ännu ingen bekräftad dataläcka\n\n## Förväntade diskussionspunkter – Fas 1\n- När deklareras detta som en incident och inte bara en driftstörning?\n- Hur ser första lägesbilden ut?\n- Vilka loggar, dashboards och ansvariga funktioner vill deltagarna omedelbart involvera?\n- Stoppar gruppen ytterligare ändringar?\n- Dokumenteras tidpunkter, symptom och första hypoteser?\n- Kartlägger man vilka verksamheter som är beroende av datalake just nu?\n\n# Fas 2 – Eskalering och incidentklassning\nMålet i denna fas är att se hur gruppen växlar från teknisk felsökning till säkerhetsinriktad incidenthantering.\n\n### Inject 2.1 – Säkerhetsindikationen stärks\nTid i spel: 09:50\n\nSäkerhetsfunktionen kopplas in eller larmas upp. De kan snabbt bekräfta att datamängder långt över normal exportnivå har lämnat datalake-segmentet under morgonen. Det är ännu oklart om överföringen är legitim, felaktig eller skadlig.\n\nYtterligare information:\n\n- läsaktiviteten omfattar flera datamängder med patientrelaterat innehåll\n- vissa servicekonton har använts på ovanliga tider eller i ovanliga mönster\n- det finns inga tecken på kryptering eller destruktion av data\n- aktiviteten pågår fortfarande\n\n### Inject 2.2 – Frågor från ledning och verksamhet\nTid i spel: 10:05\n\nChef i beredskap och verksamhetsrepresentanter vill ha svar på följande:\n\n1. Är detta en driftstörning eller en informationssäkerhetsincident?\n2. Kan patientuppgifter vara påverkade?\n3. Behöver miljön isoleras nu?\n4. Vilka verksamheter påverkas om datalake begränsas eller stängs?\n5. Finns det risk att angriparen rör sig vidare i miljön?\n\nSpelledarstöd:\n- akutjournal, PAS och primära vårdsystem ligger inte direkt i samma plattform\n- vissa laboratorie- och analysflöden, rapportering och sekundära beslutsstöd använder datalake\n- det finns ännu ingen komplett påverkansbild\n\n### Inject 2.3 – Ovanlig aktivitet i servicekonton\nTid i spel: 10:20\n\nLogggranskning visar att ett eller flera servicekonton har gjort stora läsningar mot dataset som normalt inte används i samma kombination. Aktiviteten liknar inte vanliga batchar eller standardrapporter. Samtidigt finns tecken på att loggkällor är ofullständiga: inte allt går att tidsmässigt knyta ihop.\n\nSpelledarstöd:\n- inga konton är ännu bekräftat komprometterade\n- det går inte att avgöra om aktiviteten är kapade legitima behörigheter eller manipulativa interna jobb\n- tiden pressar: dataflödet ut fortsätter\n\n## Förväntade diskussionspunkter – Fas 2\n- När och hur klassas händelsen som informationssäkerhetsincident?\n- När involveras dataskyddsfunktion, juridik och ledning?\n- Hur vägs bevisbevarande mot behovet av att snabbt stoppa utflödet?\n- Är det rimligt att stänga servicekonton om man inte vet vilka beroenden de har?\n- Vilken intern kommunikation går ut nu, och till vem?\n- Hur säkerställer gruppen att de inte kommunicerar spekulation som fakta?\n\n# Fas 3 – Begränsning och isolering\nMålet i denna fas är att tvinga fram svåra beslut om containment under pågående verksamhetspåverkan.\n\n### Inject 3.1 – Verksamhetspåverkan blir tydligare\nTid i spel: 10:40\n\nLaboratoriefunktionen rapporterar att vissa sekundära analysflöden nu är så långsamma att det påverkar deras arbetssätt. Ett antal planerade körningar har satts på paus. Forskningsstöd och BI står i kö för besked om de ska fortsätta eller avbryta jobb.\n\nSamtidigt kvarstår:\n\n- hög utgående trafik\n- fortsatt prestandaförsämring\n- pågående ovanliga läsningar\n\n### Inject 3.2 – Möjliga begränsningsalternativ\nTid i spel: 10:55\n\nNätverk och säkerhetsfunktion presenterar alternativ:\n\n- blockera all utgående trafik från datalake-zonen mot internet\n- blockera endast kända misstänkta destinationer\n- isolera vissa noder eller API-ingångar\n- stänga ett antal servicekonton\n- sätta datalake i begränsat läge för endast prioriterade funktioner\n\nSpelledarstöd:\n- total nätverksisolering ger snabbast riskreduktion men stör flera legitima integrationer\n- selektiv blockering är mindre störande men riskerar att missa angriparens fallback-vägar\n- kontospärr kan ge snabb effekt men kan också bryta legitim laboratorie- eller analysfunktion\n\n### Inject 3.3 – Ny möjlig spridningsrisk\nTid i spel: 11:10\n\nSäkerhetsfunktionen meddelar att de ännu inte kan utesluta att angriparen haft möjlighet att lägga schemalagda jobb eller använda befintliga automatiserade processer i miljön. Några misstänkta jobbdefinitioner granskas, men inget definitivt kan sägas ännu.\n\nSpelledarstöd:\n- det finns inga säkra tecken på lateral förflyttning till primära vårdsystem\n- men det går inte heller att lova att datalake-miljön är helt isolerad från övrig infrastruktur\n- trycket ökar på att fatta containment-beslut\n\n### Inject 3.4 – Beslutspunkt\nTid i spel: 11:25\n\nGruppen måste nu besluta:\n\n- om incidenten ska hanteras som pågående exfiltration\n- vilka trafikbegränsningar som införs\n- vilka konton, tjänster eller noder som isoleras\n- vilka verksamheter som får prioritet i fortsatt drift\n- vem som godkänner störande åtgärder\n\n## Förväntade diskussionspunkter – Fas 3\n- Vilket containment-alternativ ger bäst effekt snabbast?\n- Vem äger beslut om att störa verksamheten för att minska risk?\n- Hur kommunicerar man kontrollerad försämring av tjänst?\n- Hur säkras loggar, minnesdata eller andra spår innan större ändringar görs?\n- Hur avgörs vilka funktioner som är verksamhetskritiska respektive kan pausas?\n\n# Fas 4 – Fortsatt drift under incident\nMålet i denna fas är att träna på incidentledning efter första containment, när problemen inte försvinner direkt.\n\n### Inject 4.1 – Containment ger delvis effekt\nTid i spel: 12:00\n\nEfter de första begränsningsåtgärderna minskar delar av den utgående trafiken, men inte allt. Prestandan förbättras något, men är fortfarande instabil. Vissa användare kommer in, andra möter fortsatt timeout. Flera verksamheter ber om undantag för att få köra specifika jobb.\n\nSpelledarstöd:\n- incidenten är inte över\n- angriparen eller det skadliga beteendet kan fortfarande ha viss kvarvarande åtkomst\n- det finns risk att felaktiga undantag återöppnar vägar ut\n\n### Inject 4.2 – Externa frågor börjar dyka upp\nTid i spel: 12:20\n\nSjukhusets kommunikationsfunktion meddelar att frågor har börjat komma från interna chefer och att rykten cirkulerar om att “något hänt med patientdata”. En forskningssamarbetspartner frågar om deras åtkomstproblem beror på planerat underhåll. En chef vill veta om det finns risk för mediapådrag under dagen.\n\nSpelledarstöd:\n- ingen extern media har ännu publicerat något\n- ingen bekräftad angriparidentitet finns\n- omfattningen av eventuell personuppgiftspåverkan är fortfarande osäker\n\n### Inject 4.3 – Omfattningsbilden blir bredare\nTid i spel: 12:40\n\nFördjupad granskning indikerar att åtkomst kan ha skett till flera typer av dataset:\n\n- patientuppgifter kopplade till analys- och provsvar\n- metadata om laboratoriebeställningar\n- pseudonymiserade forskningsuttag\n- genomikrelaterade dataset och tillhörande index/metadata\n- systemloggar som kan innehålla indirekt känsliga uppgifter\n\nDet går fortfarande inte att avgöra om hela dataset eller endast delar har lämnat miljön.\n\n### Inject 4.4 – Personalfråga och uthållighet\nTid i spel: 13:00\n\nIncidenten har nu pågått länge. Frågor uppstår om:\n\n- skiftbyte eller förstärkning\n- dokumentation av beslut\n- vem som fortsätter driva tekniska spår\n- vem som hanterar verksamhetskommunikation\n- hur länge begränsat läge kan upprätthållas\n\n## Förväntade diskussionspunkter – Fas 4\n- Hur organiseras arbetet när incidenten blir långvarig?\n- Hur hanterar gruppen undantag utan att tappa kontroll?\n- När går man från initial incidentrespons till mer uthållig ledning?\n- Hur kommunicerar man osäker men viktig information till verksamheten?\n- Hur skyddas medarbetarna från att fatta okoordinerade ad hoc-beslut under press?\n\n# Fas 5 – Återställning och kontrollerad återgång\nMålet i denna fas är att se hur gruppen resonerar när akut containment uppnåtts och fokus går mot säker återgång.\n\n### Inject 5.1 – Utgående trafik ser ut att ha stoppats\nTid i spel: 13:20\n\nEfter ytterligare nätverksbegränsningar och spärr av utvalda konton ser den misstänkta utgående trafiken ut att ha upphört. Datalake-miljön är dock fortfarande körd i begränsat läge. Flera verksamheter vill nu snabbt få tillbaka normal funktion.\n\nSpelledarstöd:\n- det finns ingen garanti för att hotet är helt borta\n- det finns en risk att kvarvarande mekanismer återaktiveras om allt öppnas för snabbt\n- det saknas ännu full forensisk klarhet\n\n### Inject 5.2 – Krav på återöppning\nTid i spel: 13:40\n\nLaboratoriet vill få tillbaka vissa funktioner omgående. Analys- och BI-funktioner argumenterar för att deras eftersläpning snart blir ett eget problem. Ledningen vill veta när “normal drift” kan återupptas.\n\nSpelledarstöd:\n- teknisk återställning bör sannolikt ske stegvis\n- vissa konton och integrationer bör inte aktiveras utan verifiering\n- verksamheten önskar ett tydligt prioriteringsbesked\n\n### Inject 5.3 – Misstänkt kvarvarande artefakt\nTid i spel: 14:00\n\nVid fortsatt granskning hittas en misstänkt automatiserad jobbdefinition eller process som inte omedelbart kan förklaras. Det är oklart om den är skadlig, legitim men felkonfigurerad, eller rester från angriparens aktivitet.\n\nSpelledarstöd:\n- om gruppen återöppnar för mycket för snabbt kan incidenten i teorin återta fart\n- om gruppen väntar för länge ökar verksamhetstrycket kraftigt\n- detta är en avvägning mellan risk och återställningsbehov\n\n### Inject 5.4 – Beslutspunkt för återställning\nTid i spel: 14:20\n\nGruppen behöver nu besluta om:\n\n- stegvis återöppning eller fortsatt begränsat läge\n- prioriteringsordning för tjänster, integrationer och konton\n- vilka verifieringar som krävs före återaktivering\n- vilka övervakningsmekanismer som måste skärpas innan mer öppnas upp\n- vilken information som går ut till verksamhet och ledning\n\n## Förväntade diskussionspunkter – Fas 5\n- Hur ser kriterierna ut för att öppna upp igen?\n- Vilka funktioner återställs först och varför?\n- Vilka tekniska skydd eller extra loggnivåer ska vara på plats innan återgång?\n- Hur tydliggör man att återställning inte är samma sak som att incidenten är färdigutredd?\n- Vem äger beslut om riskacceptans i återöppningen?\n\n# Fas 6 – Stabilisering, överlämning och debriefunderlag\nMålet i denna fas är att få deltagarna att knyta ihop operativ respons med fortsatt incidenthantering efter övningens slut.\n\n### Inject 6.1 – Stabiliserat men inte färdigutrett\nTid i spel: 14:40\n\nMiljön är nu mer stabil. De mest verksamhetskritiska funktionerna är tillbaka i kontrollerad form. Misstänkt utgående trafik syns inte längre. Samtidigt kvarstår osäkerhet kring:\n\n- exakt intrångsväg\n- exakt vilka data som lämnade miljön\n- om angriparen hade ytterligare åtkomstpunkter\n- vilka interna och externa rapporteringskrav som nu aktiveras\n\n### Inject 6.2 – Ledningen vill ha nästa steg\nTid i spel: 14:55\n\nLedningen begär ett kort beslutsunderlag:\n\n- vad hände operativt?\n- vad är bekräftat respektive fortfarande osäkert?\n- vilka risker kvarstår?\n- vad behöver ske de kommande 24 timmarna?\n- vilka resurser eller mandat krävs nu?\n\n### Inject 6.3 – Avslutande läge\nTid i spel: 15:10\n\nGruppen ska avsluta övningen med att beskriva:\n\n- nulägesbild\n- kvarstående risker\n- ansvarsfördelning efter övningens slut\n- prioriterade tekniska nästa steg\n- kommunikationsbehov\n- överlämning till fortsatt utredning, ledning och verksamhet\n\n## Förväntade diskussionspunkter – Fas 6\n- Har gruppen en tydlig övergång från akutläge till uthållig hantering?\n- Finns en plan för fortsatt logggranskning, verifiering och riskreduktion?\n- Har beslut, antaganden och beroenden dokumenterats?\n- Har man fångat behovet av intern och extern rapportering?\n- Har man formulerat en tydlig operationsplan för nästa dygn?\n\n## Besluts- och eskaleringsvägar\nÖvningen bör driva fram beslut inom följande områden.\n\n### Initialt inom it-drift\n- formell incidentstart\n- utse incidentledare eller teknisk koordinator\n- stoppa icke nödvändiga ändringar\n- säkra tidslinje, relevanta loggar och initial lägesbild\n- kartlägga kritiska beroenden och pågående jobb\n- koppla in säkerhetsfunktion tidigt vid onormal utgående trafik\n\n### Vid stärkt misstanke om exfiltration\n- klassa händelsen som informationssäkerhetsincident\n- eskalera till it-ledning/chef i beredskap\n- involvera dataskyddsfunktion och juridisk rådgivning enligt rutin\n- bedöma behov av förstärkt incidentledning eller stab\n- säkerställa att verksamhetsansvariga får rätt lägesbild\n\n### Tekniska containment-beslut\n- blockera eller begränsa utgående trafik från datalake-zonen\n- sätta miljön i begränsat läge\n- isolera specifika noder, API-ingångar eller tjänster\n- stänga av eller begränsa servicekonton\n- säkra loggar och andra spår före större förändringar\n- införa förändringsstopp tills vidare\n\n### Beslut under återställning\n- fastställa kriterier för återöppning\n- prioritera vilka funktioner som får återkomma först\n- kräva verifiering av konton, integrationer och jobbdefinitioner före återaktivering\n- besluta om förstärkt övervakning under återgång\n- acceptera eller avvisa kvarstående risker\n\n### Strategiska beslut\n- när sjukhusledning ska informeras formellt\n- om incidenten ska hanteras som möjlig personuppgiftsincident\n- när och hur verksamheten ska informeras brett\n- vem som äger riskbeslut om återställning trots osäkerheter\n- hur överlämning till fortsatt forensisk och organisatorisk hantering ska ske\n\n## Kommunikation\nKommunikationsdelen bör spela stor roll i övningen och följa incidentens faser.\n\n### 1. Intern operativ kommunikation\nMålgrupp:\n\n- it-drift\n- nätverk/plattform\n- säkerhetsfunktion\n- systemförvaltare\n- tekniska beredskapsfunktioner\n\nBudskap ska innehålla:\n\n- vad som observerats\n- vad som är verifierat kontra misstänkt\n- vilka containment- eller driftåtgärder som beslutats\n- vem som leder incidenten\n- nästa uppdateringstid\n- vad andra team förväntas göra eller inte göra\n\nExempel:\n“Vi hanterar en pågående incident i datalake-miljön. Vi ser både prestandapåverkan och onormal utgående trafik. Ingen ytterligare förändring får göras utan koordinering via incidentledningen. Nästa lägesuppdatering kommer kl. 10:30.”\n\n### 2. Verksamhetskommunikation\nMålgrupp:\n\n- laboratorieverksamhet\n- analys- och forskningsstöd\n- verksamhetschefer\n- sjukhusledning\n\nBudskap ska innehålla:\n\n- att driftstörning föreligger\n- att en säkerhetsrelaterad utredning pågår\n- vilka funktioner som kan påverkas\n- vilka försiktighetsåtgärder som gäller\n- när nytt besked ges\n- vad verksamheten ska prioritera eller avstå från\n\nExempel:\n“Vi hanterar för närvarande en incident i datalake-miljön som påverkar svarstider och vissa dataflöden. Utredning pågår även av en möjlig säkerhetspåverkan. Berörda verksamheter uppmanas tills vidare att avvakta med icke nödvändiga tunga körningar och följa kommande instruktioner från it-ledningen.”\n\n### 3. Lednings- och beslutsstödskommunikation\nMålgrupp:\n\n- chef i beredskap\n- it-ledning\n- informationssäkerhetsansvarig\n- dataskyddsfunktion/juridik\n- eventuellt krisledning\n\nBudskap ska innehålla:\n\n- incidentklassning\n- bekräftad respektive möjlig påverkan\n- kvarstående osäkerheter\n- rekommenderade beslut\n- konsekvenser av olika handlingsalternativ\n- behov av mandat eller prioriteringsbeslut\n\nExempel:\n“Vi bedömer nu att händelsen ska hanteras som en informationssäkerhetsincident med stark misstanke om pågående eller nyligen pågående dataexfiltration från datalake-miljön. Vi rekommenderar fortsatt begränsning av utgående trafik och kontrollerad drift för prioriterade funktioner medan omfattningen fastställs.”\n\n### 4. Kommunikation inför återställning\nMålgrupp:\n\n- samma som ovan, men med fokus på återgång\n\nBudskap ska innehålla:\n\n- att vissa delar kan återöppnas stegvis\n- att återställning sker prioriterat, inte fullt ut direkt\n- att incidenten fortfarande utreds även om funktion återkommer\n- att övervakning och kontroll är skärpt\n- att nya avbrott kan behövas om ytterligare risk upptäcks\n\nExempel:\n“Vi påbörjar nu en stegvis återställning av utvalda datalake-funktioner. Återgången sker kontrollerat och under förstärkt övervakning. Att funktion successivt återkommer innebär inte att incidenten är avslutad; fortsatt analys och verifiering pågår.”\n\n## Förslag till spelledaren\nAnvänd scenariot för att driva fram följande typ av beteenden:\n\nBra tecken under övningen:\n- tidig incidentstart\n- tydlig skillnad mellan driftstörning och säkerhetsindikator\n- aktiv dokumentation av antaganden och beslut\n- snabb involvering av säkerhetsfunktion\n- riskbaserade containment-beslut\n- tydlig prioritering av verksamhetskritiska funktioner\n- stegvis återställningsstrategi i stället för “öppna allt”\n\nVarningssignaler under övningen:\n- gruppen väntar för länge med eskalering\n- för många parallella ändringar görs utan kontroll\n- kommunikation sker utan att osäkerheter markeras\n- man fokuserar bara på teknik och glömmer verksamhetspåverkan\n- man återöppnar funktion för snabbt utan verifiering\n- ingen tar tydligt ägarskap för incidentledning eller beslut\n\n## Avslutande debrieffrågor\n- Vid vilken punkt borde incidenten formellt ha klassats om från driftstörning till säkerhetsincident?\n- Vilken information saknades mest i början, och hur kunde den ha hämtats snabbare?\n- Vilka containment-beslut var svårast och varför?\n- Hur väl balanserades verksamhetsbehov mot riskreduktion?\n- Hur fungerade kommunikationen mellan drift, säkerhet, ledning och verksamhet?\n- Vad behövs för att kunna återställa säkrare nästa gång?\n- Vilka förbättringar i övervakning, loggning, behörighetsstyrning och beroendekartläggning blir tydliga efter övningen?",
+  "title": "Datalake under tryck – långvarig incident med misstänkt dataexfiltration",
+  "version": "1.0.0",
+  "description": "Övning för att träna hantering av en långvarig cyberincident med misstänkt dataexfiltration från ett akutsjukhus datalake, inklusive initial analys, eskalering, containment och återställning.",
+  "audiences": [
+    "krisledning",
+    "it-ledning",
+    "kommunikation"
+  ],
+  "training_goals": [
+    "identifiera när ett diffust driftproblem bör behandlas som en säkerhetsincident",
+    "bygga och kontinuerligt uppdatera en gemensam lägesbild under osäkerhet",
+    "prioritera mellan driftstabilitet, patientsäkerhetsnära beroenden och informationssäkerhet",
+    "fatta beslut om loggsäkring, isolering, kontospärr, trafikbegränsning och återställning",
+    "samverka med säkerhetsfunktion, nätverk, plattformsansvariga, laboratorieverksamhet, ledning och kommunikation",
+    "hantera långvarig incidentledning med flera beslutspunkter och motstridiga behov",
+    "formulera korrekt och proportionerlig kommunikation under osäkerhet",
+    "planera för kontrollerad återgång till stabil drift utan att förstöra spår eller förvärra incidenten"
+  ],
+  "difficulty": "medium",
+  "timebox_minutes": 270,
+  "background": {
+    "organization_type": "akutsjukhus",
+    "context": "Centralt datalake som används för analys, uppföljning, forskning, laboratoriestöd och integration mot stödsystem. Miljön innehåller patientuppgifter, provresultat, metadata, pseudonymiserade forskningsuttag, loggdata och genomikrelaterade dataset.",
+    "threat_actor": "okänd angripare",
+    "assumptions": [
+      "Angriparen har fått fotfäste genom en externt inkommen CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek i ett analysflöde. Detta är scenariots tekniska rotorsak men är inte sannolikt något deltagarna kommer att upptäcka under övningen. Fokus ska ligga på drift- och incidenthantering, inte på att 'lösa mysteriet'."
+    ]
+  },
+  "states": [
+    {
+      "id": "state-initial",
+      "phase": "initial",
+      "title": "Initial analys",
+      "description": "Flera användare rapporterar seg kommunikation mot datalake. Övervakning visar högre latenstid, högre nätverksvolym från datalake-zonen, men inga kritiska fel.",
+      "time": "09:05",
+      "impact_level": 2,
+      "narration": {
+        "default": {
+          "situation_update": "Flera användare rapporterar seg kommunikation mot datalake. Övervakning visar högre latenstid, högre nätverksvolym från datalake-zonen, men inga kritiska fel.",
+          "key_points": [
+            "Flera användare rapporterar seg kommunikation mot datalake",
+            "Övervakning visar högre latenstid, högre nätverksvolym från datalake-zonen, men inga kritiska fel"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas1-2",
+      "phase": "fas-1-2",
+      "title": "Olika team beskriver olika symptom",
+      "description": "Laboratoriepersonalen rapporterar långsammare hämtning av historiska dataset. Forskningsstöd och BI-team rapporterar ojämna svarstider och längre jobbköer. Servicekonton genererar mer aktivitet än väntat.",
+      "time": "09:20",
+      "impact_level": 2,
+      "narration": {
+        "default": {
+          "situation_update": "Laboratoriepersonalen rapporterar långsammare hämtning av historiska dataset. Forskningsstöd och BI-team rapporterar ojämna svarstider och längre jobbköer. Servicekonton genererar mer aktivitet än väntat.",
+          "key_points": [
+            "Laboratoriepersonalen rapporterar långsammare hämtning av historiska dataset",
+            "Forskningsstöd och BI-team rapporterar ojämna svarstider och längre jobbköer",
+            "Servicekonton genererar mer aktivitet än väntat"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas1-3",
+      "phase": "fas-1-3",
+      "title": "Första tecknet på onormal utgående trafik",
+      "description": "Nätverksteamet uppmärksammar ovanligt hög utgående trafik från datalake-zonen till externa IP-adresser. Trafiken är TLS-krypterad och matchar inte kända integrationspartner. Volymen bidrar till prestandaproblemet.",
+      "time": "09:35",
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Nätverksteamet uppmärksammar ovanligt hög utgående trafik från datalake-zonen till externa IP-adresser. Trafiken är TLS-krypterad och matchar inte kända integrationspartner. Volymen bidrar till prestandaproblemet.",
+          "key_points": [
+            "Nätverksteamet uppmärksammar ovanligt hög utgående trafik från datalake-zonen till externa IP-adresser",
+            "Trafiken är TLS-krypterad och matchar inte kända integrationspartner",
+            "Volymen bidrar till prestandaproblemet"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas2-1",
+      "phase": "fas-2-1",
+      "title": "Säkerhetsindikationen stärks",
+      "description": "Säkerhetsfunktionen bekräftar höga datamängder som lämnat datalake-segmentet under morgonen. Läsaktiviteten omfattar patientrelaterade datamängder och ovanliga servicekontobeteenden.",
+      "time": "09:50",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Säkerhetsfunktionen bekräftar höga datamängder som lämnat datalake-segmentet under morgonen. Läsaktiviteten omfattar patientrelaterade datamängder och ovanliga servicekontobeteenden.",
+          "key_points": [
+            "Säkerhetsfunktionen bekräftar höga datamängder som lämnat datalake-segmentet under morgonen",
+            "Läsaktiviteten omfattar patientrelaterade datamängder och ovanliga servicekontobeteenden"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas2-2",
+      "phase": "fas-2-2",
+      "title": "Frågor från ledning och verksamhet",
+      "description": "Chef i beredskap och verksamhetsrepresentanter vill ha svar på incidentens klassning, patientuppgiftsrisken, isoleringsbehov, verksamhetspåverkan och spridningsrisk.",
+      "time": "10:05",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Chef i beredskap och verksamhetsrepresentanter vill ha svar på incidentens klassning, patientuppgiftsrisken, isoleringsbehov, verksamhetspåverkan och spridningsrisk.",
+          "key_points": [
+            "Chef i beredskap och verksamhetsrepresentanter vill ha svar på incidentens klassning, patientuppgiftsrisken, isoleringsbehov, verksamhetspåverkan och spridningsrisk",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas2-3",
+      "phase": "fas-2-3",
+      "title": "Ovanlig aktivitet i servicekonton",
+      "description": "Logggranskning visar att ett eller flera servicekonton har gjort stora läsningar mot ovanliga dataset. Aktiviteten liknar inte vanliga batchar och loggkällor är ofullständiga.",
+      "time": "10:20",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Logggranskning visar att ett eller flera servicekonton har gjort stora läsningar mot ovanliga dataset. Aktiviteten liknar inte vanliga batchar och loggkällor är ofullständiga.",
+          "key_points": [
+            "Logggranskning visar att ett eller flera servicekonton har gjort stora läsningar mot ovanliga dataset",
+            "Aktiviteten liknar inte vanliga batchar och loggkällor är ofullständiga"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas3-1",
+      "phase": "fas-3-1",
+      "title": "Verksamhetspåverkan blir tydligare",
+      "description": "Laboratoriefunktionen rapporterar att sekundära analysflöden är så långsamma att det påverkar arbetssättet. Planerade körningar har satts på paus. Forskningsstöd och BI står i kö.",
+      "time": "10:40",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Laboratoriefunktionen rapporterar att sekundära analysflöden är så långsamma att det påverkar arbetssättet. Planerade körningar har satts på paus. Forskningsstöd och BI står i kö.",
+          "key_points": [
+            "Laboratoriefunktionen rapporterar att sekundära analysflöden är så långsamma att det påverkar arbetssättet",
+            "Planerade körningar har satts på paus",
+            "Forskningsstöd och BI står i kö"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas3-2",
+      "phase": "fas-3-2",
+      "title": "Möjliga begränsningsalternativ",
+      "description": "Nätverk och säkerhetsfunktion presenterar alternativ: blockera all utgående trafik, selektiv blockering, isolera noder eller API-ingångar, stänga servicekonton, sätta datalake i begränsat läge.",
+      "time": "10:55",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Nätverk och säkerhetsfunktion presenterar alternativ: blockera all utgående trafik, selektiv blockering, isolera noder eller API-ingångar, stänga servicekonton, sätta datalake i begränsat läge.",
+          "key_points": [
+            "Nätverk och säkerhetsfunktion presenterar alternativ: blockera all utgående trafik, selektiv blockering, isolera noder eller API-ingångar, stänga servicekonton, sätta datalake i begränsat läge",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas3-3",
+      "phase": "fas-3-3",
+      "title": "Ny möjlig spridningsrisk",
+      "description": "Säkerhetsfunktionen meddelar att de ännu inte kan utesluta att angriparen har lagt schemalagda jobb eller använt automatiserade processer. Ingen säker bevisning på lateral förflyttning men osäkerhet kvar.",
+      "time": "11:10",
+      "impact_level": 5,
+      "narration": {
+        "default": {
+          "situation_update": "Säkerhetsfunktionen meddelar att de ännu inte kan utesluta att angriparen har lagt schemalagda jobb eller använt automatiserade processer. Ingen säker bevisning på lateral förflyttning men osäkerhet kvar.",
+          "key_points": [
+            "Säkerhetsfunktionen meddelar att de ännu inte kan utesluta att angriparen har lagt schemalagda jobb eller använt automatiserade processer",
+            "Ingen säker bevisning på lateral förflyttning men osäkerhet kvar"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas3-4",
+      "phase": "fas-3-4",
+      "title": "Beslutspunkt för containment",
+      "description": "Gruppen måste besluta om exfiltrationshanteringsstrategi, trafikbegränsningar, isolerade konton/tjänster, prioriterade verksamheter och godkännande av störande åtgärder.",
+      "time": "11:25",
+      "impact_level": 5,
+      "narration": {
+        "default": {
+          "situation_update": "Gruppen måste besluta om exfiltrationshanteringsstrategi, trafikbegränsningar, isolerade konton/tjänster, prioriterade verksamheter och godkännande av störande åtgärder.",
+          "key_points": [
+            "Gruppen måste besluta om exfiltrationshanteringsstrategi, trafikbegränsningar, isolerade konton/tjänster, prioriterade verksamheter och godkännande av störande åtgärder",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas4-1",
+      "phase": "fas-4-1",
+      "title": "Containment ger delvis effekt",
+      "description": "Efter begränsningsåtgärder minskar delar av utgående trafik men prestanda är fortfarande instabil. Vissa användare får timeout, andra kan nå systemet. Flera verksamheter ber om undantag.",
+      "time": "12:00",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Efter begränsningsåtgärder minskar delar av utgående trafik men prestanda är fortfarande instabil. Vissa användare får timeout, andra kan nå systemet. Flera verksamheter ber om undantag.",
+          "key_points": [
+            "Efter begränsningsåtgärder minskar delar av utgående trafik men prestanda är fortfarande instabil",
+            "Vissa användare får timeout, andra kan nå systemet",
+            "Flera verksamheter ber om undantag"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas4-2",
+      "phase": "fas-4-2",
+      "title": "Externa frågor börjar dyka upp",
+      "description": "Kommunikationsfunktionen rapporterar frågor från interna chefer och rykten om patientdata. Forskningspartner frågar om planerat underhåll. Chef vill veta om mediapådrag riskerar.",
+      "time": "12:20",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Kommunikationsfunktionen rapporterar frågor från interna chefer och rykten om patientdata. Forskningspartner frågar om planerat underhåll. Chef vill veta om mediapådrag riskerar.",
+          "key_points": [
+            "Kommunikationsfunktionen rapporterar frågor från interna chefer och rykten om patientdata",
+            "Forskningspartner frågar om planerat underhåll",
+            "Chef vill veta om mediapådrag riskerar"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas4-3",
+      "phase": "fas-4-3",
+      "title": "Omfattningsbilden blir bredare",
+      "description": "Fördjupad granskning indikerar att åtkomst kan ha skett till patientuppgifter, metadata, pseudonymiserade forskningsuttag, genomikdataset och systemloggar. Exakt omfattning osäker.",
+      "time": "12:40",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Fördjupad granskning indikerar att åtkomst kan ha skett till patientuppgifter, metadata, pseudonymiserade forskningsuttag, genomikdataset och systemloggar. Exakt omfattning osäker.",
+          "key_points": [
+            "Fördjupad granskning indikerar att åtkomst kan ha skett till patientuppgifter, metadata, pseudonymiserade forskningsuttag, genomikdataset och systemloggar",
+            "Exakt omfattning osäker"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas4-4",
+      "phase": "fas-4-4",
+      "title": "Personalfråga och uthållighet",
+      "description": "Incidenten har pågått länge. Frågor om skiftbyte, dokumentation, tekniska spår, kommunikation och hållbarhet av begränsat läge.",
+      "time": "13:00",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Incidenten har pågått länge. Frågor om skiftbyte, dokumentation, tekniska spår, kommunikation och hållbarhet av begränsat läge.",
+          "key_points": [
+            "Incidenten har pågått länge",
+            "Frågor om skiftbyte, dokumentation, tekniska spår, kommunikation och hållbarhet av begränsat läge"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas5-1",
+      "phase": "fas-5-1",
+      "title": "Utgående trafik ser ut att ha stoppats",
+      "description": "Efter ytterligare nätverksbegränsningar och kontospärr ser misstänkt utgående trafik ut att ha upphört. Datalake-miljön är fortfarande i begränsat läge. Verksamheter vill snabbt återfå normal funktion.",
+      "time": "13:20",
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Efter ytterligare nätverksbegränsningar och kontospärr ser misstänkt utgående trafik ut att ha upphört. Datalake-miljön är fortfarande i begränsat läge. Verksamheter vill snabbt återfå normal funktion.",
+          "key_points": [
+            "Efter ytterligare nätverksbegränsningar och kontospärr ser misstänkt utgående trafik ut att ha upphört",
+            "Datalake-miljön är fortfarande i begränsat läge",
+            "Verksamheter vill snabbt återfå normal funktion"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas5-2",
+      "phase": "fas-5-2",
+      "title": "Krav på återöppning",
+      "description": "Laboratoriet vill få tillbaka vissa funktioner omgående. Analys- och BI-funktioner argumenterar för att eftersläpning snart blir ett eget problem. Ledningen vill veta när normal drift kan återupptas.",
+      "time": "13:40",
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Laboratoriet vill få tillbaka vissa funktioner omgående. Analys- och BI-funktioner argumenterar för att eftersläpning snart blir ett eget problem. Ledningen vill veta när normal drift kan återupptas.",
+          "key_points": [
+            "Laboratoriet vill få tillbaka vissa funktioner omgående",
+            "Analys- och BI-funktioner argumenterar för att eftersläpning snart blir ett eget problem",
+            "Ledningen vill veta när normal drift kan återupptas"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas5-3",
+      "phase": "fas-5-3",
+      "title": "Misstänkt kvarvarande artefakt",
+      "description": "Vid granskning hittas en misstänkt automatiserad jobbdefinition. Oklart om den är skadlig, felkonfigurerad eller rester från angriparen. Risk för återaktivering av incidenten.",
+      "time": "14:00",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Vid granskning hittas en misstänkt automatiserad jobbdefinition. Oklart om den är skadlig, felkonfigurerad eller rester från angriparen. Risk för återaktivering av incidenten.",
+          "key_points": [
+            "Vid granskning hittas en misstänkt automatiserad jobbdefinition",
+            "Oklart om den är skadlig, felkonfigurerad eller rester från angriparen",
+            "Risk för återaktivering av incidenten"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas5-4",
+      "phase": "fas-5-4",
+      "title": "Beslutspunkt för återställning",
+      "description": "Gruppen behöver besluta om stegvis återöppning, prioriteringsordning, verifieringar, övervakning och kommunikation till verksamhet och ledning.",
+      "time": "14:20",
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Gruppen behöver besluta om stegvis återöppning, prioriteringsordning, verifieringar, övervakning och kommunikation till verksamhet och ledning.",
+          "key_points": [
+            "Gruppen behöver besluta om stegvis återöppning, prioriteringsordning, verifieringar, övervakning och kommunikation till verksamhet och ledning",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas6-1",
+      "phase": "fas6-1",
+      "title": "Stabiliserat men inte färdigutrett",
+      "description": "Miljön är mer stabil. De mest kritiska funktionerna är tillbaka i kontrollerad form. Misstänkt utgående trafik syns inte längre. Kvarstår osäkerhet om intrångsväg, exakt dataförlust och ytterligare åtkomstpunkter.",
+      "time": "14:40",
+      "impact_level": 2,
+      "narration": {
+        "default": {
+          "situation_update": "Miljön är mer stabil. De mest kritiska funktionerna är tillbaka i kontrollerad form. Misstänkt utgående trafik syns inte längre. Kvarstår osäkerhet om intrångsväg, exakt dataförlust och ytterligare åtkomstpunkter.",
+          "key_points": [
+            "Miljön är mer stabil",
+            "De mest kritiska funktionerna är tillbaka i kontrollerad form",
+            "Misstänkt utgående trafik syns inte längre",
+            "Kvarstår osäkerhet om intrångsväg, exakt dataförlust och ytterligare åtkomstpunkter"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas6-2",
+      "phase": "fas6-2",
+      "title": "Ledningen vill ha nästa steg",
+      "description": "Ledningen begär kort beslutsunderlag: vad hände operativt, bekräftad vs osäker påverkan, kvarstående risker, nästa 24 timmars plan, resursbehov och mandat.",
+      "time": "14:55",
+      "impact_level": 2,
+      "narration": {
+        "default": {
+          "situation_update": "Ledningen begär kort beslutsunderlag: vad hände operativt, bekräftad vs osäker påverkan, kvarstående risker, nästa 24 timmars plan, resursbehov och mandat.",
+          "key_points": [
+            "Ledningen begär kort beslutsunderlag: vad hände operativt, bekräftad vs osäker påverkan, kvarstående risker, nästa 24 timmars plan, resursbehov och mandat",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-fas6-3",
+      "phase": "fas6-3",
+      "title": "Avslutande läge",
+      "description": "Gruppen ska avsluta med nulägesbild, kvarstående risker, ansvarsfördelning, tekniska nästa steg, kommunikationsbehov och överlämning till fortsatt utredning.",
+      "time": "15:10",
+      "impact_level": 1,
+      "narration": {
+        "default": {
+          "situation_update": "Gruppen ska avsluta med nulägesbild, kvarstående risker, ansvarsfördelning, tekniska nästa steg, kommunikationsbehov och överlämning till fortsatt utredning.",
+          "key_points": [
+            "Gruppen ska avsluta med nulägesbild, kvarstående risker, ansvarsfördelning, tekniska nästa steg, kommunikationsbehov och överlämning till fortsatt utredning",
+            "Lägesbilden behöver fortsatt verifieras."
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    }
+  ],
+  "actors": [
+    {
+      "id": "operativ-it-drift",
+      "name": "Operativ IT-drift",
+      "role": "Operativ it-drift"
+    },
+    {
+      "id": "driftledare",
+      "name": "Driftledare",
+      "role": "Driftledare/jourhavande"
+    },
+    {
+      "id": "plattformsansvariga",
+      "name": "Plattformsansvariga",
+      "role": "Plattformsansvariga för lagring, integration, nätverk eller dataplattform"
+    },
+    {
+      "id": "incidentledare",
+      "name": "Incidentledare",
+      "role": "Incidentledande tekniska resurser i linjen"
+    },
+    {
+      "id": "soc",
+      "name": "SOC",
+      "role": "Informationssäkerhetsfunktion"
+    },
+    {
+      "id": "natverksspecialist",
+      "name": "Nätverksspecialist",
+      "role": "Nätverksspecialist"
+    },
+    {
+      "id": "systemforvaltare",
+      "name": "Systemförvaltare",
+      "role": "Systemförvaltare för datalake eller analysplattform"
+    },
+    {
+      "id": "laboratorie",
+      "name": "Laboratorie",
+      "role": "Representant från kliniskt laboratorium/genomikfunktion"
+    },
+    {
+      "id": "chef-beredskap",
+      "name": "Chef i beredskap",
+      "role": "Chef i beredskap / it-ledning"
+    },
+    {
+      "id": "informationssakerhetsansvarig",
+      "name": "Informationssäkerhetsansvarig",
+      "role": "Informationssäkerhetsansvarig"
+    },
+    {
+      "id": "dataskydd",
+      "name": "Dataskyddsfunktion",
+      "role": "Dataskyddsfunktion/jurist"
+    },
+    {
+      "id": "kommunikation",
+      "name": "Kommunikationsansvarig",
+      "role": "Kommunikationsansvarig"
+    },
+    {
+      "id": "verksamhetsrepresentant",
+      "name": "Verksamhetsrepresentant",
+      "role": "Representant från verksamheten (laboratorium, forskning, analysstöd)"
+    }
+  ],
+  "inject_catalog": [
+    {
+      "id": "inject-1-1",
+      "type": "technical",
+      "title": "Seg kommunikation mot datalake",
+      "description": "Flera användare rapporterar seg kommunikation mot datalake. Övervakning visar högre latenstid, högre nätverksvolym från datalake-zonen, men inga kritiska fel.",
+      "trigger_conditions": [
+        "phase:initial"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 2
+    },
+    {
+      "id": "inject-1-2",
+      "type": "technical",
+      "title": "Olika team beskriver olika symptom",
+      "description": "Laboratoriepersonalen rapporterar långsammare hämtning av historiska dataset. Forskningsstöd och BI-team rapporterar ojämna svarstider och längre jobbköer. Servicekonton genererar mer aktivitet än väntat.",
+      "trigger_conditions": [
+        "phase:fas-1-2"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 2
+    },
+    {
+      "id": "inject-1-3",
+      "type": "technical",
+      "title": "Första tecknet på onormal utgående trafik",
+      "description": "Nätverksteamet uppmärksammar ovanligt hög utgående trafik från datalake-zonen till externa IP-adresser. Trafiken är TLS-krypterad och matchar inte kända integrationspartner. Volymen bidrar till prestandaproblemet.",
+      "trigger_conditions": [
+        "phase:fas-1-3"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-2-1",
+      "type": "technical",
+      "title": "Säkerhetsindikationen stärks",
+      "description": "Säkerhetsfunktionen bekräftar höga datamängder som lämnat datalake-segmentet under morgonen. Läsaktiviteten omfattar patientrelaterade datamängder och ovanliga servicekontobeteenden.",
+      "trigger_conditions": [
+        "phase:fas-2-1"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-2-2",
+      "type": "executive",
+      "title": "Frågor från ledning och verksamhet",
+      "description": "Chef i beredskap och verksamhetsrepresentanter vill ha svar på incidentens klassning, patientuppgiftsrisken, isoleringsbehov, verksamhetspåverkan och spridningsrisk.",
+      "trigger_conditions": [
+        "phase:fas-2-2"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-2-3",
+      "type": "technical",
+      "title": "Ovanlig aktivitet i servicekonton",
+      "description": "Logggranskning visar att ett eller flera servicekonton har gjort stora läsningar mot ovanliga dataset. Aktiviteten liknar inte vanliga batchar och loggkällor är ofullständiga.",
+      "trigger_conditions": [
+        "phase:fas-2-3"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-3-1",
+      "type": "operations",
+      "title": "Verksamhetspåverkan blir tydligare",
+      "description": "Laboratoriefunktionen rapporterar att sekundära analysflöden är så långsamma att det påverkar arbetssättet. Planerade körningar har satts på paus. Forskningsstöd och BI står i kö.",
+      "trigger_conditions": [
+        "phase:fas-3-1"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-3-2",
+      "type": "technical",
+      "title": "Möjliga begränsningsalternativ",
+      "description": "Nätverk och säkerhetsfunktion presenterar alternativ: blockera all utgående trafik, selektiv blockering, isolera noder eller API-ingångar, stänga servicekonton, sätta datalake i begränsat läge.",
+      "trigger_conditions": [
+        "phase:fas-3-2"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-3-3",
+      "type": "technical",
+      "title": "Ny möjlig spridningsrisk",
+      "description": "Säkerhetsfunktionen meddelar att de ännu inte kan utesluta att angriparen har lagt schemalagda jobb eller använt automatiserade processer. Ingen säker bevisning på lateral förflyttning men osäkerhet kvar.",
+      "trigger_conditions": [
+        "phase:fas-3-3"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 5
+    },
+    {
+      "id": "inject-3-4",
+      "type": "executive",
+      "title": "Beslutspunkt för containment",
+      "description": "Gruppen måste besluta om exfiltrationshanteringsstrategi, trafikbegränsningar, isolerade konton/tjänster, prioriterade verksamheter och godkännande av störande åtgärder.",
+      "trigger_conditions": [
+        "phase:fas-3-4"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 5
+    },
+    {
+      "id": "inject-4-1",
+      "type": "technical",
+      "title": "Containment ger delvis effekt",
+      "description": "Efter begränsningsåtgärder minskar delar av utgående trafik men prestanda är fortfarande instabil. Vissa användare får timeout, andra kan nå systemet. Flera verksamheter ber om undantag.",
+      "trigger_conditions": [
+        "phase:fas-4-1"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-4-2",
+      "type": "media",
+      "title": "Externa frågor börja dyka upp",
+      "description": "Kommunikationsfunktionen rapporterar frågor från interna chefer och rykten om patientdata. Forskningspartner frågar om planerat underhåll. Chef vill veta om mediapådrag riskerar.",
+      "trigger_conditions": [
+        "phase:fas-4-2"
+      ],
+      "audience_relevance": [
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-4-3",
+      "type": "technical",
+      "title": "Omfattningsbilden blir bredare",
+      "description": "Fördjupad granskning indikerar att åtkomst kan ha skett till patientuppgifter, metadata, pseudonymiserade forskningsuttag, genomikdataset och systemloggar. Exakt omfattning osäker.",
+      "trigger_conditions": [
+        "phase:fas-4-3"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-4-4",
+      "type": "operations",
+      "title": "Personalfråga och uthållighet",
+      "description": "Incidenten har pågått länge. Frågor om skiftbyte, dokumentation, tekniska spår, kommunikation och hållbarhet av begränsat läge.",
+      "trigger_conditions": [
+        "phase:fas-4-4"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-5-1",
+      "type": "technical",
+      "title": "Utgående trafik ser ut att ha stoppats",
+      "description": "Efter ytterligare nätverksbegränsningar och kontospärr ser misstänkt utgående trafik ut att ha upphört. Datalake-miljön är fortfarande i begränsat läge. Verksamheter vill snabbt återfå normal funktion.",
+      "trigger_conditions": [
+        "phase:fas-5-1"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-5-2",
+      "type": "operations",
+      "title": "Krav på återöppning",
+      "description": "Laboratoriet vill få tillbaka vissa funktioner omgående. Analys- och BI-funktioner argumenterar för att eftersläpning snart blir ett eget problem. Ledningen vill veta när normal drift kan återupptas.",
+      "trigger_conditions": [
+        "phase:fas-5-2"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "kommunikation"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-5-3",
+      "type": "technical",
+      "title": "Misstänkt kvarvarande artefakt",
+      "description": "Vid granskning hittas en misstänkt automatiserad jobbdefinition. Oklart om den är skadlig, felkonfigurerad eller rester från angriparen. Risk för återaktivering av incidenten.",
+      "trigger_conditions": [
+        "phase:fas-5-3"
+      ],
+      "audience_relevance": [
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-5-4",
+      "type": "executive",
+      "title": "Beslutspunkt för återställning",
+      "description": "Gruppen behöver besluta om stegvis återöppning, prioriteringsordning, verifieringar, övervakning och kommunikation till verksamhet och ledning.",
+      "trigger_conditions": [
+        "phase:fas-5-4"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-6-1",
+      "type": "technical",
+      "title": "Stabiliserat men inte färdigutrett",
+      "description": "Miljön är mer stabil. De mest kritiska funktionerna är tillbaka i kontrollerad form. Misstänkt utgående trafik syns inte längre. Kvarstår osäkerhet om intrångsväg, exakt dataförlust och ytterligare åtkomstpunkter.",
+      "trigger_conditions": [
+        "phase:fas6-1"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning"
+      ],
+      "severity": 2
+    },
+    {
+      "id": "inject-6-2",
+      "type": "executive",
+      "title": "Ledningen vill ha nästa steg",
+      "description": "Ledningen begär kort beslutsunderlag: vad hände operativt, bekräftad vs osäker påverkan, kvarstående risker, nästa 24 timmars plan, resursbehov och mandat.",
+      "trigger_conditions": [
+        "phase:fas6-2"
+      ],
+      "audience_relevance": [
+        "krisledning"
+      ],
+      "severity": 2
+    },
+    {
+      "id": "inject-6-3",
+      "type": "operations",
+      "title": "Avslutande läge",
+      "description": "Gruppen ska avsluta med nulägesbild, kvarstående risker, ansvarsfördelning, tekniska nästa steg, kommunikationsbehov och överlämning till fortsatt utredning.",
+      "trigger_conditions": [
+        "phase:fas6-3"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "kommunikation"
+      ],
+      "severity": 1
+    }
+  ],
+  "text_matchers": [],
+  "target_aliases": [],
+  "interpretation_hints": [],
+  "rules": [],
+  "executable_rules": [
+    {
+      "id": "rule-set-initial-phase",
+      "name": "Sätt initial fas vid session start",
+      "trigger": "session_started",
+      "conditions": [],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "initial"
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-1-1",
+      "name": "Lägg till inject 1.1 vid initial fas",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "initial"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-1-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-1-2",
+      "name": "Sätt fas 1-2 vid efter initial fas",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "initial"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-1-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-1-2",
+      "name": "Lägg till inject 1.2 vid fas 1-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-1-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-1-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-1-3",
+      "name": "Sätt fas 1-3 vid efter fas 1-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-1-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-1-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-1-3",
+      "name": "Lägg till inject 1.3 vid fas 1-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-1-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-1-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-2-1",
+      "name": "Sätt fas 2-1 vid efter fas 1-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-1-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-2-1"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-2-1",
+      "name": "Lägg till inject 2.1 vid fas 2-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-2-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-2-2",
+      "name": "Sätt fas 2-2 vid efter fas 2-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-2-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-2-2",
+      "name": "Lägg till inject 2.2 vid fas 2-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-2-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-2-3",
+      "name": "Sätt fas 2-3 vid efter fas 2-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-2-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-2-3",
+      "name": "Lägg till inject 2.3 vid fas 2-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-2-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-3-1",
+      "name": "Sätt fas 3-1 vid efter fas 2-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-2-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-3-1"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-3-1",
+      "name": "Lägg till inject 3.1 vid fas 3-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-3-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-3-2",
+      "name": "Sätt fas 3-2 vid efter fas 3-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-3-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-3-2",
+      "name": "Lägg till inject 3.2 vid fas 3-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-3-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-3-3",
+      "name": "Sätt fas 3-3 vid efter fas 3-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-3-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-3-3",
+      "name": "Lägg till inject 3.3 vid fas 3-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-3-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-3-4",
+      "name": "Sätt fas 3-4 vid efter fas 3-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-3-4"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-3-4",
+      "name": "Lägg till inject 3.4 vid fas 3-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-3-4"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-4-1",
+      "name": "Sätt fas 4-1 vid efter fas 3-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-3-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-4-1"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-4-1",
+      "name": "Lägg till inject 4.1 vid fas 4-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-4-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-4-2",
+      "name": "Sätt fas 4-2 vid efter fas 4-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-4-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-4-2",
+      "name": "Lägg till inject 4.2 vid fas 4-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-4-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-4-3",
+      "name": "Sätt fas 4-3 vid efter fas 4-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-4-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-4-3",
+      "name": "Lägg till inject 4.3 vid fas 4-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-4-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-4-4",
+      "name": "Sätt fas 4-4 vid efter fas 4-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-4-4"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-4-4",
+      "name": "Lägg till inject 4.4 vid fas 4-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-4-4"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-5-1",
+      "name": "Sätt fas 5-1 vid efter fas 4-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-4-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-5-1"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-5-1",
+      "name": "Lägg till inject 5.1 vid fas 5-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-5-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-5-2",
+      "name": "Sätt fas 5-2 vid efter fas 5-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-5-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-5-2",
+      "name": "Lägg till inject 5.2 vid fas 5-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-5-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-5-3",
+      "name": "Sätt fas 5-3 vid efter fas 5-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-5-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-5-3",
+      "name": "Lägg till inject 5.3 vid fas 5-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-5-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas-5-4",
+      "name": "Sätt fas 5-4 vid efter fas 5-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas-5-4"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-5-4",
+      "name": "Lägg till inject 5.4 vid fas 5-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-5-4"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas6-1",
+      "name": "Sätt fas6-1 vid efter fas 5-4",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas-5-4"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas6-1"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-6-1",
+      "name": "Lägg till inject 6.1 vid fas6-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas6-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-6-1"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas6-2",
+      "name": "Sätt fas6-2 vid efter fas6-1",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas6-1"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas6-2"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-6-2",
+      "name": "Lägg till inject 6.2 vid fas6-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas6-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-6-2"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "rule-set-fas6-3",
+      "name": "Sätt fas6-3 vid efter fas6-2",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas6-2"
+        }
+      ],
+      "effects": [
+        {
+          "type": "set_phase",
+          "phase": "fas6-3"
+        }
+      ],
+      "priority": "medium",
+      "once": true
+    },
+    {
+      "id": "rule-add-inject-6-3",
+      "name": "Lägg till inject 6.3 vid fas6-3",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "state.phase",
+          "operator": "equals",
+          "value": "fas6-3"
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-6-3"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    }
+  ],
+  "presentation_guidelines": {
+    "krisledning": {
+      "focus": [
+        "Incidentklassning och riskbedömning",
+        "Beslutsstöd för containment",
+        "Kommunikation med ledning och verksamhet",
+        "Prioritering av verksamhetskritiska funktioner"
+      ],
+      "tone": "Professionell, tydlig och beslutsam, med fokus på riskbaserad prioritering och beslutsunderlag"
+    },
+    "it-ledning": {
+      "focus": [
+        "Teknisk analys och containment",
+        "Resursallokering",
+        "Dokumentation av åtgärder",
+        "Samordning med säkerhetsfunktion"
+      ],
+      "tone": "Tekniskt noggrant, tydlig och strukturerad, med fokus på tekniska detaljer och samordning"
+    },
+    "kommunikation": {
+      "focus": [
+        "Extern kommunikation och mediahantering",
+        "Intern kommunikation till verksamhet",
+        "Klarhet om osäkerheter",
+        "Samordning med ledning"
+      ],
+      "tone": "Öppen, tydlig och försiktig, med fokus på att undvika spekulation och säkerställa korrekt information"
+    }
+  }
+}

@@ -1,0 +1,541 @@
+{
+  "id": "datalake-exfiltration-tabletop",
+  "original_text": "# Tabletop-övning: Seg datalake eller pågående dataexfiltration?\n\n## Syfte\nAtt öva sjukhusets it-driftorganisation i att upptäcka, hantera och eskalera en misstänkt säkerhetsincident där känsliga uppgifter riskerar att lämna verksamheten, under förhållanden där de första tecknen är vaga och kan tolkas som ett vanligt driftproblem.\n\n## Mål\nÖvningen ska ge deltagarna möjlighet att träna på att:\n\n- identifiera när ett prestandaproblem kan vara en säkerhetsincident\n- skapa en gemensam lägesbild under osäkerhet\n- bedöma påverkan på vårdverksamhet, informationssäkerhet och drift\n- fatta beslut om isolering, logginsamling, begränsning och eskalering\n- samverka mellan drift, säkerhet, laboratorieverksamhet, applikationsförvaltning och ledning\n- hantera kommunikation internt och externt vid misstänkt läckage av patientuppgifter\n\n## Omfattning och avgränsningar\nÖvningen omfattar:\n\n- it-driftens initiala hantering\n- samverkan med säkerhetsfunktion, verksamhetsrepresentanter och ledning\n- tekniska och organisatoriska beslut under de första 60 minuterna\n- kommunikation till interna mottagare och beslut om extern kommunikation\n\nÖvningen omfattar inte:\n\n- full teknisk forensik\n- detaljerad juridisk bedömning\n- återställningsarbete efter incidenten\n- faktisk genomgång av exploitkedjan\n\nDet dolda grundscenariot är att angriparen fått fotfäste via en externt inkommen CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek. Detta är spelledarinformation och är inte tänkt att sannolikt upptäckas under själva övningen.\n\n## Scenarioöversikt\nEtt större akutsjukhus har en central datalake som används för analys, forskning, uppföljning och integration mot flera stödsystem. Där finns bland annat patientuppgifter, provresultat, loggdata, genomikrelaterade dataset och sekundära kopior för analysändamål.\n\nEn vardagsförmiddag börjar flera användare rapportera att kommunikation med datalake-miljön känns segare än vanligt. Det som först ser ut som ett prestandaproblem utvecklas gradvis till indikationer på otillåten dataöverföring från miljön.\n\nDeltagarna behöver avgöra om detta är en driftstörning, kapacitetsbrist, felaktig batchkörning eller en pågående säkerhetsincident.\n\n## Förutsättningar\nAnta följande miljö:\n\n- sjukhuset har ett centralt datalake-kluster\n- datalake används av laboratorieplattformar, BI/analys, forskningsstöd och vissa integrationsflöden\n- åtkomst sker via interna analysverktyg, ETL-jobb och vissa kontrollerade inläsningspunkter\n- loggning finns, men är splittrad mellan driftövervakning, nätverksloggar och applikationsloggar\n- SOC eller motsvarande säkerhetsfunktion finns, men är inte initialt inkopplad\n- personuppgifter och känsliga patientuppgifter kan finnas i miljön\n- vissa verksamhetskritiska funktioner påverkas indirekt om datalake presterar dåligt, men akut patientbehandling står inte omedelbart still\n\n## Deltagare/målgrupp\nPrimär målgrupp:\n\n- it-driftpersonal\n- driftledare/jourhavande\n- plattformsansvariga för lagring, nätverk eller databearbetning\n\nSekundära roller som kan spelas av deltagare eller spelledare:\n\n- informationssäkerhetsansvarig / SOC-representant\n- systemförvaltare för laboratorie- eller analysplattform\n- representant från kliniskt laboratorium/genomikfunktion\n- chef i beredskap / it-ledning\n- kommunikationsansvarig\n- dataskyddsfunktion/jurist som rådgivande roll\n\n## Spelregler\n- Övningen är diskussionsbaserad, inga tekniska moment genomförs på riktigt.\n- Deltagarna beskriver vilka åtgärder de skulle ta, i vilken ordning och varför.\n- Spelledaren lämnar ny information genom injects när gruppen ställer frågor eller när tiden går framåt.\n- Deltagarna får fatta beslut utifrån ofullständig information.\n- Fokus ligger på samordning, prioritering, eskalering och kommunikation, inte på att gissa exakt teknisk root cause.\n- Det är tillåtet att göra rimliga antaganden, men de ska uttalas tydligt.\n\n## Tidsplan och upplägg\nFörslag för 60 minuter:\n\n- 0–5 min: introduktion och scenariostart\n- 5–15 min: första triage och lägesbild\n- 15–30 min: fördjupad störningsanalys och första avvägningar\n- 30–45 min: tydliga tecken på säkerhetsincident och eskalering\n- 45–55 min: beslut om begränsning, fortsatt drift och kommunikation\n- 55–60 min: snabb sammanfattning och övergång till debrief\n\n## Injects / Händelseutveckling\n\n### Inject 1 – Startläge\nTid: 09:10\n\nFlera användare från analys- och laboratoriemiljön rapporterar att åtkomst till datalake känns segare än vanligt. Jobb som normalt läser större datamängder tar längre tid. Enstaka användare får timeout vid export av dataset.\n\nÖvervakningen visar:\n\n- förhöjd latenstid mot lagrings- och datalakegränssnitt\n- högre nätverkstrafik än normalt från datalake-zonen\n- CPU och minne på centrala noder är inte alarmerande höga\n- inga tydliga diskfel eller hårdvarularm\n\nSpelledarstöd vid frågor:\n- inga planerade större förändringar är registrerade för morgonen\n- nattens batchkörningar ska enligt schema vara avslutade\n- det finns ännu inga bekräftade säkerhetslarm\n\n### Inject 2 – Fler symptom\nTid: 09:20\n\nLaboratoriepersonal meddelar att vissa analysflöden som hämtar historiska dataset går långsamt. Ett forskningsstödsteam säger att de ser ovanligt hög svarstid mot datalake API. Nätverksteamet noterar samtidigt ovanligt mycket utgående trafik från datalake-segmentet mot en extern adressrymd.\n\nSpelledarstöd vid frågor:\n- den utgående trafiken är krypterad\n- trafiken matchar inte någon känd integrationspartner\n- trafiken har pågått intermittent sedan tidig morgon\n\nFörväntad effekt:\nGruppen bör börja diskutera om detta fortfarande är ett rent driftproblem eller om en säkerhetsincident måste misstänkas.\n\n### Inject 3 – Första tydliga säkerhetsindikationen\nTid: 09:30\n\nSäkerhetsfunktionen kontaktas eller larmas in. De kan snabbt bekräfta att flera stora dataöverföringar lämnat datalake-miljön under morgonen. Volymen är betydligt högre än normalt för legitima exportflöden.\n\nYtterligare information:\n\n- vissa servicekonton har gjort ovanliga läsoperationer\n- läsningar verkar ha gjorts mot flera datamängder med patientrelaterat innehåll\n- inga tecken finns ännu på att data förstörts eller krypterats\n\nSpelledarstöd:\n- det går ännu inte att fastställa exakt vilka tabeller/filer som exfiltrerats\n- loggarna är fragmenterade och ger ingen fullständig bild\n- verksamheten efterfrågar om detta påverkar vården här och nu\n\n### Inject 4 – Operativ osäkerhet\nTid: 09:40\n\nGenomik/lab-funktionen meddelar att de tidigare under veckan tagit emot ett externt dataunderlag för bearbetning i standardflödet. Driftpersonalen känner inte till detaljerna. Samtidigt kvarstår den höga utgående trafiken och prestandaproblemen blir värre när fler försöker köra om jobb.\n\nLedningen ställer tre frågor:\n\n1. Är detta en it-störning eller en personuppgiftsincident?\n2. Behöver miljön isoleras omedelbart?\n3. Vilka verksamheter påverkas om datalake kopplas bort?\n\nSpelledarstöd:\n- det finns beroenden mot analys, rapportering och vissa laboratoriefunktioner\n- akutjournal, PAS och primära vårdsystem ligger inte direkt i samma miljö\n- isolering riskerar dock att störa pågående sekundära processer och vissa beslutsstöd\n\n### Inject 5 – Omfattningen växer\nTid: 09:50\n\nFördjupad logggranskning indikerar att det kan röra sig om åtkomst till dataset med patientuppgifter, provsvar, pseudonymiserade forskningsuttag och tillhörande metadata. Det går ännu inte att säga om hela dataset eller endast delar har lämnat miljön.\n\nKommunikationsfrågor börjar komma:\n\n- vem måste informeras nu?\n- ska verksamhetschefer få en första heads-up?\n- behöver dataskyddsombud eller jurist kopplas in direkt?\n- ska man gå ut med att patientdata kan vara påverkade, eller är det för tidigt?\n\nSpelledarstöd:\n- media eller extern part har ännu inte hört av sig\n- det finns ingen bekräftad angriparidentitet\n- det finns inte heller någon säker uppskattning av antalet berörda individer\n\n### Inject 6 – Beslutspunkt\nTid: 10:00\n\nGruppen får följande läge:\n\n- den utgående trafiken fortsätter\n- datalake-prestanda är tydligt försämrad\n- misstanke om pågående dataexfiltration är stark\n- flera verksamheter väntar på besked\n- säkerhetsfunktionen rekommenderar begränsande åtgärder, men vill samtidigt säkra spår för fortsatt analys\n\nGruppen behöver nu besluta om:\n\n- nätverksmässig isolering eller trafikblockering\n- om vissa servicekonton ska stängas av\n- om datalake ska köras i begränsat läge\n- hur incidenten klassas\n- vilka som informeras omedelbart\n\n## Förväntade diskussionspunkter\nFöljande frågor bör komma upp under övningen:\n\n- När går ett prestandaproblem över till att behandlas som en säkerhetsincident?\n- Hur skapar man snabbt en gemensam lägesbild med ofullständiga loggar?\n- Vilka första tekniska åtgärder är minst riskfyllda och mest värdefulla?\n- Hur balanseras behovet av att stoppa datautflöde mot behovet av bevisbevarande?\n- Vilka beroenden till vården måste kartläggas innan man isolerar miljön?\n- Hur verifierar man om patientuppgifter kan ha påverkats utan att lova mer säkerhet än man har?\n- Vilka roller måste in tidigt: SOC, it-ledning, verksamhet, dataskydd, juridik, kommunikation?\n- Hur dokumenteras beslut, tidpunkter och antaganden under pågående incident?\n\n## Besluts- och eskaleringsvägar\nÖvningen bör driva fram beslut kring följande:\n\n**Initialt inom it-drift**\n- formell incidentstart\n- utse incidentledare\n- stoppa icke nödvändiga förändringar\n- säkra relevanta loggar och tidslinje\n- begära stöd från säkerhetsfunktion\n\n**Vid misstanke om exfiltration**\n- klassa händelsen som informationssäkerhetsincident\n- eskalera till it-ledning/chef i beredskap\n- koppla in dataskyddsfunktion/juridik för bedömning av personuppgiftsincident\n- involvera ansvariga för berörda verksamheter\n\n**Tekniska beslut**\n- blockera eller begränsa utgående trafik från datalake-zonen\n- isolera specifika noder, tjänster eller konton snarare än att omedelbart stänga allt\n- prioritera åtgärder som minskar fortsatt exfiltration men bevarar spårbarhet\n- dokumentera beslutade avvägningar mellan driftpåverkan och riskreduktion\n\n**Strategiska beslut**\n- om och när sjukhusledning ska informeras\n- om och när personuppgiftsincident ska hanteras enligt sjukhusets rutin\n- om incidenten kräver aktivering av särskild kris- eller stabshantering\n\n## Kommunikation\nKommunikationen bör delas upp i tre spår:\n\n**1. Intern operativ kommunikation**\nMålgrupp:\n- it-drift\n- säkerhetsfunktion\n- nätverk/plattform\n- systemförvaltare\n\nBudskap:\n- vad som observerats\n- vad som är bekräftat respektive endast misstänkt\n- vilka åtgärder som pågår\n- vem som leder incidenten\n- när nästa lägesuppdatering ges\n\n**2. Verksamhetskommunikation**\nMålgrupp:\n- laboratorieverksamhet\n- analys- och forskningsstöd\n- berörda verksamhetschefer\n- sjukhusledning\n\nBudskap:\n- att datalake-miljön har störningar\n- att en säkerhetsrelaterad utredning pågår\n- vilka funktioner som kan påverkas\n- vilka försiktighetsåtgärder verksamheten ska ta\n- att mer information kommer via fastställd kanal\n\n**3. Formell incidentkommunikation**\nMålgrupp:\n- dataskyddsfunktion\n- juridik\n- ledning\n- eventuellt extern kommunikation senare\n\nBudskap:\n- grad av misstanke om påverkan på personuppgifter\n- vad som hittills är verifierat\n- vilka omedelbara skyddsåtgärder som vidtagits\n- vilka osäkerheter som kvarstår\n- vilka beslut som krävs från mottagarna",
+  "title": "Tabletop-övning: Seg datalake eller pågående dataexfiltration?",
+  "version": "1.0",
+  "description": "En övning för att träna sjukhusets IT-driftorganisation i att hantera misstänkt dataexfiltration från en datalake-miljö med osäkerhet om om det är driftproblem eller säkerhetsincident.",
+  "audiences": [
+    "krisledning",
+    "it-ledning",
+    "kommunikation"
+  ],
+  "training_goals": [
+    "identifiera när ett prestandaproblem kan vara en säkerhetsincident",
+    "skapa en gemensam lägesbild under osäkerhet",
+    "bedöma påverkan på vårdverksamhet, informationssäkerhet och drift",
+    "fatta beslut om isolering, logginsamling, begränsning och eskalering",
+    "samverka mellan drift, säkerhet, laboratorieverksamhet, applikationsförvaltning och ledning",
+    "hantera kommunikation internt och externt vid misstänkt läckage av patientuppgifter"
+  ],
+  "difficulty": "medium",
+  "timebox_minutes": 60,
+  "background": {
+    "organization_type": "sjukhus",
+    "context": "Centralt datalake med patientuppgifter och forskningsdata som används av flera verksamheter",
+    "threat_actor": "Okänd angripare med möjlig CRAM-fil exploit",
+    "assumptions": [
+      "Loggning är splittrad",
+      "Ingen initialt inkopplad SOC",
+      "Personuppgifter finns i miljön",
+      "Akut patientbehandling inte omedelbart påverkad"
+    ]
+  },
+  "states": [
+    {
+      "id": "state-initial",
+      "phase": "initial",
+      "title": "Startläge",
+      "description": "Flera användare rapporterar seg åtkomst till datalake. Övervakning visar hög latenstid och nätverkstrafik, men inga höga CPU/minne eller diskfel.",
+      "time": "09:10",
+      "impact_level": 2,
+      "narration": {
+        "default": {
+          "situation_update": "Flera användare från analys- och laboratoriemiljön rapporterar att åtkomst till datalake känns segare än vanligt. Jobb som normalt läser större datamängder tar längre tid. Enstaka användare får timeout vid export av dataset. Övervakningen visar förhöjd latenstid mot lagrings- och datalakegränssnitt, högre nätverkstrafik än normalt från datalake-zonen, CPU och minne på centrala noder är inte alarmerande höga, inga tydliga diskfel eller hårdvarularm.",
+          "key_points": [
+            "Flera användare från analys- och laboratoriemiljön rapporterar att åtkomst till datalake känns segare än vanligt",
+            "Jobb som normalt läser större datamängder tar längre tid",
+            "Enstaka användare får timeout vid export av dataset",
+            "Övervakningen visar förhöjd latenstid mot lagrings- och datalakegränssnitt, högre nätverkstrafik än normalt från datalake-zonen, CPU och minne på centrala noder är inte alarmerande höga, inga tydliga diskfel eller hårdvarularm"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-symptoms",
+      "phase": "symptoms",
+      "title": "Fler symptom",
+      "description": "Laboratoriepersonal rapporterar långsamma analysflöden. Nätverksteam noterar utgående trafik mot extern adressrymd.",
+      "time": "09:20",
+      "impact_level": 3,
+      "narration": {
+        "default": {
+          "situation_update": "Laboratoriepersonal meddelar att vissa analysflöden som hämtar historiska dataset går långsamt. Ett forskningsstödteam säger att de ser ovanligt hög svarstid mot datalake API. Nätverksteamet noterar samtidigt ovanligt mycket utgående trafik från datalake-segmentet mot en extern adressrymd.",
+          "key_points": [
+            "Laboratoriepersonal meddelar att vissa analysflöden som hämtar historiska dataset går långsamt",
+            "Ett forskningsstödteam säger att de ser ovanligt hög svarstid mot datalake API",
+            "Nätverksteamet noterar samtidigt ovanligt mycket utgående trafik från datalake-segmentet mot en extern adressrymd"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-suspicion",
+      "phase": "suspicion",
+      "title": "Första tydliga säkerhetsindikationen",
+      "description": "SOC bekräftar dataöverföringar mot externa adresser.",
+      "time": "09:30",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Säkerhetsfunktionen kontaktas eller larmas in. De kan snabbt bekräfta att flera stora dataöverföringar lämnat datalake-miljön under morgonen. Volymen är betydligt högre än normalt för legitima exportflöden. Vissa servicekonton har gjort ovanliga läsoperationer mot datamängder med patientrelaterat innehåll.",
+          "key_points": [
+            "Säkerhetsfunktionen kontaktas eller larmas in",
+            "De kan snabbt bekräfta att flera stora dataöverföringar lämnat datalake-miljön under morgonen",
+            "Volymen är betydligt högre än normalt för legitima exportflöden",
+            "Vissa servicekonton har gjort ovanliga läsoperationer mot datamängder med patientrelaterat innehåll"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-uncertainty",
+      "phase": "uncertainty",
+      "title": "Operativ osäkerhet",
+      "description": "Ledningen frågar om isolering och verksamhetspåverkan.",
+      "time": "09:40",
+      "impact_level": 4,
+      "narration": {
+        "default": {
+          "situation_update": "Genomik/lab-funktionen meddelar att de tidigare under veckan tagit emot ett externt dataunderlag för bearbetning i standardflödet. Driftpersonalen känner inte till detaljerna. Samtidigt kvarstår den höga utgående trafiken och prestandaproblemen blir värre när fler försöker köra om jobb. Ledningen ställer frågor om om det är en it-störning eller personuppgiftsincident, behov av isolering, och vilka verksamheter som påverkas.",
+          "key_points": [
+            "Genomik/lab-funktionen meddelar att de tidigare under veckan tagit emot ett externt dataunderlag för bearbetning i standardflödet",
+            "Driftpersonalen känner inte till detaljerna",
+            "Samtidigt kvarstår den höga utgående trafiken och prestandaproblemen blir värre när fler försöker köra om jobb",
+            "Ledningen ställer frågor om om det är en it-störning eller personuppgiftsincident, behov av isolering, och vilka verksamheter som påverkas"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-expanding",
+      "phase": "expanding",
+      "title": "Omfattningen växer",
+      "description": "Logggranskning indikerar patientuppgifter exfiltrerats.",
+      "time": "09:50",
+      "impact_level": 5,
+      "narration": {
+        "default": {
+          "situation_update": "Fördjupad logggranskning indikerar att det kan röra sig om åtkomst till dataset med patientuppgifter, provsvar, pseudonymiserade forskningsuttag och tillhörande metadata. Det går ännu inte att säga om hela dataset eller endast delar har lämnat miljön. Kommunikationsfrågor börjar komma: vem måste informeras, ska verksamhetschefer få en första heads-up, behöver dataskydd eller jurist kopplas in, ska man gå ut med att patientdata kan vara påverkade.",
+          "key_points": [
+            "Fördjupad logggranskning indikerar att det kan röra sig om åtkomst till dataset med patientuppgifter, provsvar, pseudonymiserade forskningsuttag och tillhörande metadata",
+            "Det går ännu inte att säga om hela dataset eller endast delar har lämnat miljön",
+            "Kommunikationsfrågor börjar komma: vem måste informeras, ska verksamhetschefer få en första heads-up, behöver dataskydd eller jurist kopplas in, ska man gå ut med att patientdata kan vara påverkade"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    },
+    {
+      "id": "state-decision",
+      "phase": "decision",
+      "title": "Beslutspunkt",
+      "description": "Gruppen behöver besluta om isolering, eskaleringsvägar och kommunikation.",
+      "time": "10:00",
+      "impact_level": 5,
+      "narration": {
+        "default": {
+          "situation_update": "Den utgående trafiken fortsätter, datalake-prestanda är tydligt försämrad, misstanke om pågående dataexfiltration är stark, flera verksamheter väntar på besked, säkerhetsfunktionen rekommenderar begränsande åtgärder men vill säkra spår för analys. Gruppen behöver besluta om nätverksmässig isolering, servicekonton, datalake-läge, klassificering av incident, och vem som informeras omedelbart.",
+          "key_points": [
+            "Den utgående trafiken fortsätter, datalake-prestanda är tydligt försämrad, misstanke om pågående dataexfiltration är stark, flera verksamheter väntar på besked, säkerhetsfunktionen rekommenderar begränsande åtgärder men vill säkra spår för analys",
+            "Gruppen behöver besluta om nätverksmässig isolering, servicekonton, datalake-läge, klassificering av incident, och vem som informeras omedelbart"
+          ],
+          "new_consequences": [],
+          "injects": [],
+          "decisions_to_consider": [
+            "Vilken åtgärd eller prioritering behöver beslutas i detta läge?"
+          ],
+          "facilitator_notes": "Narrativet omvandlades automatiskt från fritext till giltig struktur."
+        },
+        "by_audience": {}
+      }
+    }
+  ],
+  "actors": [
+    {
+      "id": "it-drift",
+      "name": "IT-drift",
+      "role": "Driftsoperatörer"
+    },
+    {
+      "id": "driftledare",
+      "name": "Driftledare",
+      "role": "IT-driftledning"
+    },
+    {
+      "id": "sakerhetsansvarig",
+      "name": "Säkerhetsansvarig",
+      "role": "SOC-representant"
+    },
+    {
+      "id": "laboratorium",
+      "name": "Laboratorieverksamhet",
+      "role": "Laboratoriepersonal"
+    },
+    {
+      "id": "systemforvaltare",
+      "name": "Systemförvaltare",
+      "role": "Plattformsanvändare"
+    },
+    {
+      "id": "ledning",
+      "name": "IT-ledning",
+      "role": "Chef i beredskap"
+    },
+    {
+      "id": "kommunikation",
+      "name": "Kommunikationsansvarig",
+      "role": "Kommunikation"
+    },
+    {
+      "id": "dataskydd",
+      "name": "Dataskyddsfunktion",
+      "role": "Dataskydd"
+    },
+    {
+      "id": "jurist",
+      "name": "Jurist",
+      "role": "Juridisk rådgivning"
+    }
+  ],
+  "inject_catalog": [
+    {
+      "id": "inject-start",
+      "type": "operations",
+      "title": "Startläge",
+      "description": "Flera användare från analys- och laboratoriemiljön rapporterar att åtkomst till datalake känns segare än vanligt. Jobb som normalt läser större datamängder tar längre tid. Enstaka användare får timeout vid export av dataset. Övervakningen visar förhöjd latenstid mot lagrings- och datalakegränssnitt, högre nätverkstrafik än normalt från datalake-zonen, CPU och minne på centrala noder är inte alarmerande höga, inga tydliga diskfel eller hårdvarularm.",
+      "trigger_conditions": [
+        "session_started"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 2
+    },
+    {
+      "id": "inject-symptoms",
+      "type": "operations",
+      "title": "Fler symptom",
+      "description": "Laboratoriepersonal meddelar att vissa analysflöden som hämtar historiska dataset går långsamt. Ett forskningsstödteam säger att de ser ovanligt hög svarstid mot datalake API. Nätverksteamet noterar samtidigt ovanligt mycket utgående trafik från datalake-segmentet mot en extern adressrymd.",
+      "trigger_conditions": [
+        "time_elapsed_10_min"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 3
+    },
+    {
+      "id": "inject-suspicion",
+      "type": "operations",
+      "title": "Första tydliga säkerhetsindikationen",
+      "description": "Säkerhetsfunktionen kontaktas eller larmas in. De kan snabbt bekräfta att flera stora dataöverföringar lämnat datalake-miljön under morgonen. Volymen är betydligt högre än normalt för legitima exportflöden. Vissa servicekonton har gjort ovanliga läsoperationer mot datamängder med patientrelaterat innehåll.",
+      "trigger_conditions": [
+        "time_elapsed_20_min"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-uncertainty",
+      "type": "operations",
+      "title": "Operativ osäkerhet",
+      "description": "Genomik/lab-funktionen meddelar att de tidigare under veckan tagit emot ett externt dataunderlag för bearbetning i standardflödet. Driftpersonalen känner inte till detaljerna. Samtidigt kvarstår den höga utgående trafiken och prestandaproblemen blir värre när fler försöker köra om jobb. Ledningen ställer frågor om om det är en it-störning eller personuppgiftsincident, behov av isolering, och vilka verksamheter som påverkas.",
+      "trigger_conditions": [
+        "time_elapsed_30_min"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 4
+    },
+    {
+      "id": "inject-expanding",
+      "type": "operations",
+      "title": "Omfattningen växer",
+      "description": "Fördjupad logggranskning indikerar att det kan röra sig om åtkomst till dataset med patientuppgifter, provsvar, pseudonymiserade forskningsuttag och tillhörande metadata. Det går ännu inte att säga om hela dataset eller endast delar har lämnat miljön. Kommunikationsfrågor börjar komma: vem måste informeras, ska verksamhetschefer få en första heads-up, behöver dataskydd eller jurist kopplas in, ska man gå ut med att patientdata kan vara påverkade.",
+      "trigger_conditions": [
+        "time_elapsed_40_min"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 5
+    },
+    {
+      "id": "inject-decision",
+      "type": "operations",
+      "title": "Beslutspunkt",
+      "description": "Den utgående trafiken fortsätter, datalake-prestanda är tydligt försämrad, misstanke om pågående dataexfiltration är stark, flera verksamheter väntar på besked, säkerhetsfunktionen rekommenderar begränsande åtgärder men vill säkra spår för analys. Gruppen behöver besluta om nätverksmässig isolering, servicekonton, datalake-läge, klassificering av incident, och vem som informeras omedelbart.",
+      "trigger_conditions": [
+        "time_elapsed_50_min"
+      ],
+      "audience_relevance": [
+        "krisledning",
+        "it-ledning",
+        "kommunikation"
+      ],
+      "severity": 5
+    }
+  ],
+  "text_matchers": [
+    {
+      "id": "block-external",
+      "field": "action.action_types",
+      "match_type": "contains_any",
+      "patterns": [
+        "containment",
+        "begränsa",
+        "stäng",
+        "avstäng"
+      ],
+      "value": "containment"
+    },
+    {
+      "id": "external-target",
+      "field": "action.targets",
+      "match_type": "contains_any",
+      "patterns": [
+        "external",
+        "nätverk",
+        "utgående",
+        "extern"
+      ],
+      "value": "external_access"
+    }
+  ],
+  "target_aliases": [
+    {
+      "id": "datalake",
+      "canonical": "datalake",
+      "aliases": [
+        "data lake",
+        "central datalake",
+        "storage cluster"
+      ]
+    },
+    {
+      "id": "external-access",
+      "canonical": "external_access",
+      "aliases": [
+        "external network",
+        "outbound traffic",
+        "external connections"
+      ]
+    }
+  ],
+  "interpretation_hints": [
+    {
+      "id": "interpret-block-external",
+      "when": {
+        "text_contains_any": [
+          "block",
+          "stäng",
+          "begränsa",
+          "avstäng",
+          "isoler",
+          "blockera"
+        ],
+        "action_types_contains": [
+          "containment"
+        ],
+        "targets_contains": [
+          "external"
+        ]
+      },
+      "add_action_types": [
+        "containment"
+      ],
+      "add_targets": [
+        "external_access"
+      ]
+    }
+  ],
+  "rules": [],
+  "executable_rules": [
+    {
+      "id": "trigger-inject-start",
+      "name": "Starta initial inject",
+      "trigger": "session_started",
+      "conditions": [],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-start"
+        }
+      ],
+      "priority": "high",
+      "once": true
+    },
+    {
+      "id": "inject-symptoms-after-1-turn",
+      "name": "Lägg till symptoms inject efter 1 tur",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "session.turn_number",
+          "operator": "equals",
+          "value": 1
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-symptoms"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "inject-suspicion-after-2-turns",
+      "name": "Lägg till suspicion inject efter 2 tur",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "session.turn_number",
+          "operator": "equals",
+          "value": 2
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-suspicion"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "inject-uncertainty-after-3-turns",
+      "name": "Lägg till uncertainty inject efter 3 tur",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "session.turn_number",
+          "operator": "equals",
+          "value": 3
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-uncertainty"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "inject-expanding-after-4-turns",
+      "name": "Lägg till expanding inject efter 4 tur",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "session.turn_number",
+          "operator": "equals",
+          "value": 4
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-expanding"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    },
+    {
+      "id": "inject-decision-after-5-turns",
+      "name": "Lägg till decision inject efter 5 tur",
+      "trigger": "turn_processed",
+      "conditions": [
+        {
+          "fact": "session.turn_number",
+          "operator": "equals",
+          "value": 5
+        }
+      ],
+      "effects": [
+        {
+          "type": "add_active_inject",
+          "inject_id": "inject-decision"
+        }
+      ],
+      "priority": "medium",
+      "once": false
+    }
+  ],
+  "presentation_guidelines": {
+    "krisledning": {
+      "focus": [
+        "säkerhetsincidentens omfattning",
+        "beslut om eskalering",
+        "kommunikation till ledning"
+      ],
+      "tone": "saklig och tydlig"
+    },
+    "it-ledning": {
+      "focus": [
+        "tekniska åtgärder",
+        "driftpåverkan",
+        "säkerhetsåtgärder"
+      ],
+      "tone": "tekniskt fokuserad, praktisk"
+    },
+    "kommunikation": {
+      "focus": [
+        "meddelanden till interna och externa parter",
+        "samordning med dataskydd"
+      ],
+      "tone": "konservativ, tydlig, utan panik"
+    }
+  }
+}
