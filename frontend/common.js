@@ -265,6 +265,227 @@
     });
   }
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function escapeHtmlAttribute(value) {
+    return escapeHtml(value).replaceAll("`", "&#96;");
+  }
+
+  function sanitizeLinkUrl(rawUrl) {
+    const trimmed = String(rawUrl || "").trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("./") ||
+      trimmed.startsWith("../") ||
+      trimmed.startsWith("#")
+    ) {
+      return trimmed;
+    }
+
+    try {
+      const parsed = new URL(trimmed, window.location.origin);
+      if (["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+        return parsed.href;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  function renderInlineMarkdown(text) {
+    const codeSegments = [];
+    const withCodePlaceholders = String(text).replace(/`([^`]+)`/g, (_, code) => {
+      const placeholder = `__CODE_SEGMENT_${codeSegments.length}__`;
+      codeSegments.push(`<code>${escapeHtml(code)}</code>`);
+      return placeholder;
+    });
+
+    let html = escapeHtml(withCodePlaceholders);
+
+    html = html.replace(
+      /\[([^\]]+)\]\(([^)\s]+(?:\s+"[^"]*")?)\)/g,
+      (_, label, rawTarget) => {
+        const href = sanitizeLinkUrl(rawTarget.split(/\s+"/, 1)[0]);
+        if (!href) {
+          return escapeHtml(label);
+        }
+
+        return `<a href="${escapeHtmlAttribute(
+          href
+        )}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+      }
+    );
+    html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+    html = html.replace(/(^|[\s(])\*([^*]+)\*(?=[\s).,!?]|$)/g, "$1<em>$2</em>");
+    html = html.replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?]|$)/g, "$1<em>$2</em>");
+    html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+
+    codeSegments.forEach((segment, index) => {
+      html = html.replace(`__CODE_SEGMENT_${index}__`, segment);
+    });
+
+    return html;
+  }
+
+  function renderMarkdownToHtml(markdown) {
+    const normalized = String(markdown || "").replace(/\r\n?/g, "\n");
+    const lines = normalized.split("\n");
+    const html = [];
+    let paragraphLines = [];
+    let listType = null;
+    let listItems = [];
+    let quoteLines = [];
+    let inCodeBlock = false;
+    let codeLanguage = "";
+    let codeLines = [];
+
+    function flushParagraph() {
+      if (paragraphLines.length === 0) {
+        return;
+      }
+
+      html.push(
+        `<p>${paragraphLines.map((line) => renderInlineMarkdown(line)).join("<br />")}</p>`
+      );
+      paragraphLines = [];
+    }
+
+    function flushList() {
+      if (!listType || listItems.length === 0) {
+        listType = null;
+        listItems = [];
+        return;
+      }
+
+      const tagName = listType === "ordered" ? "ol" : "ul";
+      const itemsHtml = listItems
+        .map((item) => `<li>${item.map((line) => renderInlineMarkdown(line)).join("<br />")}</li>`)
+        .join("");
+      html.push(`<${tagName}>${itemsHtml}</${tagName}>`);
+      listType = null;
+      listItems = [];
+    }
+
+    function flushQuote() {
+      if (quoteLines.length === 0) {
+        return;
+      }
+
+      html.push(`<blockquote>${renderMarkdownToHtml(quoteLines.join("\n"))}</blockquote>`);
+      quoteLines = [];
+    }
+
+    function flushCodeBlock() {
+      if (!inCodeBlock) {
+        return;
+      }
+
+      const languageClass = codeLanguage
+        ? ` class="language-${escapeHtmlAttribute(codeLanguage)}"`
+        : "";
+      html.push(
+        `<pre><code${languageClass}>${escapeHtml(codeLines.join("\n"))}</code></pre>`
+      );
+      inCodeBlock = false;
+      codeLanguage = "";
+      codeLines = [];
+    }
+
+    function flushOpenBlocks() {
+      flushParagraph();
+      flushList();
+      flushQuote();
+    }
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+
+      if (inCodeBlock) {
+        if (trimmed.startsWith("```")) {
+          flushCodeBlock();
+        } else {
+          codeLines.push(line);
+        }
+        return;
+      }
+
+      const codeFenceMatch = line.match(/^```(\S+)?\s*$/);
+      if (codeFenceMatch) {
+        flushOpenBlocks();
+        inCodeBlock = true;
+        codeLanguage = codeFenceMatch[1] || "";
+        return;
+      }
+
+      if (!trimmed) {
+        flushOpenBlocks();
+        return;
+      }
+
+      const quoteMatch = line.match(/^>\s?(.*)$/);
+      if (quoteMatch) {
+        flushParagraph();
+        flushList();
+        quoteLines.push(quoteMatch[1]);
+        return;
+      }
+      flushQuote();
+
+      const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headingMatch) {
+        flushOpenBlocks();
+        const level = headingMatch[1].length;
+        html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+        return;
+      }
+
+      if (/^([-*_]\s*){3,}$/.test(trimmed)) {
+        flushOpenBlocks();
+        html.push("<hr />");
+        return;
+      }
+
+      const unorderedMatch = line.match(/^[-*+]\s+(.*)$/);
+      const orderedMatch = line.match(/^\d+\.\s+(.*)$/);
+      if (unorderedMatch || orderedMatch) {
+        flushParagraph();
+        const nextListType = orderedMatch ? "ordered" : "unordered";
+        if (listType && listType !== nextListType) {
+          flushList();
+        }
+        listType = nextListType;
+        listItems.push([unorderedMatch?.[1] || orderedMatch[1]]);
+        return;
+      }
+
+      if (listType && listItems.length > 0) {
+        listItems[listItems.length - 1].push(trimmed);
+        return;
+      }
+
+      paragraphLines.push(trimmed);
+    });
+
+    flushCodeBlock();
+    flushOpenBlocks();
+
+    return html.join("");
+  }
+
   window.IncidentSimCommon = {
     TURN_RETRY_DELAYS_MS,
     ApiError,
@@ -294,5 +515,6 @@
     getCurrentTurnScenarioEvents,
     getSessionEventLog,
     getActiveInjectDetails,
+    renderMarkdownToHtml,
   };
 })();

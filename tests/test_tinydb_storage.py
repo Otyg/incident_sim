@@ -3,7 +3,7 @@ from pathlib import Path
 from tinydb import Query, TinyDB
 
 from src.models.scenario import Scenario
-from src.storage.tinydb_json import TinyDBScenarioRepository
+from src.storage.tinydb_json import TinyDBScenarioRepository, TinyDBSessionRepository
 
 
 def make_scenario() -> Scenario:
@@ -113,3 +113,12 @@ def test_tinydb_scenario_repository_reads_legacy_rows_with_none_effect_fields(tm
 
     assert loaded is not None
     assert loaded.executable_rules[0].effects[0].type == "append_focus_item"
+
+
+def test_tinydb_session_repository_round_trips_stored_markdown_report(tmp_path):
+    db_path = tmp_path / "incident_sim.json"
+    repository = TinyDBSessionRepository(db_path)
+
+    repository.save_report("session-001", "# Rapport\n\nInnehall.")
+
+    assert repository.get_report("session-001") == "# Rapport\n\nInnehall."

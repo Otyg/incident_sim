@@ -3,6 +3,7 @@ import json
 
 from src import api as api_module
 from src.main import app
+from src.services import reporting as reporting_service
 from src.services.llm_provider import (
     OpenAIProvider,
     ProviderResponseFormatError,
@@ -411,6 +412,17 @@ def test_frontend_report_page_is_served():
 def test_frontend_static_assets_are_served():
     assert (api_module.FRONTEND_DIR / "common.js").exists()
     assert (api_module.FRONTEND_DIR / "styles.css").exists()
+
+
+def test_frontend_report_uses_backend_rendered_report_endpoints():
+    report_page = (api_module.FRONTEND_DIR / "report.html").read_text(encoding="utf-8")
+
+    assert "/report.html" in report_page
+    assert "/report.md" in report_page
+    assert "/report.pdf" in report_page
+    assert "DOMParser" in report_page
+    assert "dangerouslySetInnerHTML" in report_page
+    assert "<iframe" not in report_page
 
 
 def test_create_and_get_scenario():
@@ -1561,6 +1573,225 @@ def test_complete_session_returns_debrief_and_marks_session_completed(monkeypatc
     assert body["debrief"]["exercise_summary"]
     assert body["debrief"]["timeline_summary"]
     assert body["debrief"]["debrief_questions"]
+    assert api_module.session_repository.get_report(
+        session["session_state"]["session_id"]
+    )
+
+
+def test_get_session_report_markdown_returns_generated_report(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    status, headers, body = request_response(
+        "GET", f"/sessions/{session['session_state']['session_id']}/report.md"
+    )
+
+    assert status == 200
+    assert headers["content-type"].startswith("text/markdown")
+    report_markdown = body.decode()
+    assert "# Scenariorapport:" in report_markdown
+    assert "## Scenarioinformation" in report_markdown
+    assert "## Slutlig sessionsbild" in report_markdown
+    assert "## Debrief-underlag" in report_markdown
+    assert "## Summering med tidslinje" in report_markdown
+    assert "## Original text" in report_markdown
+    assert report_markdown.count("\n---\n") >= 3
+    assert report_markdown.index("## Scenarioinformation") < report_markdown.index(
+        "## Slutlig sessionsbild"
+    )
+    assert report_markdown.index("## Slutlig sessionsbild") < report_markdown.index(
+        "## Debrief-underlag"
+    )
+    assert report_markdown.index("## Debrief-underlag") < report_markdown.index(
+        "## Summering med tidslinje"
+    )
+    assert report_markdown.index("## Summering med tidslinje") < report_markdown.index(
+        "## Original text"
+    )
+
+
+def test_get_session_report_html_uses_pandoc_renderer(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    monkeypatch.setattr(
+        "src.api.render_markdown_to_html",
+        lambda markdown: f"<html><body><h1>{'Scenariorapport' if 'Scenariorapport' in markdown else ''}</h1></body></html>",
+    )
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    status, headers, body = request_response(
+        "GET",
+        f"/sessions/{session['session_state']['session_id']}/report.html"
+    )
+
+    assert status == 200
+    assert headers["content-type"].startswith("text/html")
+    assert "<h1>Scenariorapport</h1>" in body.decode()
+
+
+def test_get_session_report_pdf_returns_pandoc_output(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    monkeypatch.setattr(
+        "src.api.render_markdown_to_pdf",
+        lambda markdown: b"%PDF-1.7\nmock",
+    )
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    status, headers, body = request_response(
+        "GET", f"/sessions/{session['session_state']['session_id']}/report.pdf"
+    )
+
+    assert status == 200
+    assert headers["content-type"] == "application/pdf"
+    assert body.startswith(b"%PDF-1.7")
+
+
+def test_prepare_markdown_for_pandoc_pdf_uses_literal_newpage_for_latex_engines():
+    prepared = reporting_service._prepare_markdown_for_pandoc_pdf(
+        "## Del 1\n\nText\n\n---\n\n## Del 2\n",
+        "xelatex",
+    )
+
+    assert "```{=latex}" in prepared
+    assert "\\newpage" in prepared
+    assert "ewpage" not in prepared.replace("\\newpage", "")
+
+
+def test_prepare_markdown_for_pandoc_pdf_uses_html_page_break_for_html_engines():
+    prepared = reporting_service._prepare_markdown_for_pandoc_pdf(
+        "## Del 1\n\nText\n\n---\n\n## Del 2\n",
+        "weasyprint",
+    )
+
+    assert "page-break-after: always" in prepared
+    assert "\\newpage" not in prepared
+
+
+def test_get_pandoc_from_format_enables_raw_attribute_for_pdf():
+    from_format = reporting_service._get_pandoc_from_format(
+        ["--to", "pdf", "--output", "-", "--pdf-engine", "pdflatex"]
+    )
+
+    assert from_format == "markdown+raw_tex+raw_html+raw_attribute"
+
+
+def test_get_session_report_pdf_falls_back_without_pandoc_engine(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    monkeypatch.setattr("src.services.reporting.shutil.which", lambda name: "/usr/bin/pandoc" if name == "pandoc" else None)
+
+    status, headers, body = request_response(
+        "GET", f"/sessions/{session['session_state']['session_id']}/report.pdf"
+    )
+
+    assert status == 200
+    assert headers["content-type"] == "application/pdf"
+    assert body.startswith(b"%PDF")
+
+
+def test_get_session_report_html_falls_back_when_pandoc_is_unavailable(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    monkeypatch.setattr(
+        "src.services.reporting.shutil.which",
+        lambda _: None,
+    )
+
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    status, headers, body = request_response(
+        "GET",
+        f"/sessions/{session['session_state']['session_id']}/report.html",
+    )
+
+    assert status == 200
+    assert headers["content-type"].startswith("text/html")
+    assert "<html" in body.decode()
+    assert 'class="panel report-text markdown-content"' in body.decode()
+    assert "Scenariorapport" in body.decode()
 
 
 def test_complete_session_rejects_empty_timeline(monkeypatch):

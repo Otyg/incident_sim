@@ -97,6 +97,7 @@ class InMemorySessionRepository:
     def __init__(self) -> None:
         self._items: dict[str, SessionState] = {}
         self._timelines: dict[str, list[Turn]] = {}
+        self._reports: dict[str, str] = {}
 
     def save(self, session: SessionState) -> SessionState:
         """Store or replace the latest state for a session.
@@ -159,6 +160,17 @@ class InMemorySessionRepository:
 
         return len(self._items)
 
+    def save_report(self, session_id: str, markdown: str) -> str:
+        """Store the generated Markdown report for a session."""
+
+        self._reports[session_id] = markdown
+        return markdown
+
+    def get_report(self, session_id: str) -> str | None:
+        """Fetch the stored Markdown report for a session."""
+
+        return self._reports.get(session_id)
+
     def clear(self) -> None:
         """Remove all stored sessions and timelines.
 
@@ -168,3 +180,4 @@ class InMemorySessionRepository:
 
         self._items.clear()
         self._timelines.clear()
+        self._reports.clear()

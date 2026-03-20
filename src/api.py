@@ -39,10 +39,17 @@ provider layer.
 """
 
 import json
+from urllib.parse import quote
 from pathlib import Path
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
@@ -63,6 +70,12 @@ from src.services.llm_provider import (
     validate_interpreted_action,
     validate_narration,
     validate_scenario,
+)
+from src.services.reporting import (
+    ReportRenderingError,
+    build_session_report_markdown,
+    render_markdown_to_html,
+    render_markdown_to_pdf,
 )
 from src.services.scenario_action_enricher import ScenarioActionEnricher
 from src.services.rules_engine import RulesEngine
@@ -342,6 +355,31 @@ async def frontend_report() -> FileResponse:
     """Serve the printable report page for completed sessions."""
 
     return FileResponse(FRONTEND_REPORT)
+
+
+def _get_session_report_markdown(session_id: str) -> tuple[SessionState, str]:
+    """Load a stored session and its generated Markdown report."""
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Report request failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    markdown = session_repository.get_report(session_id)
+    if not markdown:
+        logger.warning(
+            "Report request failed because report was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found. Complete the session to generate one.",
+        )
+
+    return state, markdown
 
 
 @app.get(
@@ -874,6 +912,62 @@ async def get_timeline(session_id: str) -> list[Turn]:
     return timeline
 
 
+@app.get("/sessions/{session_id}/report.md")
+async def get_session_report_markdown(session_id: str) -> Response:
+    """Return the stored session report in Markdown format."""
+
+    state, markdown = _get_session_report_markdown(session_id)
+    filename = quote(f"{state.session_id}-report.md")
+    return Response(
+        content=markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@app.get("/sessions/{session_id}/report.html", response_class=HTMLResponse)
+async def get_session_report_html(session_id: str) -> HTMLResponse:
+    """Render the stored Markdown report as HTML using pandoc."""
+
+    _, markdown = _get_session_report_markdown(session_id)
+    try:
+        html = render_markdown_to_html(markdown)
+    except ReportRenderingError as exc:
+        logger.warning(
+            "HTML report rendering failed session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return HTMLResponse(content=html)
+
+
+@app.get("/sessions/{session_id}/report.pdf")
+async def get_session_report_pdf(session_id: str) -> Response:
+    """Render the stored Markdown report as PDF using pandoc."""
+
+    state, markdown = _get_session_report_markdown(session_id)
+    try:
+        pdf = render_markdown_to_pdf(markdown)
+    except ReportRenderingError as exc:
+        logger.warning(
+            "PDF report rendering failed session_id=%s detail=%s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    filename = quote(f"{state.session_id}-report.pdf")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.post("/sessions/{session_id}/complete", response_model=CompleteSessionResponse)
 async def complete_session(session_id: str) -> CompleteSessionResponse:
     """Mark a session as completed and generate a debrief package."""
@@ -920,6 +1014,15 @@ async def complete_session(session_id: str) -> CompleteSessionResponse:
             provider.generate_debrief(scenario, completed_state, timeline)
         )
         session_repository.save(completed_state)
+        session_repository.save_report(
+            session_id,
+            build_session_report_markdown(
+                scenario=scenario,
+                session=completed_state,
+                timeline=timeline,
+                debrief=debrief,
+            ),
+        )
         logger.info("Session completed session_id=%s", session_id)
         return CompleteSessionResponse(session_state=completed_state, debrief=debrief)
     except ProviderOutputValidationError as exc:

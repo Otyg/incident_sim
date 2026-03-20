@@ -109,6 +109,7 @@ class TinyDBSessionRepository:
         self._db = TinyDB(self.db_path)
         self._sessions = self._db.table("sessions")
         self._timeline = self._db.table("timeline")
+        self._reports = self._db.table("reports")
 
     def save(self, session: SessionState) -> SessionState:
         """Store or replace the latest state for a session."""
@@ -149,8 +150,28 @@ class TinyDBSessionRepository:
 
         return len(self._sessions)
 
+    def save_report(self, session_id: str, markdown: str) -> str:
+        """Store the generated Markdown report for a session."""
+
+        query = Query()
+        self._reports.upsert(
+            {"session_id": session_id, "markdown": markdown},
+            query.session_id == session_id,
+        )
+        return markdown
+
+    def get_report(self, session_id: str) -> str | None:
+        """Fetch the stored Markdown report for a session."""
+
+        query = Query()
+        payload = self._reports.get(query.session_id == session_id)
+        if not payload:
+            return None
+        return str(payload.get("markdown") or "")
+
     def clear(self) -> None:
         """Remove all stored sessions and timeline events."""
 
         self._sessions.truncate()
         self._timeline.truncate()
+        self._reports.truncate()
