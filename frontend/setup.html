@@ -70,7 +70,7 @@
             } else {
               setScenario(null);
               setStatus(
-                "Inga sparade scenarion hittades. Ladda exempelscenario eller ladda upp en JSON-fil."
+                "Inga sparade scenarion hittades. Ladda upp ett scenario i JSON-format."
               );
             }
           } catch (err) {
@@ -86,38 +86,6 @@
         }, []);
 
         const loadScenario = async () => {
-          setLoading(true);
-          setError("");
-          setStatus("Laddar exempelscenario...");
-
-          try {
-            const sampleScenario = await Common.apiRequest("/sample-scenarios/default");
-            const savedScenario = await Common.apiRequest("/scenarios", {
-              method: "POST",
-              body: JSON.stringify(sampleScenario),
-            });
-            setScenario(savedScenario);
-            Common.setCurrentScenarioId(savedScenario.id);
-            await refreshScenarioList({ preferredScenarioId: savedScenario.id });
-            setStatus("Exempelscenario laddat och sparat.");
-          } catch (err) {
-            try {
-              const fallbackScenario = await Common.apiRequest("/sample-scenarios/default");
-              const existing = await Common.apiRequest(`/scenarios/${fallbackScenario.id}`);
-              setScenario(existing);
-              Common.setCurrentScenarioId(existing.id);
-              await refreshScenarioList({ preferredScenarioId: existing.id });
-              setStatus("Befintligt exempelscenario laddat från databasen.");
-            } catch {
-              setError(Common.getErrorMessage(err));
-              setStatus("");
-            }
-          } finally {
-            setLoading(false);
-          }
-        };
-
-        const loadScenarioFromDatabase = async () => {
           if (!selectedScenarioId) {
             return;
           }
@@ -205,23 +173,18 @@
                 <div className="page-header">
                   <h1>Scenariohantering</h1>
                   <p>
-                    Läs in exempelscenario, välj ett sparat scenario från databasen
-                    eller ladda upp ett nytt scenario i JSON-format.
+                    Välj ett sparat scenario från databasen eller ladda upp ett nytt
+                    scenario i JSON-format.
                   </p>
                 </div>
               </div>
               <div className="actions">
-                <button onClick={loadScenario} disabled={loading}>Ladda scenario</button>
+                <button onClick={loadScenario} disabled={loading || !selectedScenarioId}>
+                  Ladda scenario
+                </button>
                 <a className="button-link secondary" href="/authoring">
                   Författa från text
                 </a>
-                <button
-                  className="secondary"
-                  onClick={loadScenarioFromDatabase}
-                  disabled={loading || !selectedScenarioId}
-                >
-                  Ladda från databasen
-                </button>
                 <button
                   className="secondary"
                   onClick={startSession}
