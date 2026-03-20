@@ -428,7 +428,7 @@ def test_frontend_report_uses_backend_rendered_report_endpoints():
 def test_frontend_setup_loads_selected_scenario_from_database_only():
     setup_page = (api_module.FRONTEND_DIR / "setup.html").read_text(encoding="utf-8")
 
-    assert 'Common.apiRequest(`/scenarios/${selectedScenarioId}`)' in setup_page
+    assert "Common.apiRequest(`/scenarios/${selectedScenarioId}`)" in setup_page
     assert "/sample-scenarios/default" not in setup_page
     assert "Ladda från databasen" not in setup_page
 
@@ -1639,7 +1639,9 @@ def test_get_session_report_html_uses_pandoc_renderer(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     monkeypatch.setattr(
         "src.api.render_markdown_to_html",
-        lambda markdown: f"<html><body><h1>{'Scenariorapport' if 'Scenariorapport' in markdown else ''}</h1></body></html>",
+        lambda markdown: (
+            f"<html><body><h1>{'Scenariorapport' if 'Scenariorapport' in markdown else ''}</h1></body></html>"
+        ),
     )
 
     scenario = sample_scenario_payload()
@@ -1661,8 +1663,7 @@ def test_get_session_report_html_uses_pandoc_renderer(monkeypatch):
     )
 
     status, headers, body = request_response(
-        "GET",
-        f"/sessions/{session['session_state']['session_id']}/report.html"
+        "GET", f"/sessions/{session['session_state']['session_id']}/report.html"
     )
 
     assert status == 200
@@ -1754,7 +1755,10 @@ def test_get_session_report_pdf_falls_back_without_pandoc_engine(monkeypatch):
         f"/sessions/{session['session_state']['session_id']}/complete",
     )
 
-    monkeypatch.setattr("src.services.reporting.shutil.which", lambda name: "/usr/bin/pandoc" if name == "pandoc" else None)
+    monkeypatch.setattr(
+        "src.services.reporting.shutil.which",
+        lambda name: "/usr/bin/pandoc" if name == "pandoc" else None,
+    )
 
     status, headers, body = request_response(
         "GET", f"/sessions/{session['session_state']['session_id']}/report.pdf"

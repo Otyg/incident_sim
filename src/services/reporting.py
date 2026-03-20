@@ -271,7 +271,13 @@ def _render_markdown_fragment(markdown: str) -> str:
             if list_type and list_type != next_list_type:
                 flush_list()
             list_type = next_list_type
-            list_items.append([unordered_match.group(1) if unordered_match else ordered_match.group(1)])
+            list_items.append(
+                [
+                    unordered_match.group(1)
+                    if unordered_match
+                    else ordered_match.group(1)
+                ]
+            )
             continue
 
         if list_type and list_items:
@@ -390,7 +396,9 @@ def build_session_report_markdown(
         "",
         "### Övningsmål",
         "",
-        *_as_bullet_lines(list(scenario.training_goals), "- Inga övningsmål dokumenterade."),
+        *_as_bullet_lines(
+            list(scenario.training_goals), "- Inga övningsmål dokumenterade."
+        ),
         "",
         "---",
         "",
@@ -674,7 +682,7 @@ def _render_markdown_to_pdf_with_reportlab(markdown: str) -> bytes:
         spaceBefore=4,
         spaceAfter=8,
     )
-    
+
     story = []
     lines = str(markdown or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     paragraph_lines: list[str] = []
@@ -688,7 +696,9 @@ def _render_markdown_to_pdf_with_reportlab(markdown: str) -> bytes:
         nonlocal paragraph_lines
         if not paragraph_lines:
             return
-        text = "<br/>".join(_render_inline_markdown_for_pdf(line) for line in paragraph_lines)
+        text = "<br/>".join(
+            _render_inline_markdown_for_pdf(line) for line in paragraph_lines
+        )
         story.append(Paragraph(text, paragraph_style))
         paragraph_lines = []
 
@@ -696,7 +706,9 @@ def _render_markdown_to_pdf_with_reportlab(markdown: str) -> bytes:
         nonlocal quote_lines
         if not quote_lines:
             return
-        text = "<br/>".join(_render_inline_markdown_for_pdf(line) for line in quote_lines)
+        text = "<br/>".join(
+            _render_inline_markdown_for_pdf(line) for line in quote_lines
+        )
         story.append(Paragraph(text, quote_style))
         quote_lines = []
 
