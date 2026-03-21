@@ -672,6 +672,72 @@
       },
       "required": ["tone"]
     },
+    "PromptInstructionSet": {
+      "type": "object",
+      "title": "PromptInstructionSet",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Text",
+          "description": "Fri text med promptinstruktioner som adderas till default-promptar."
+        },
+        "items": {
+          "type": "array",
+          "title": "Items",
+          "description": "Punktlista med promptinstruktioner. Tomma eller whitespace-rader ignoreras.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["text"]
+        },
+        {
+          "required": ["items"]
+        }
+      ]
+    },
+    "PromptInstructionsConfig": {
+      "type": "object",
+      "title": "PromptInstructionsConfig",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/PromptInstructionSet",
+          "description": "Instruktioner som alltid adderas till narration- och debrief-promptarna."
+        },
+        "by_audience": {
+          "type": "object",
+          "title": "By Audience",
+          "description": "Audience-specifika instruktioner som adderas efter default-instruktionerna.",
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "krisledning",
+              "it-ledning",
+              "kommunikation"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PromptInstructionSet"
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["default"]
+        },
+        {
+          "required": ["by_audience"]
+        }
+      ]
+    },
     "ExecutableRuleCondition": {
       "type": "object",
       "title": "ExecutableRuleCondition",
@@ -1028,6 +1094,10 @@
       "additionalProperties": {
         "$ref": "#/$defs/PresentationGuideline"
       }
+    },
+    "prompt_instructions": {
+      "$ref": "#/$defs/PromptInstructionsConfig",
+      "description": "Valfria scenariospecifika tilläggsinstruktioner som adderas till narration- och debrief-promptarna."
     }
   },
   "required": [

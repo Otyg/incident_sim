@@ -258,7 +258,9 @@ def resolve_initial_narration(
 
 
 def build_phase_narration(
-    state: SessionState, target_state: "ScenarioStateDefinition"
+    state: SessionState,
+    target_state: "ScenarioStateDefinition",
+    scenario: Scenario | None = None,
 ) -> NarratorResponse:
     """Build a narration snapshot for a manual phase change."""
 
@@ -268,7 +270,11 @@ def build_phase_narration(
         )
 
     provider = get_llm_provider()
-    return validate_narration(provider.generate_narration(state))
+    try:
+        payload = provider.generate_narration(state, scenario=scenario)
+    except TypeError:
+        payload = provider.generate_narration(state)
+    return validate_narration(payload)
 
 
 def load_sample_scenario() -> Scenario:
@@ -768,7 +774,7 @@ async def update_session_phase(
             )
             return PhaseChangeResponse(
                 session_state=state,
-                narration=build_phase_narration(state, target_state),
+                narration=build_phase_narration(state, target_state, scenario),
             )
 
         updated = state.model_copy(deep=True)
@@ -781,7 +787,7 @@ async def update_session_phase(
                 text=f"Manuellt fasbyte: {previous_phase} -> {request.phase}",
             )
         )
-        narration = build_phase_narration(updated, target_state)
+        narration = build_phase_narration(updated, target_state, scenario)
         session_repository.save(updated)
         logger.info(
             "Manual phase change applied session_id=%s from_phase=%s to_phase=%s",
@@ -1213,7 +1219,13 @@ async def post_turn(
                 activated_state.phase,
             )
         else:
-            response = validate_narration(provider.generate_narration(updated))
+            try:
+                narration_payload = provider.generate_narration(
+                    updated, scenario=scenario
+                )
+            except TypeError:
+                narration_payload = provider.generate_narration(updated)
+            response = validate_narration(narration_payload)
         logger.info(
             "Narration generated session_id=%s key_points=%s inject_count=%s",
             session_id,

@@ -79,14 +79,36 @@ class StructuredLLMProvider(LLMProvider, ABC):
         raise NotImplementedError
 
     @staticmethod
-    def _build_json_system_prompt(prompt: str, expected_shape: dict[str, Any]) -> str:
+    def _build_json_system_prompt(
+        prompt: str,
+        expected_shape: dict[str, Any],
+        addendum: str | None = None,
+    ) -> str:
         """Combine a task prompt with strict JSON output instructions."""
+
+        addendum_block = ""
+        if addendum:
+            addendum_block = f"\n\nScenario-specific instructions:\n{addendum}"
 
         return (
             f"{prompt}\n"
+            f"{addendum_block}\n"
             "Return only a single JSON object and no surrounding prose.\n"
             f"Expected shape: {json.dumps(expected_shape, ensure_ascii=True)}"
         )
+
+    @staticmethod
+    def _resolve_prompt_addendum(scenario: Scenario | None, audience: str) -> str:
+        """Resolve ordered scenario instructions into a prompt addendum string."""
+
+        if scenario is None:
+            return ""
+
+        lines = scenario.resolve_prompt_instruction_lines(audience)
+        if not lines:
+            return ""
+
+        return "\n".join(f"- {line}" for line in lines)
 
     def interpret_action(self, participant_input: str) -> dict[str, Any]:
         """Interpret participant text into structured action data."""
@@ -100,13 +122,17 @@ class StructuredLLMProvider(LLMProvider, ABC):
             provider_stage="interpret_action",
         )
 
-    def generate_narration(self, state: SessionState) -> dict[str, Any]:
+    def generate_narration(
+        self, state: SessionState, scenario: Scenario | None = None
+    ) -> dict[str, Any]:
         """Generate a narrated situation update from the session state."""
 
         return self._chat_json(
             model=self.narration_model,
             system_prompt=self._build_json_system_prompt(
-                self.narration_prompt, GENERATE_NARRATION_EXPECTED_SHAPE
+                self.narration_prompt,
+                GENERATE_NARRATION_EXPECTED_SHAPE,
+                addendum=self._resolve_prompt_addendum(scenario, state.audience),
             ),
             user_prompt=f"Session state:\n{state.model_dump_json()}",
             provider_stage="generate_narration",
@@ -125,7 +151,9 @@ class StructuredLLMProvider(LLMProvider, ABC):
         return self._chat_json(
             model=self.narration_model,
             system_prompt=self._build_json_system_prompt(
-                self.debrief_prompt, GENERATE_DEBRIEF_EXPECTED_SHAPE
+                self.debrief_prompt,
+                GENERATE_DEBRIEF_EXPECTED_SHAPE,
+                addendum=self._resolve_prompt_addendum(scenario, state.audience),
             ),
             user_prompt=f"Ovningsunderlag:\n{json.dumps(payload, ensure_ascii=True)}",
             provider_stage="generate_debrief",

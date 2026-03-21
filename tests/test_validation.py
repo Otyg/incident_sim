@@ -151,6 +151,68 @@ def test_scenario_validation_accepts_audience_specific_initial_narration():
     assert "krisledning" in scenario.states[0].narration.by_audience
 
 
+def test_scenario_validation_accepts_prompt_instructions_text_and_items():
+    payload = sample_scenario_dict()
+    payload["prompt_instructions"] = {
+        "default": {
+            "text": "Fokusera på konsekvenser för samhällsviktig verksamhet.",
+            "items": ["Använd korta operativa formuleringar."],
+        },
+        "by_audience": {
+            "krisledning": {
+                "items": ["Lyft beslutspunkter som kräver ledningsmandat."]
+            }
+        },
+    }
+
+    scenario = Scenario(**payload)
+
+    assert scenario.prompt_instructions is not None
+    assert scenario.resolve_prompt_instruction_lines("krisledning") == [
+        "Fokusera på konsekvenser för samhällsviktig verksamhet.",
+        "Använd korta operativa formuleringar.",
+        "Lyft beslutspunkter som kräver ledningsmandat.",
+    ]
+
+
+def test_scenario_validation_accepts_prompt_instructions_text_only():
+    payload = sample_scenario_dict()
+    payload["prompt_instructions"] = {
+        "default": {"text": "Prioritera tydliga beslutspunkter."}
+    }
+
+    scenario = Scenario(**payload)
+
+    assert scenario.prompt_instructions is not None
+    assert scenario.resolve_prompt_instruction_lines("it-ledning") == [
+        "Prioritera tydliga beslutspunkter."
+    ]
+
+
+def test_scenario_validation_accepts_prompt_instructions_items_only():
+    payload = sample_scenario_dict()
+    payload["prompt_instructions"] = {
+        "default": {"items": ["Bygg svar på metrics och flags."]}
+    }
+
+    scenario = Scenario(**payload)
+
+    assert scenario.prompt_instructions is not None
+    assert scenario.resolve_prompt_instruction_lines("it-ledning") == [
+        "Bygg svar på metrics och flags."
+    ]
+
+
+def test_scenario_validation_rejects_empty_prompt_instruction_set():
+    payload = sample_scenario_dict()
+    payload["prompt_instructions"] = {
+        "default": {"text": "   ", "items": ["   "]}
+    }
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
 def test_scenario_validation_rejects_missing_initial_narration_sources():
     payload = sample_scenario_dict()
     payload["states"][0]["narration"] = {}

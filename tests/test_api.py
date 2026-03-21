@@ -126,6 +126,17 @@ def sample_scenario_payload():
     }
 
 
+def sample_scenario_payload_with_prompt_instructions():
+    payload = sample_scenario_payload()
+    payload["prompt_instructions"] = {
+        "default": {"items": ["Namnge alltid miljö i narrationen."]},
+        "by_audience": {
+            "krisledning": {"items": ["Lyft mandatkrävande beslutspunkter."]}
+        },
+    }
+    return payload
+
+
 def datadriven_scenario_payload():
     payload = sample_scenario_payload()
     payload["text_matchers"] = [
@@ -1545,6 +1556,68 @@ def test_post_turn_returns_retry_metadata_for_provider_response_format_error(
     assert body["retry_after_seconds"] == 2
     assert body["provider_stage"] == "generate_narration"
     assert body["upstream_status_code"] is None
+
+
+def test_post_turn_passes_scenario_context_to_generate_narration(monkeypatch):
+    class ScenarioAwareProvider(MockLLMProvider):
+        def generate_narration(self, state, scenario=None):
+            assert scenario is not None
+            assert scenario.prompt_instructions is not None
+            assert scenario.resolve_prompt_instruction_lines(state.audience) == [
+                "Namnge alltid miljö i narrationen.",
+                "Lyft mandatkrävande beslutspunkter.",
+            ]
+            return super().generate_narration(state, scenario=scenario)
+
+    request_json("POST", "/scenarios", sample_scenario_payload_with_prompt_instructions())
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: ScenarioAwareProvider())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    assert status == 200
+    assert body["narrator_response"]["situation_update"]
+
+
+def test_complete_session_passes_scenario_context_to_generate_debrief(monkeypatch):
+    class ScenarioAwareProvider(MockLLMProvider):
+        def generate_debrief(self, scenario, state, timeline):
+            assert scenario.prompt_instructions is not None
+            assert scenario.resolve_prompt_instruction_lines(state.audience) == [
+                "Namnge alltid miljö i narrationen.",
+                "Lyft mandatkrävande beslutspunkter.",
+            ]
+            return super().generate_debrief(scenario, state, timeline)
+
+    request_json("POST", "/scenarios", sample_scenario_payload_with_prompt_instructions())
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: ScenarioAwareProvider())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+
+    request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/turns",
+        {"participant_input": "Vi stänger extern VPN."},
+    )
+
+    status, body = request_json(
+        "POST",
+        f"/sessions/{session['session_state']['session_id']}/complete",
+    )
+
+    assert status == 200
+    assert body["debrief"]["exercise_summary"]
 
 
 def test_get_timeline_returns_turns_in_order(monkeypatch):

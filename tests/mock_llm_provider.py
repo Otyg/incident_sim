@@ -49,7 +49,9 @@ class MockLLMProvider(LLMProvider):
             "confidence": 0.72,
         }
 
-    def generate_narration(self, state: SessionState) -> dict:
+    def generate_narration(
+        self, state: SessionState, scenario: Scenario | None = None
+    ) -> dict:
         key_points = [
             f"Paverkansniva: {state.metrics.impact_level}",
             f"Medietryck: {state.metrics.media_pressure}",

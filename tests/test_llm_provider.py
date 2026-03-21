@@ -12,6 +12,7 @@ from src.services.llm_provider import (
     ProviderResponseFormatError,
     ProviderUpstreamError,
     get_llm_provider,
+    validate_debrief,
     load_llm_config,
     validate_interpreted_action,
     validate_narration,
@@ -744,3 +745,132 @@ def test_load_llm_config_reads_provider_section(monkeypatch):
 
     assert llm_config["provider"] == "ollama"
     assert llm_config["ollama"]["model"] == "llama3.2"
+
+
+def test_ollama_provider_appends_scenario_prompt_instructions_to_narration(
+    monkeypatch,
+):
+    captured = {}
+
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            captured["system_prompt"] = messages[0]["content"]
+            return {
+                "message": {
+                    "content": (
+                        '{"situation_update":"Tillrackligt lang narrationsuppdatering for validering i testfallet.",'
+                        '"key_points":["A","B"],"new_consequences":[],"injects":[],'
+                        '"decisions_to_consider":[],"facilitator_notes":"Notering."}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    scenario_payload = MockLLMProvider().generate_scenario_draft("# Scenario", "markdown")
+    scenario_payload["original_text"] = "# Scenario"
+    scenario_payload["prompt_instructions"] = {
+        "default": {"items": ["Namnge alltid påverkad miljö i situation_update."]},
+        "by_audience": {
+            "krisledning": {"items": ["Lyft beslutsbehov för ledningsnivån."]}
+        },
+    }
+    scenario = validate_scenario(scenario_payload)
+
+    payload = OllamaProvider({"model": "llama3.2"}).generate_narration(
+        make_state(),
+        scenario=scenario,
+    )
+
+    assert payload["key_points"] == ["A", "B"]
+    assert "Scenario-specific instructions:" in captured["system_prompt"]
+    assert "Namnge alltid påverkad miljö i situation_update." in captured[
+        "system_prompt"
+    ]
+    assert "Lyft beslutsbehov för ledningsnivån." in captured["system_prompt"]
+    assert "Return only a single JSON object" in captured["system_prompt"]
+
+
+def test_openrouter_provider_appends_scenario_prompt_instructions_to_debrief(
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_post_json(self, payload):
+        captured["system_prompt"] = payload["messages"][0]["content"]
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"exercise_summary":"Sammanfattning av ovningen.",'
+                            '"timeline_summary":[{"turn_number":1,"summary":"Steg 1","outcome":"Utfall 1"}],'
+                            '"strengths":["Styrka 1","Styrka 2"],'
+                            '"development_areas":["Omrade 1","Omrade 2"],'
+                            '"debrief_questions":["Fraga 1","Fraga 2","Fraga 3"],'
+                            '"recommended_follow_ups":["Uppfoljning 1"],'
+                            '"facilitator_notes":"Notering."}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenRouterProvider, "_post_json", fake_post_json)
+
+    scenario_payload = MockLLMProvider().generate_scenario_draft("# Scenario", "markdown")
+    scenario_payload["original_text"] = "# Scenario"
+    scenario_payload["prompt_instructions"] = {
+        "default": {"text": "Beskriv miljokontext explicit i summeringen."},
+        "by_audience": {
+            "krisledning": {"items": ["Betona riskacceptans och mandatfrågor."]}
+        },
+    }
+    scenario = validate_scenario(scenario_payload)
+    debrief = validate_debrief(
+        OpenRouterProvider(
+            {"api_key": "secret-token", "model": "openai/gpt-4.1-mini"}
+        ).generate_debrief(scenario, make_state(), [])
+    )
+
+    assert debrief.strengths == ["Styrka 1", "Styrka 2"]
+    assert "Beskriv miljokontext explicit i summeringen." in captured["system_prompt"]
+    assert "Betona riskacceptans och mandatfrågor." in captured["system_prompt"]
+    assert "Expected shape:" in captured["system_prompt"]
+
+
+def test_ollama_provider_does_not_append_scenario_prompt_instructions_to_interpret_action(
+    monkeypatch,
+):
+    captured = {}
+
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            captured["system_prompt"] = messages[0]["content"]
+            return {
+                "message": {
+                    "content": (
+                        '{"action_summary":"Samlad tolkning","action_types":["coordination"],'
+                        '"targets":["incident_management_team"],"intent":"Skapa samordning",'
+                        '"expected_effects":["Battre samordning"],"risks":["Langsammare beslut"],'
+                        '"uncertainties":["Resurslage"],"priority":"medium","confidence":0.6}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    payload = OllamaProvider({"model": "llama3.2"}).interpret_action(
+        "Vi samlar teamet."
+    )
+
+    assert payload["priority"] == "medium"
+    assert "Scenario-specific instructions:" not in captured["system_prompt"]

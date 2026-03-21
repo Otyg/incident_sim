@@ -68,3 +68,19 @@ def test_scenario_schema_includes_no_communication_turns_fact():
     fact_enum = schema["$defs"]["ExecutableRuleCondition"]["properties"]["fact"]["enum"]
 
     assert "state.no_communication_turns" in fact_enum
+
+
+def test_scenario_schema_includes_prompt_instruction_definitions():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    prompt_instructions_schema = schema["properties"]["prompt_instructions"]
+    config_schema = schema["$defs"]["PromptInstructionsConfig"]
+    instruction_set_schema = schema["$defs"]["PromptInstructionSet"]
+
+    assert prompt_instructions_schema["$ref"] == "#/$defs/PromptInstructionsConfig"
+    assert "narration- och debrief-promptarna" in config_schema["properties"][
+        "default"
+    ]["description"]
+    assert "promptinstruktioner" in instruction_set_schema["properties"]["text"][
+        "description"
+    ]

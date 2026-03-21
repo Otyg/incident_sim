@@ -535,6 +535,85 @@ class PresentationGuideline(BaseModel):
     )
 
 
+class PromptInstructionSet(BaseModel):
+    """Reusable prompt instruction payload for global or audience-specific use."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str | None = Field(
+        default=None,
+        description="Fri text med promptinstruktioner som adderas till default-promptar.",
+    )
+    items: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Punktlista med promptinstruktioner. Tomma eller whitespace-rader ignoreras."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def normalize_and_require_content(self) -> "PromptInstructionSet":
+        """Normalize whitespace and require at least one usable instruction."""
+
+        normalized_text = self.text.strip() if isinstance(self.text, str) else ""
+        normalized_items = [item.strip() for item in self.items if item.strip()]
+
+        self.text = normalized_text or None
+        self.items = normalized_items
+        if self.text is None and not self.items:
+            raise ValueError(
+                "PromptInstructionSet must define non-empty text or at least one non-empty items entry"
+            )
+        return self
+
+    def to_lines(self) -> list[str]:
+        """Render instruction content as ordered text lines."""
+
+        lines: list[str] = []
+        if self.text:
+            lines.extend(line.strip() for line in self.text.splitlines() if line.strip())
+        lines.extend(self.items)
+        return lines
+
+
+class PromptInstructionsConfig(BaseModel):
+    """Scenario-level prompt instruction configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default: PromptInstructionSet | None = Field(
+        default=None,
+        description="Instruktioner som alltid adderas till narration- och debrief-promptarna.",
+    )
+    by_audience: dict[Audience, PromptInstructionSet] = Field(
+        default_factory=dict,
+        description=(
+            "Audience-specifika instruktioner som adderas efter default-instruktionerna."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def require_any_instruction_source(self) -> "PromptInstructionsConfig":
+        """Require at least one instruction source when the object is present."""
+
+        if self.default is None and not self.by_audience:
+            raise ValueError(
+                "prompt_instructions must define default or at least one by_audience entry"
+            )
+        return self
+
+    def resolve_lines_for_audience(self, audience: Audience) -> list[str]:
+        """Resolve ordered instruction lines for a target audience."""
+
+        lines: list[str] = []
+        if self.default is not None:
+            lines.extend(self.default.to_lines())
+        audience_specific = self.by_audience.get(audience)
+        if audience_specific is not None:
+            lines.extend(audience_specific.to_lines())
+        return lines
+
+
 class Scenario(BaseModel):
     """Top-level persisted scenario document used by the application."""
 
@@ -619,6 +698,13 @@ class Scenario(BaseModel):
     presentation_guidelines: dict[str, PresentationGuideline] = Field(
         description="Hur scenariot bör presenteras för respektive målgrupp."
     )
+    prompt_instructions: PromptInstructionsConfig | None = Field(
+        default=None,
+        description=(
+            "Valfria scenariospecifika tilläggsinstruktioner som adderas till "
+            "narration- och debrief-promptarna."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -671,6 +757,13 @@ class Scenario(BaseModel):
                     )
 
         return self
+
+    def resolve_prompt_instruction_lines(self, audience: Audience) -> list[str]:
+        """Resolve ordered scenario prompt instruction lines for an audience."""
+
+        if self.prompt_instructions is None:
+            return []
+        return self.prompt_instructions.resolve_lines_for_audience(audience)
 
     @classmethod
     def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:

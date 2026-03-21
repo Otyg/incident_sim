@@ -121,7 +121,9 @@ class LLMProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def generate_narration(self, state: SessionState) -> dict[str, Any]:
+    def generate_narration(
+        self, state: SessionState, scenario: Scenario | None = None
+    ) -> dict[str, Any]:
         """Generate narration from a session state snapshot."""
 
         raise NotImplementedError
