@@ -39,6 +39,7 @@ provider layer.
 """
 
 import json
+from datetime import datetime
 from urllib.parse import quote
 from pathlib import Path
 
@@ -113,10 +114,16 @@ class CreateSessionRequest(BaseModel):
     Attributes:
         scenario_id: Identifier of the stored scenario to start from.
         audience: Audience profile used when the session state is initialized.
+        exercise_leader: Name of the exercise leader (optional).
+        secretary: Name of the secretary (optional).
+        participating_unit: Name of the participating unit/department (optional).
     """
 
     scenario_id: str = Field(min_length=1)
     audience: Audience
+    exercise_leader: str | None = None
+    secretary: str | None = None
+    participating_unit: str | None = None
 
 
 class TurnRequest(BaseModel):
@@ -170,7 +177,12 @@ class ScenarioDraftFromTextRequest(BaseModel):
 
 
 def build_session_state(
-    session_id: str, scenario: Scenario, audience: Audience
+    session_id: str,
+    scenario: Scenario,
+    audience: Audience,
+    exercise_leader: str | None = None,
+    secretary: str | None = None,
+    participating_unit: str | None = None,
 ) -> SessionState:
     """Create the initial session state for a stored scenario.
 
@@ -178,6 +190,9 @@ def build_session_state(
         session_id: Generated identifier for the session.
         scenario: Scenario used as the source for the initial state.
         audience: Audience profile selected for the exercise session.
+        exercise_leader: Name of the exercise leader (optional).
+        secretary: Name of the secretary (optional).
+        participating_unit: Name of the participating unit/department (optional).
 
     Returns:
         SessionState: Initialized session state ready to be saved.
@@ -193,6 +208,10 @@ def build_session_state(
         current_time=initial_state.time or "00:00",
         turn_number=0,
         phase=initial_state.phase,
+        started_at=datetime.now().date().isoformat(),
+        exercise_leader=exercise_leader,
+        secretary=secretary,
+        participating_unit=participating_unit,
         known_facts=list(initial_state.known_facts or []),
         unknowns=list(initial_state.unknowns or []),
         affected_systems=list(initial_state.affected_systems or []),
@@ -596,7 +615,7 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
     """Start a new session from a stored scenario.
 
     Args:
-        request: Session creation payload containing scenario and audience.
+        request: Session creation payload containing scenario, audience, and optional metadata.
 
     Returns:
         CreateSessionResponse: Persisted initial session state together with the
@@ -615,7 +634,14 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
         raise HTTPException(status_code=404, detail="Scenario not found")
 
     session_id = f"sess-{session_repository.count() + 1}"
-    state = build_session_state(session_id, scenario, request.audience)
+    state = build_session_state(
+        session_id,
+        scenario,
+        request.audience,
+        exercise_leader=request.exercise_leader,
+        secretary=request.secretary,
+        participating_unit=request.participating_unit,
+    )
     state = scenario_engine.apply(
         scenario=scenario,
         state=state,
@@ -949,8 +975,15 @@ async def get_session_report_pdf(session_id: str) -> Response:
     """Render the stored Markdown report as PDF using pandoc."""
 
     state, markdown = _get_session_report_markdown(session_id)
+
+    # Get scenario for title
+    scenario = scenario_repository.get(state.scenario_id)
+    scenario_title = scenario.title if scenario else state.scenario_id
+
     try:
-        pdf = render_markdown_to_pdf(markdown)
+        pdf = render_markdown_to_pdf(
+            markdown, title=scenario_title, date=state.started_at or None
+        )
     except ReportRenderingError as exc:
         logger.warning(
             "PDF report rendering failed session_id=%s detail=%s",

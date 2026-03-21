@@ -7,3 +7,4 @@ PyYAML>=6.0
 tinydb>=4.8.0
 jsonschema>=4.23
 python-multipart>=0.0.22
+reportlab>=4.4.10

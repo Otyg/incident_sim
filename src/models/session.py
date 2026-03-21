@@ -90,6 +90,10 @@ class SessionState(BaseModel):
     current_time: Annotated[str, StringConstraints(min_length=4)]
     turn_number: int = Field(ge=0)
     phase: ShortText
+    started_at: str | None = None
+    exercise_leader: str | None = None
+    secretary: str | None = None
+    participating_unit: str | None = None
     known_facts: List[NonEmptyStr] = Field(default_factory=list)
     unknowns: List[NonEmptyStr] = Field(default_factory=list)
     affected_systems: List[NonEmptyStr] = Field(default_factory=list)

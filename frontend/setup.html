@@ -33,6 +33,16 @@
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
+        const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+        const [exerciseLeader, setExerciseLeader] = useState(
+          localStorage.getItem("exerciseLeader") || ""
+        );
+        const [secretary, setSecretary] = useState(
+          localStorage.getItem("secretary") || ""
+        );
+        const [participatingUnit, setParticipatingUnit] = useState(
+          localStorage.getItem("participatingUnit") || ""
+        );
 
         const refreshScenarioList = async (options = {}) => {
           const items = await Common.apiRequest("/scenarios");
@@ -141,7 +151,20 @@
           if (!scenario) {
             return;
           }
+          setShowMetadataDialog(true);
+        };
 
+        const submitMetadataAndStartSession = async () => {
+          if (!scenario) {
+            return;
+          }
+
+          // Save metadata to localStorage for next time
+          localStorage.setItem("exerciseLeader", exerciseLeader);
+          localStorage.setItem("secretary", secretary);
+          localStorage.setItem("participatingUnit", participatingUnit);
+
+          setShowMetadataDialog(false);
           setLoading(true);
           setError("");
           setStatus("Startar session...");
@@ -152,6 +175,9 @@
               body: JSON.stringify({
                 scenario_id: scenario.id,
                 audience: "krisledning",
+                exercise_leader: exerciseLeader || null,
+                secretary: secretary || null,
+                participating_unit: participatingUnit || null,
               }),
             });
             Common.setCurrentScenarioId(scenario.id);
@@ -168,6 +194,62 @@
 
         return (
           <>
+            {showMetadataDialog && (
+              <div className="modal-overlay">
+                <div className="modal">
+                  <div className="modal-header">
+                    <h2>Övningsinformation</h2>
+                  </div>
+                  <div className="modal-body">
+                    <div className="form-group">
+                      <label htmlFor="exerciseLeader">Övningsledare</label>
+                      <input
+                        id="exerciseLeader"
+                        type="text"
+                        value={exerciseLeader}
+                        onChange={(e) => setExerciseLeader(e.target.value)}
+                        placeholder="Namn på övningsledare"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="secretary">Sekreterare</label>
+                      <input
+                        id="secretary"
+                        type="text"
+                        value={secretary}
+                        onChange={(e) => setSecretary(e.target.value)}
+                        placeholder="Namn på sekreterare"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="participatingUnit">Deltagande enhet/avdelning</label>
+                      <input
+                        id="participatingUnit"
+                        type="text"
+                        value={participatingUnit}
+                        onChange={(e) => setParticipatingUnit(e.target.value)}
+                        placeholder="Namn på enhet eller avdelning"
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      className="secondary"
+                      onClick={() => setShowMetadataDialog(false)}
+                      disabled={loading}
+                    >
+                      Avbryt
+                    </button>
+                    <button
+                      onClick={submitMetadataAndStartSession}
+                      disabled={loading}
+                    >
+                      Starta session
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <section className="hero">
               <div className="hero-top">
                 <div className="page-header">

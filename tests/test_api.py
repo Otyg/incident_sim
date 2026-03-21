@@ -641,6 +641,64 @@ def test_create_session_does_not_call_provider_generate_narration(monkeypatch):
     assert create_body["initial_narration"]["key_points"]
 
 
+def test_create_session_with_metadata_stores_exercise_info(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {
+            "scenario_id": "scenario-001",
+            "audience": "krisledning",
+            "exercise_leader": "Johan Andersson",
+            "secretary": "Maria Svensson",
+            "participating_unit": "IT-driften Stockholm",
+        },
+    )
+
+    session_state = create_body["session_state"]
+    assert create_status == 200
+    assert session_state["exercise_leader"] == "Johan Andersson"
+    assert session_state["secretary"] == "Maria Svensson"
+    assert session_state["participating_unit"] == "IT-driften Stockholm"
+    assert session_state["started_at"] is not None
+
+    # Verify metadata persists when retrieving session
+    get_status, get_body = request_json(
+        "GET", f"/sessions/{session_state['session_id']}"
+    )
+    assert get_status == 200
+    assert get_body["exercise_leader"] == "Johan Andersson"
+    assert get_body["secretary"] == "Maria Svensson"
+    assert get_body["participating_unit"] == "IT-driften Stockholm"
+    assert get_body["started_at"] is not None
+
+
+def test_create_session_with_partial_metadata(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {
+            "scenario_id": "scenario-001",
+            "audience": "krisledning",
+            "exercise_leader": "Anna Bergström",
+        },
+    )
+
+    session_state = create_body["session_state"]
+    assert create_status == 200
+    assert session_state["exercise_leader"] == "Anna Bergström"
+    assert session_state["secretary"] is None
+    assert session_state["participating_unit"] is None
+    assert session_state["started_at"] is not None
+
+
 def test_post_turn_returns_basic_turn_response(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
 
@@ -1675,7 +1733,7 @@ def test_get_session_report_pdf_returns_pandoc_output(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
     monkeypatch.setattr(
         "src.api.render_markdown_to_pdf",
-        lambda markdown: b"%PDF-1.7\nmock",
+        lambda markdown, title=None, date=None: b"%PDF-1.7\nmock",
     )
 
     scenario = sample_scenario_payload()

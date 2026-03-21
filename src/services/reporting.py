@@ -377,81 +377,115 @@ def build_session_report_markdown(
     lines = [
         f"# Scenariorapport: {_escape_markdown_text(scenario.title)}",
         "",
-        "## Scenarioinformation",
-        "",
-        f"- Scenario-id: `{scenario.id}`",
-        f"- Version: `{scenario.version}`",
-        f"- Publik: {', '.join(scenario.audiences)}",
-        f"- Svårighetsgrad: {_escape_markdown_text(scenario.difficulty)}",
-        f"- Tidsram: {scenario.timebox_minutes} min",
-        f"- Session: `{session.session_id}`",
-        f"- Status: `{session.status}`",
-        f"- Slutfas: `{session.phase}`",
-        f"- Sista tid: `{session.current_time}`",
-        f"- Antal turns: {len(timeline)}",
-        "",
-        "### Beskrivning",
-        "",
-        _escape_markdown_text(scenario.description),
-        "",
-        "### Övningsmål",
-        "",
-        *_as_bullet_lines(
-            list(scenario.training_goals), "- Inga övningsmål dokumenterade."
-        ),
-        "",
-        "---",
-        "",
-        "## Slutlig sessionsbild",
-        "",
-        "### Kända fakta",
-        "",
-        *_as_bullet_lines(session.known_facts, "- Inga sparade fakta."),
-        "",
-        "### Påverkade system",
-        "",
-        *_as_bullet_lines(session.affected_systems, "- Inga sparade system."),
-        "",
-        "### Konsekvenser",
-        "",
-        *_as_bullet_lines(session.consequences, "- Inga dokumenterade konsekvenser."),
-        "",
-        "## Debrief-underlag",
-        "",
-        "### Styrkor",
-        "",
-        *_as_bullet_lines(debrief.strengths, "- Inga styrkor dokumenterade."),
-        "",
-        "### Utvecklingsområden",
-        "",
-        *_as_bullet_lines(
-            debrief.development_areas, "- Inga utvecklingsområden dokumenterade."
-        ),
-        "",
-        "### Debriefingfrågor",
-        "",
-        *_as_bullet_lines(
-            debrief.debrief_questions, "- Inga debriefingfrågor dokumenterade."
-        ),
-        "",
-        "### Föreslagna uppföljningar",
-        "",
-        *_as_bullet_lines(
-            debrief.recommended_follow_ups, "- Inga uppföljningar föreslagna."
-        ),
-        "",
-        "### Facilitatornotering",
-        "",
-        _escape_markdown_text(debrief.facilitator_notes),
-        "",
-        "---",
-        "",
-        "## Summering med tidslinje",
-        "",
-        _escape_markdown_text(debrief.exercise_summary),
-        "",
-        "## Tidslinje",
     ]
+
+    # Add exercise metadata section if any metadata is present
+    if (
+        session.started_at
+        or session.exercise_leader
+        or session.secretary
+        or session.participating_unit
+    ):
+        lines.extend(
+            [
+                "## Övningsinformation",
+                "",
+            ]
+        )
+        if session.exercise_leader:
+            lines.append(
+                f"- Övningsledare: {_escape_markdown_text(session.exercise_leader)}"
+            )
+        if session.secretary:
+            lines.append(f"- Sekreterare: {_escape_markdown_text(session.secretary)}")
+        if session.participating_unit:
+            lines.append(
+                f"- Deltagande enhet/avdelning: {_escape_markdown_text(session.participating_unit)}"
+            )
+        if session.started_at:
+            lines.append(f"- Datum: {session.started_at}")
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Scenarioinformation",
+            "",
+            f"- Scenario-id: `{scenario.id}`",
+            f"- Version: `{scenario.version}`",
+            f"- Publik: {', '.join(scenario.audiences)}",
+            f"- Svårighetsgrad: {_escape_markdown_text(scenario.difficulty)}",
+            f"- Tidsram: {scenario.timebox_minutes} min",
+            f"- Session: `{session.session_id}`",
+            f"- Status: `{session.status}`",
+            f"- Slutfas: `{session.phase}`",
+            f"- Sista tid: `{session.current_time}`",
+            f"- Antal turns: {len(timeline)}",
+            "",
+            "### Beskrivning",
+            "",
+            _escape_markdown_text(scenario.description),
+            "",
+            "### Övningsmål",
+            "",
+            *_as_bullet_lines(
+                list(scenario.training_goals), "- Inga övningsmål dokumenterade."
+            ),
+            "",
+            "---",
+            "",
+            "## Slutlig sessionsbild",
+            "",
+            "### Kända fakta",
+            "",
+            *_as_bullet_lines(session.known_facts, "- Inga sparade fakta."),
+            "",
+            "### Påverkade system",
+            "",
+            *_as_bullet_lines(session.affected_systems, "- Inga sparade system."),
+            "",
+            "### Konsekvenser",
+            "",
+            *_as_bullet_lines(
+                session.consequences, "- Inga dokumenterade konsekvenser."
+            ),
+            "",
+            "## Debrief-underlag",
+            "",
+            "### Styrkor",
+            "",
+            *_as_bullet_lines(debrief.strengths, "- Inga styrkor dokumenterade."),
+            "",
+            "### Utvecklingsområden",
+            "",
+            *_as_bullet_lines(
+                debrief.development_areas, "- Inga utvecklingsområden dokumenterade."
+            ),
+            "",
+            "### Debriefingfrågor",
+            "",
+            *_as_bullet_lines(
+                debrief.debrief_questions, "- Inga debriefingfrågor dokumenterade."
+            ),
+            "",
+            "### Föreslagna uppföljningar",
+            "",
+            *_as_bullet_lines(
+                debrief.recommended_follow_ups, "- Inga uppföljningar föreslagna."
+            ),
+            "",
+            "### Facilitatornotering",
+            "",
+            _escape_markdown_text(debrief.facilitator_notes),
+            "",
+            "---",
+            "",
+            "## Summering med tidslinje",
+            "",
+            _escape_markdown_text(debrief.exercise_summary),
+            "",
+            "## Tidslinje",
+        ]
+    )
 
     for turn in timeline:
         heading_id = _sanitize_heading_id(f"turn-{turn.turn_number}")
@@ -831,19 +865,44 @@ def render_markdown_to_html(markdown: str) -> str:
         return _wrap_html_document(_render_markdown_fragment(markdown))
 
 
-def render_markdown_to_pdf(markdown: str) -> bytes:
-    """Convert Markdown to PDF using pandoc."""
+def render_markdown_to_pdf(
+    markdown: str, title: str | None = None, date: str | None = None
+) -> bytes:
+    """Convert Markdown to PDF using pandoc.
+
+    Args:
+        markdown: The Markdown content to convert.
+        title: Optional scenario title for PDF metadata and headers.
+        date: Optional date string for PDF headers.
+    """
 
     engine = _get_available_pandoc_pdf_engine()
 
     if engine:
         logger.info("Rendering report PDF with pandoc engine=%s", engine)
         prepared_markdown = _prepare_markdown_for_pandoc_pdf(markdown, engine)
+
+        # Build pandoc arguments with header metadata if provided
+        pandoc_args = ["--to", "pdf", "--output", "-", "--pdf-engine", engine]
+
+        # Add header metadata for PDF headers
+        if title or date:
+            header_lines = []
+            if date:
+                header_lines.append(f"Date: {date}")
+            if title:
+                header_lines.append(f"Title: {title}")
+
+            if header_lines:
+                # Use pandoc variables for header/footer
+                pandoc_args.extend(["--variable", "header-includes="])
+                if title:
+                    pandoc_args.extend(["--metadata", f"title={title}"])
+                if date:
+                    pandoc_args.extend(["--variable", f"date={date}"])
+
         try:
-            return _run_pandoc(
-                prepared_markdown,
-                ["--to", "pdf", "--output", "-", "--pdf-engine", engine],
-            )
+            return _run_pandoc(prepared_markdown, pandoc_args)
         except ReportRenderingError as exc:
             if not _is_missing_pdf_engine_error(exc):
                 raise
