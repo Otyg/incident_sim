@@ -31,6 +31,7 @@ Nuvarande läge:
 - `states[0]` används dynamiskt som startläge när en session skapas.
 - `states[0].narration` används dynamiskt vid sessionsstart och ersätter tidigare LLM-genererad initial lägesbild.
 - `inject_catalog[].trigger_conditions` är dokumentation för när injectet är tänkt att användas. De utvärderas inte generiskt av backend.
+- `inject_catalog[].trigger_constraints` används dynamiskt för att blockera inject-triggers när definierade blockerande injects tidigare har triggats i sessionen.
 - `text_matchers[]` används dynamiskt för enkel, scenariostyrd matchning mot rå deltagartext innan regelmotorn körs.
 - `target_aliases[]` används dynamiskt för att normalisera fria provider-targets och textbaserade uttryck till kanoniska target-värden före hints och regler.
 - `interpretation_hints[]` används dynamiskt för att additivt komplettera LLM-tolkningen före regelutvärdering.
@@ -318,6 +319,30 @@ Rekommendation:
 
 - skriv triggers som om de senare skulle kunna översättas till riktig maskinlogik
 - använd samma begrepp som i regler, metrics och faser
+
+### `trigger_constraints`
+
+Det här fältet används dynamiskt för att begränsa när ett inject får triggas.
+
+Struktur:
+
+- `blocked_if_triggered_any`: lista över inject-id som blockerar detta inject om de någon gång har triggats i sessionen
+
+Viktigt:
+
+- begränsningen gäller både manuell trigger och regelstyrd `add_active_inject`
+- semantiken är historisk ("sticky"): när ett blockerande inject väl har triggats i sessionen räcker det för att blockera
+- blockerande inject-id måste finnas i samma `inject_catalog`
+
+Exempel:
+
+```json
+"trigger_constraints": {
+  "blocked_if_triggered_any": ["inject-b"]
+}
+```
+
+Det betyder att `inject-a` inte får triggas efter att `inject-b` någon gång har triggats.
 
 ### `audience_relevance`
 

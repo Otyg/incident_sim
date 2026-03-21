@@ -275,6 +275,42 @@ class InjectDefinition(BaseModel):
             "5 är mycket kritiskt eller omedelbart handlingsdrivande."
         ),
     )
+    trigger_constraints: "InjectTriggerConstraints | None" = Field(
+        default=None,
+        description=(
+            "Valfria begränsningar för när injectet får triggas, till exempel "
+            "att det blockeras efter att andra injects triggats."
+        ),
+    )
+
+
+class InjectTriggerConstraints(BaseModel):
+    """Declarative trigger constraints for inject activation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    blocked_if_triggered_any: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista över inject-id som blockerar detta inject om de någon gång "
+            "har triggats i sessionen."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def normalize_constraints(self) -> "InjectTriggerConstraints":
+        """Normalize and deduplicate constraint ids."""
+
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for item in self.blocked_if_triggered_any:
+            candidate = item.strip()
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            normalized.append(candidate)
+        self.blocked_if_triggered_any = normalized
+        return self
 
 
 class TextMatcher(BaseModel):
@@ -737,6 +773,11 @@ class Scenario(BaseModel):
         if len(interpretation_hint_ids) != len(set(interpretation_hint_ids)):
             raise ValueError("Scenario interpretation_hints must use unique ids")
 
+        inject_ids = [inject.id for inject in self.inject_catalog]
+        if len(inject_ids) != len(set(inject_ids)):
+            raise ValueError("Scenario inject_catalog must use unique ids")
+        inject_id_set = set(inject_ids)
+
         initial_state = self.states[0]
         if initial_state.time is None:
             raise ValueError("states[0] must define time")
@@ -744,6 +785,16 @@ class Scenario(BaseModel):
             raise ValueError("states[0] must define impact_level")
         if initial_state.narration is None:
             raise ValueError("states[0] must define narration")
+
+        for inject in self.inject_catalog:
+            constraints = inject.trigger_constraints
+            if constraints is None:
+                continue
+            for blocked_id in constraints.blocked_if_triggered_any:
+                if blocked_id not in inject_id_set:
+                    raise ValueError(
+                        f"Inject {inject.id} references unknown blocked inject {blocked_id}"
+                    )
 
         for rule in self.executable_rules:
             for effect in rule.effects:
@@ -764,6 +815,26 @@ class Scenario(BaseModel):
         if self.prompt_instructions is None:
             return []
         return self.prompt_instructions.resolve_lines_for_audience(audience)
+
+    def get_inject_definition(self, inject_id: str) -> InjectDefinition | None:
+        """Return the inject definition with matching id, if available."""
+
+        return next((inject for inject in self.inject_catalog if inject.id == inject_id), None)
+
+    def resolve_blocking_inject(
+        self, target_inject_id: str, triggered_injects: list[str]
+    ) -> str | None:
+        """Resolve the first blocking inject id based on trigger constraints."""
+
+        inject = self.get_inject_definition(target_inject_id)
+        if inject is None or inject.trigger_constraints is None:
+            return None
+
+        triggered_set = set(triggered_injects)
+        for blocked_id in inject.trigger_constraints.blocked_if_triggered_any:
+            if blocked_id in triggered_set:
+                return blocked_id
+        return None
 
     @classmethod
     def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:

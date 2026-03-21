@@ -103,6 +103,7 @@ class SessionState(BaseModel):
     consequences: List[NonEmptyStr] = Field(default_factory=list)
     active_injects: List[NonEmptyStr] = Field(default_factory=list)
     resolved_injects: List[NonEmptyStr] = Field(default_factory=list)
+    triggered_injects: List[NonEmptyStr] = Field(default_factory=list)
     metrics: SessionMetrics
     flags: SessionFlags = Field(default_factory=SessionFlags)
     focus_items: List[NonEmptyStr] = Field(default_factory=list)

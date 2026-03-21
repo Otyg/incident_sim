@@ -84,3 +84,18 @@ def test_scenario_schema_includes_prompt_instruction_definitions():
     assert "promptinstruktioner" in instruction_set_schema["properties"]["text"][
         "description"
     ]
+
+
+def test_scenario_schema_includes_inject_trigger_constraints_definition():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    inject_definition = schema["$defs"]["InjectDefinition"]
+    trigger_constraints = schema["$defs"]["InjectTriggerConstraints"]
+
+    assert (
+        inject_definition["properties"]["trigger_constraints"]["$ref"]
+        == "#/$defs/InjectTriggerConstraints"
+    )
+    assert "blockerar detta inject" in trigger_constraints["properties"][
+        "blocked_if_triggered_any"
+    ]["description"]

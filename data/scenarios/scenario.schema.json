@@ -421,9 +421,29 @@
           "maximum": 5,
           "title": "Severity",
           "description": "Hur skarpt injectet är på en femgradig skala där 1 är låg störning och 5 är mycket kritiskt eller omedelbart handlingsdrivande."
+        },
+        "trigger_constraints": {
+          "$ref": "#/$defs/InjectTriggerConstraints",
+          "description": "Valfria begränsningar för när injectet får triggas, till exempel att det blockeras efter att andra injects triggats."
         }
       },
       "required": ["id", "type", "title", "description", "severity"]
+    },
+    "InjectTriggerConstraints": {
+      "type": "object",
+      "title": "InjectTriggerConstraints",
+      "additionalProperties": false,
+      "properties": {
+        "blocked_if_triggered_any": {
+          "type": "array",
+          "title": "Blocked If Triggered Any",
+          "description": "Lista över inject-id som blockerar detta inject om de någon gång har triggats i sessionen.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     },
     "TextMatcher": {
       "type": "object",

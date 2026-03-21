@@ -4,7 +4,9 @@ from src.schemas.interpreted_action import InterpretedAction
 from src.services.scenario_engine import ScenarioEngine
 
 
-def make_scenario(executable_rules: list[dict]) -> Scenario:
+def make_scenario(
+    executable_rules: list[dict], inject_catalog: list[dict] | None = None
+) -> Scenario:
     return Scenario.model_validate(
         {
             "id": "scenario-engine-001",
@@ -51,7 +53,7 @@ def make_scenario(executable_rules: list[dict]) -> Scenario:
                 },
             ],
             "actors": [],
-            "inject_catalog": [],
+            "inject_catalog": inject_catalog or [],
             "rules": [],
             "executable_rules": executable_rules,
             "presentation_guidelines": {
@@ -163,6 +165,55 @@ def test_scenario_engine_triggers_metric_threshold_rule():
     )
 
     assert "inject-ops-001" in updated.active_injects
+    assert "inject-ops-001" in updated.triggered_injects
+
+
+def test_scenario_engine_blocks_inject_when_constraint_matches_trigger_history():
+    scenario = make_scenario(
+        [
+            {
+                "id": "rule-activate-a",
+                "name": "Aktivera inject A",
+                "trigger": "turn_processed",
+                "conditions": [],
+                "effects": [{"type": "add_active_inject", "inject_id": "inject-a"}],
+                "priority": "medium",
+            }
+        ],
+        inject_catalog=[
+            {
+                "id": "inject-a",
+                "type": "media",
+                "title": "Inject A",
+                "description": "Test A",
+                "severity": 3,
+                "trigger_constraints": {"blocked_if_triggered_any": ["inject-b"]},
+            },
+            {
+                "id": "inject-b",
+                "type": "operations",
+                "title": "Inject B",
+                "description": "Test B",
+                "severity": 2,
+            },
+        ],
+    )
+    state = make_state()
+    state.triggered_injects = ["inject-b"]
+
+    updated = ScenarioEngine().apply(
+        scenario,
+        state,
+        "turn_processed",
+        make_action(["coordination"], []),
+    )
+
+    assert "inject-a" not in updated.active_injects
+    assert any(
+        item.type == "scenario_event"
+        and "Inject blockerat av trigger-constraint: inject-a" in item.text
+        for item in updated.exercise_log
+    )
 
 
 def test_scenario_engine_once_rule_only_applies_once():

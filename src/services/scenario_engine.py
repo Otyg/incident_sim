@@ -159,7 +159,10 @@ class ScenarioEngine:
 
     @staticmethod
     def _apply_effect(
-        state: SessionState, rule: ExecutableRule, effect: ScenarioRuleEffect
+        scenario: Scenario,
+        state: SessionState,
+        rule: ExecutableRule,
+        effect: ScenarioRuleEffect,
     ) -> str:
         if effect.type == "set_phase" and effect.phase:
             previous_phase = state.phase
@@ -174,6 +177,22 @@ class ScenarioEngine:
             return f"phase={effect.phase}"
 
         if effect.type == "add_active_inject" and effect.inject_id:
+            blocking_inject_id = scenario.resolve_blocking_inject(
+                effect.inject_id, state.triggered_injects
+            )
+            if blocking_inject_id:
+                state.exercise_log.append(
+                    ExerciseLogItem(
+                        turn=state.turn_number,
+                        type="scenario_event",
+                        text=(
+                            "Inject blockerat av trigger-constraint: "
+                            f"{effect.inject_id} (blockerat av {blocking_inject_id})"
+                        ),
+                    )
+                )
+                return f"blocked_inject={effect.inject_id}"
+
             if effect.inject_id not in state.active_injects:
                 state.active_injects.append(effect.inject_id)
                 state.exercise_log.append(
@@ -183,6 +202,7 @@ class ScenarioEngine:
                         text=f"Inject aktiverat: {effect.inject_id}",
                     )
                 )
+            ScenarioEngine._append_unique(state.triggered_injects, effect.inject_id)
             return f"active_inject={effect.inject_id}"
 
         if effect.type == "resolve_inject" and effect.inject_id:
@@ -275,7 +295,8 @@ class ScenarioEngine:
                 continue
 
             applied_effects = [
-                self._apply_effect(updated, rule, effect) for effect in rule.effects
+                self._apply_effect(scenario, updated, rule, effect)
+                for effect in rule.effects
             ]
             updated.exercise_log.append(
                 ExerciseLogItem(

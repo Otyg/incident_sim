@@ -861,10 +861,7 @@ async def trigger_session_inject(
         )
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    inject_definition = next(
-        (item for item in scenario.inject_catalog if item.id == request.inject_id),
-        None,
-    )
+    inject_definition = scenario.get_inject_definition(request.inject_id)
     if not inject_definition:
         logger.warning(
             "Manual inject trigger rejected because inject was not defined session_id=%s inject_id=%s",
@@ -874,6 +871,24 @@ async def trigger_session_inject(
         raise HTTPException(
             status_code=400,
             detail="Inject is not defined in the scenario",
+        )
+
+    blocking_inject_id = scenario.resolve_blocking_inject(
+        request.inject_id, state.triggered_injects
+    )
+    if blocking_inject_id:
+        logger.warning(
+            "Manual inject trigger blocked by constraint session_id=%s inject_id=%s blocking_inject_id=%s",
+            session_id,
+            request.inject_id,
+            blocking_inject_id,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Inject {request.inject_id} is blocked because {blocking_inject_id} "
+                "has already been triggered"
+            ),
         )
 
     if request.inject_id in state.active_injects:
@@ -891,6 +906,8 @@ async def trigger_session_inject(
             item for item in updated.resolved_injects if item != request.inject_id
         ]
     updated.active_injects.append(request.inject_id)
+    if request.inject_id not in updated.triggered_injects:
+        updated.triggered_injects.append(request.inject_id)
 
     action = "återaktiverat" if was_resolved else "aktiverat"
     updated.exercise_log.append(

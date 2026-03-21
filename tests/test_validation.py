@@ -213,6 +213,55 @@ def test_scenario_validation_rejects_empty_prompt_instruction_set():
         Scenario(**payload)
 
 
+def test_scenario_validation_accepts_inject_trigger_constraints():
+    payload = sample_scenario_dict()
+    payload["inject_catalog"] = [
+        {
+            "id": "inject-a",
+            "type": "media",
+            "title": "Inject A",
+            "description": "Test A",
+            "severity": 3,
+            "trigger_constraints": {
+                "blocked_if_triggered_any": ["inject-b", "inject-b", "  "]
+            },
+        },
+        {
+            "id": "inject-b",
+            "type": "operations",
+            "title": "Inject B",
+            "description": "Test B",
+            "severity": 2,
+        },
+    ]
+
+    scenario = Scenario(**payload)
+
+    assert scenario.inject_catalog[0].trigger_constraints is not None
+    assert scenario.inject_catalog[0].trigger_constraints.blocked_if_triggered_any == [
+        "inject-b"
+    ]
+
+
+def test_scenario_validation_rejects_unknown_inject_constraint_reference():
+    payload = sample_scenario_dict()
+    payload["inject_catalog"] = [
+        {
+            "id": "inject-a",
+            "type": "media",
+            "title": "Inject A",
+            "description": "Test A",
+            "severity": 3,
+            "trigger_constraints": {
+                "blocked_if_triggered_any": ["inject-missing"]
+            },
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
 def test_scenario_validation_rejects_missing_initial_narration_sources():
     payload = sample_scenario_dict()
     payload["states"][0]["narration"] = {}

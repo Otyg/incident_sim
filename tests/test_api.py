@@ -297,6 +297,14 @@ def datadriven_scenario_payload():
     return payload
 
 
+def datadriven_scenario_payload_with_inject_constraints():
+    payload = datadriven_scenario_payload()
+    payload["inject_catalog"][0]["trigger_constraints"] = {
+        "blocked_if_triggered_any": ["inject-ops-001"]
+    }
+    return payload
+
+
 def enrichment_driven_scenario_payload():
     payload = sample_scenario_payload()
     payload["text_matchers"] = [
@@ -1202,6 +1210,7 @@ def test_manual_inject_trigger_updates_session_when_inject_is_defined(monkeypatc
 
     assert status == 200
     assert "inject-media-001" in body["active_injects"]
+    assert "inject-media-001" in body["triggered_injects"]
     assert any(
         item["text"]
         == "Manuellt inject aktiverat: Frågor från lokalmedia (inject-media-001)"
@@ -1316,11 +1325,42 @@ def test_manual_inject_trigger_reactivates_resolved_inject(monkeypatch):
 
     assert status == 200
     assert "inject-media-001" in body["active_injects"]
+    assert "inject-media-001" in body["triggered_injects"]
     assert "inject-media-001" not in body["resolved_injects"]
     assert any(
         item["text"]
         == "Manuellt inject återaktiverat: Frågor från lokalmedia (inject-media-001)"
         for item in body["exercise_log"]
+    )
+
+
+def test_manual_inject_trigger_returns_409_when_blocked_by_constraint(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    request_json("POST", "/scenarios", datadriven_scenario_payload_with_inject_constraints())
+    _, session = request_json(
+        "POST",
+        "/sessions",
+        {"scenario_id": "scenario-001", "audience": "krisledning"},
+    )
+    session_id = session["session_state"]["session_id"]
+
+    first_status, first_body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-ops-001"},
+    )
+    blocked_status, blocked_body = request_json(
+        "POST",
+        f"/sessions/{session_id}/injects",
+        {"inject_id": "inject-media-001"},
+    )
+
+    assert first_status == 200
+    assert "inject-ops-001" in first_body["triggered_injects"]
+    assert blocked_status == 409
+    assert (
+        blocked_body["detail"]
+        == "Inject inject-media-001 is blocked because inject-ops-001 has already been triggered"
     )
 
 
