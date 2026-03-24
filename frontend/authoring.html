@@ -103,6 +103,14 @@
         const [error, setError] = useState("");
         const [editableRules, setEditableRules] = useState([]);
         const [selectedRuleIndex, setSelectedRuleIndex] = useState(null);
+        const [editingRuleIndex, setEditingRuleIndex] = useState(null);
+        const [editingRule, setEditingRule] = useState(null);
+        const [editableInjects, setEditableInjects] = useState([]);
+        const [editingInjectIndex, setEditingInjectIndex] = useState(null);
+        const [editingInject, setEditingInject] = useState(null);
+        const [editableStates, setEditableStates] = useState([]);
+        const [editingStateIndex, setEditingStateIndex] = useState(null);
+        const [editingState, setEditingState] = useState(null);
         const [ruleValidationErrors, setRuleValidationErrors] = useState([]);
 
         const availablePhases =
@@ -130,10 +138,20 @@
         useEffect(() => {
           if (authoringDraft?.executable_rules) {
             setEditableRules(JSON.parse(JSON.stringify(authoringDraft.executable_rules)));
+            setEditableInjects(JSON.parse(JSON.stringify(authoringDraft.inject_catalog || [])));
+            setEditableStates(JSON.parse(JSON.stringify(authoringDraft.states || [])));
             setSelectedRuleIndex(null);
+            setEditingRuleIndex(null);
+            setEditingInjectIndex(null);
+            setEditingStateIndex(null);
           } else {
             setEditableRules([]);
+            setEditableInjects([]);
+            setEditableStates([]);
             setSelectedRuleIndex(null);
+            setEditingRuleIndex(null);
+            setEditingInjectIndex(null);
+            setEditingStateIndex(null);
           }
           setRuleValidationErrors([]);
         }, [authoringDraft?.id]);
@@ -145,8 +163,10 @@
           setDraft({
             ...authoringDraft,
             executable_rules: editableRules,
+            inject_catalog: editableInjects,
+            states: editableStates,
           });
-        }, [editableRules]);
+        }, [editableRules, editableInjects, editableStates]);
 
         const isNumericFact = (fact) =>
           fact.startsWith("state.metrics.") ||
@@ -197,6 +217,13 @@
           return value ?? "";
         };
 
+        const withCurrentValue = (options, currentValue) => {
+          if (currentValue === undefined || currentValue === null || currentValue === "") {
+            return options;
+          }
+          return options.includes(currentValue) ? options : [...options, currentValue];
+        };
+
         const ensureEffectDefaults = (effect) => {
           const next = { ...effect };
           if (effect.type === "set_phase") {
@@ -242,6 +269,27 @@
           ],
           priority: "medium",
           once: false,
+        });
+
+        const createBlankInject = () => ({
+          id: `inject-${Date.now()}`,
+          title: "Ny inject",
+          description: "",
+        });
+
+        const createBlankState = () => ({
+          id: `state-${Date.now()}`,
+          phase: availablePhases[0] || "",
+          title: "Ny fas",
+          description: "",
+          narration: {
+            default: {
+              situation_update: "",
+              key_points: [],
+              decisions_to_consider: [],
+              facilitator_notes: "",
+            },
+          },
         });
 
         const setDraft = (draft) => {
@@ -589,10 +637,7 @@
               </div>
               {status && <div className="status">{status}</div>}
               {error && <div className="status error">{error}</div>}
-            </section>
-
-            <section className="grid">
-              <article className="panel">
+              <article className="panel" style={{ marginTop: '20px' }}>
                 <h2>Genererat utkast</h2>
                 {authoringDraft ? (
                   <div className="list">
@@ -615,7 +660,364 @@
                   <div className="small">Inget utkast genererat ännu.</div>
                 )}
               </article>
+            </section>
 
+            <section className="grid">
+              <article className="panel">
+                <h2>States-editor</h2>
+                {!authoringDraft ? (
+                  <div className="small">Generera eller ladda ett utkast först.</div>
+                ) : (
+                  <div className="stack">
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          const next = [...editableStates, createBlankState()];
+                          setEditableStates(next);
+                          setEditingStateIndex(next.length - 1);
+                          setEditingState(JSON.parse(JSON.stringify(next[next.length - 1])));
+                        }}
+                        disabled={loading}
+                      >
+                        Lägg till fas
+                      </button>
+                    </div>
+                    <div>
+                      <div className="small">Faser</div>
+                      {editableStates.length === 0 ? (
+                        <div className="small">Inga faser ännu.</div>
+                      ) : (
+                        <div className="list">
+                          {editableStates.map((state, index) => (
+                            <div key={state.id || index} className="timeline-item">
+                              <div className="meta">
+                                <div className="meta-item">
+                                  <span>Id</span>
+                                  <strong>{state.id}</strong>
+                                </div>
+                                <div className="meta-item">
+                                  <span>Fas</span>
+                                  <strong>{state.phase}</strong>
+                                </div>
+                                <div className="meta-item">
+                                  <span>Titel</span>
+                                  <strong>{state.title}</strong>
+                                </div>
+                              </div>
+                              <div className="actions">
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    setEditingStateIndex(index);
+                                    setEditingState(JSON.parse(JSON.stringify(state)));
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Redigera
+                                </button>
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    const next = editableStates.filter((_, i) => i !== index);
+                                    setEditableStates(next);
+                                    if (editingStateIndex === index) {
+                                      setEditingStateIndex(null);
+                                      setEditingState(null);
+                                    }
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Ta bort
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {editingStateIndex !== null && editingState && (
+                      <div className="modal-overlay">
+                        <div className="modal">
+                          <div className="modal-header">
+                            <h2>Redigera fas</h2>
+                          </div>
+                          <div className="modal-body">
+                            <div className="stack">
+                              <div className="form-group">
+                                <label>Id</label>
+                                <input
+                                  value={editingState.id}
+                                  onChange={(e) => setEditingState({ ...editingState, id: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Fas</label>
+                                <input
+                                  value={editingState.phase}
+                                  onChange={(e) => setEditingState({ ...editingState, phase: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Titel</label>
+                                <input
+                                  value={editingState.title}
+                                  onChange={(e) => setEditingState({ ...editingState, title: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Beskrivning</label>
+                                <textarea
+                                  value={editingState.description}
+                                  onChange={(e) => setEditingState({ ...editingState, description: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Narration - Situation update</label>
+                                <textarea
+                                  value={editingState.narration?.default?.situation_update || ""}
+                                  onChange={(e) =>
+                                    setEditingState({
+                                      ...editingState,
+                                      narration: {
+                                        ...editingState.narration,
+                                        default: {
+                                          ...((editingState.narration || {}).default || {}),
+                                          situation_update: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Narration - Key points (en per rad)</label>
+                                <textarea
+                                  value={(editingState.narration?.default?.key_points || []).join("\n")}
+                                  onChange={(e) =>
+                                    setEditingState({
+                                      ...editingState,
+                                      narration: {
+                                        ...editingState.narration,
+                                        default: {
+                                          ...((editingState.narration || {}).default || {}),
+                                          key_points: e.target.value
+                                            .split("\n")
+                                            .map((line) => line.trim())
+                                            .filter(Boolean),
+                                        },
+                                      },
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Narration - Decisions to consider (en per rad)</label>
+                                <textarea
+                                  value={(editingState.narration?.default?.decisions_to_consider || []).join("\n")}
+                                  onChange={(e) =>
+                                    setEditingState({
+                                      ...editingState,
+                                      narration: {
+                                        ...editingState.narration,
+                                        default: {
+                                          ...((editingState.narration || {}).default || {}),
+                                          decisions_to_consider: e.target.value
+                                            .split("\n")
+                                            .map((line) => line.trim())
+                                            .filter(Boolean),
+                                        },
+                                      },
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Narration - Facilitator notes</label>
+                                <textarea
+                                  value={editingState.narration?.default?.facilitator_notes || ""}
+                                  onChange={(e) =>
+                                    setEditingState({
+                                      ...editingState,
+                                      narration: {
+                                        ...editingState.narration,
+                                        default: {
+                                          ...((editingState.narration || {}).default || {}),
+                                          facilitator_notes: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="modal-footer">
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                setEditingStateIndex(null);
+                                setEditingState(null);
+                              }}
+                              disabled={loading}
+                            >
+                              Avbryt
+                            </button>
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                const next = [...editableStates];
+                                next[editingStateIndex] = editingState;
+                                setEditableStates(next);
+                                setEditingStateIndex(null);
+                                setEditingState(null);
+                              }}
+                              disabled={loading}
+                            >
+                              Spara
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+
+              <article className="panel">
+                <h2>Inject-editor</h2>
+                {!authoringDraft ? (
+                  <div className="small">Generera eller ladda ett utkast först.</div>
+                ) : (
+                  <div className="stack">
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          const next = [...editableInjects, createBlankInject()];
+                          setEditableInjects(next);
+                          setEditingInjectIndex(next.length - 1);
+                          setEditingInject(JSON.parse(JSON.stringify(next[next.length - 1])));
+                        }}
+                        disabled={loading}
+                      >
+                        Lägg till inject
+                      </button>
+                    </div>
+                    <div>
+                      <div className="small">Injects</div>
+                      {editableInjects.length === 0 ? (
+                        <div className="small">Inga injects ännu.</div>
+                      ) : (
+                        <div className="list">
+                          {editableInjects.map((inject, index) => (
+                            <div key={inject.id || index} className="timeline-item">
+                              <div className="meta">
+                                <div className="meta-item">
+                                  <span>Id</span>
+                                  <strong>{inject.id}</strong>
+                                </div>
+                                <div className="meta-item">
+                                  <span>Titel</span>
+                                  <strong>{inject.title}</strong>
+                                </div>
+                              </div>
+                              <div className="actions">
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    setEditingInjectIndex(index);
+                                    setEditingInject(JSON.parse(JSON.stringify(inject)));
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Redigera
+                                </button>
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    const next = editableInjects.filter((_, i) => i !== index);
+                                    setEditableInjects(next);
+                                    if (editingInjectIndex === index) {
+                                      setEditingInjectIndex(null);
+                                      setEditingInject(null);
+                                    }
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Ta bort
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {editingInjectIndex !== null && editingInject && (
+                      <div className="modal-overlay">
+                        <div className="modal">
+                          <div className="modal-header">
+                            <h2>Redigera inject</h2>
+                          </div>
+                          <div className="modal-body">
+                            <div className="stack">
+                              <div className="form-group">
+                                <label>Id</label>
+                                <input
+                                  value={editingInject.id}
+                                  onChange={(e) => setEditingInject({ ...editingInject, id: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Titel</label>
+                                <input
+                                  value={editingInject.title}
+                                  onChange={(e) => setEditingInject({ ...editingInject, title: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>Beskrivning</label>
+                                <textarea
+                                  value={editingInject.description}
+                                  onChange={(e) => setEditingInject({ ...editingInject, description: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="modal-footer">
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                setEditingInjectIndex(null);
+                                setEditingInject(null);
+                              }}
+                              disabled={loading}
+                            >
+                              Avbryt
+                            </button>
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                const next = [...editableInjects];
+                                next[editingInjectIndex] = editingInject;
+                                setEditableInjects(next);
+                                setEditingInjectIndex(null);
+                                setEditingInject(null);
+                              }}
+                              disabled={loading}
+                            >
+                              Spara
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            </section>
+
+            <section className="grid">
               <article className="panel alt">
                 <h2>Regel-editor</h2>
                 {!authoringDraft ? (
@@ -678,7 +1080,10 @@
                               <div className="actions">
                                 <button
                                   className="secondary"
-                                  onClick={() => setSelectedRuleIndex(index)}
+                                  onClick={() => {
+                                    setEditingRuleIndex(index);
+                                    setEditingRule(JSON.parse(JSON.stringify(rule)));
+                                  }}
                                   disabled={loading}
                                 >
                                   Redigera
@@ -702,34 +1107,32 @@
                         </div>
                       )}
                     </div>
-                    {selectedRuleIndex !== null && editableRules[selectedRuleIndex] && (
-                      <div
-                        className={`panel${
-                          ruleValidationErrors.length > 0 &&
-                          hasRuleError(editableRules[selectedRuleIndex], selectedRuleIndex)
-                            ? " block-error"
-                            : ""
-                        }`}
-                      >
-                        <h3>Redigera regel</h3>
-                        <div className="stack">
+                    {editingRuleIndex !== null && editingRule && (
+                      <div className="modal-overlay">
+                        <div
+                          className={`modal${
+                            ruleValidationErrors.length > 0 &&
+                            hasRuleError(editingRule, editingRuleIndex)
+                              ? " block-error"
+                              : ""
+                          }`}>
+                          <div className="modal-header">
+                            <h2>Redigera regel</h2>
+                          </div>
+                          <div className="modal-body">
+                            <div className="stack">
                           <div className="form-group">
                             <label>Regel-id</label>
                             <input
                               className={
                                 ruleValidationErrors.length > 0 &&
-                                !editableRules[selectedRuleIndex].id?.trim()
+                                !editingRule.id?.trim()
                                   ? "input-error"
                                   : ""
                               }
-                              value={editableRules[selectedRuleIndex].id}
+                              value={editingRule.id}
                               onChange={(e) => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex] = {
-                                  ...next[selectedRuleIndex],
-                                  id: e.target.value,
-                                };
-                                setEditableRules(next);
+                                setEditingRule({ ...editingRule, id: e.target.value });
                               }}
                             />
                           </div>
@@ -738,18 +1141,13 @@
                             <input
                               className={
                                 ruleValidationErrors.length > 0 &&
-                                !editableRules[selectedRuleIndex].name?.trim()
+                                !editingRule.name?.trim()
                                   ? "input-error"
                                   : ""
                               }
-                              value={editableRules[selectedRuleIndex].name}
+                              value={editingRule.name}
                               onChange={(e) => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex] = {
-                                  ...next[selectedRuleIndex],
-                                  name: e.target.value,
-                                };
-                                setEditableRules(next);
+                                setEditingRule({ ...editingRule, name: e.target.value });
                               }}
                             />
                           </div>
@@ -758,27 +1156,22 @@
                             <select
                               className={
                                 ruleValidationErrors.length > 0 &&
-                                !RULE_TRIGGERS.includes(
-                                  editableRules[selectedRuleIndex].trigger
-                                )
+                                !RULE_TRIGGERS.includes(editingRule.trigger)
                                   ? "input-error"
                                   : ""
                               }
-                              value={editableRules[selectedRuleIndex].trigger}
+                              value={editingRule.trigger}
                               onChange={(e) => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex] = {
-                                  ...next[selectedRuleIndex],
-                                  trigger: e.target.value,
-                                };
-                                setEditableRules(next);
+                                setEditingRule({ ...editingRule, trigger: e.target.value });
                               }}
                             >
-                              {RULE_TRIGGERS.map((trigger) => (
-                                <option key={trigger} value={trigger}>
-                                  {trigger}
-                                </option>
-                              ))}
+                              {withCurrentValue(RULE_TRIGGERS, editingRule.trigger).map(
+                                (trigger) => (
+                                  <option key={trigger} value={trigger}>
+                                    {trigger}
+                                  </option>
+                                )
+                              )}
                             </select>
                           </div>
                           <div className="form-group">
@@ -786,40 +1179,33 @@
                             <select
                               className={
                                 ruleValidationErrors.length > 0 &&
-                                !RULE_PRIORITIES.includes(
-                                  editableRules[selectedRuleIndex].priority
-                                )
+                                !RULE_PRIORITIES.includes(editingRule.priority)
                                   ? "input-error"
                                   : ""
                               }
-                              value={editableRules[selectedRuleIndex].priority}
+                              value={editingRule.priority}
                               onChange={(e) => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex] = {
-                                  ...next[selectedRuleIndex],
-                                  priority: e.target.value,
-                                };
-                                setEditableRules(next);
+                                setEditingRule({ ...editingRule, priority: e.target.value });
                               }}
                             >
-                              {RULE_PRIORITIES.map((priority) => (
-                                <option key={priority} value={priority}>
-                                  {priority}
-                                </option>
-                              ))}
+                              {withCurrentValue(RULE_PRIORITIES, editingRule.priority).map(
+                                (priority) => (
+                                  <option key={priority} value={priority}>
+                                    {priority}
+                                  </option>
+                                )
+                              )}
                             </select>
                           </div>
                           <div className="form-group">
                             <label>Gäller bara en gång</label>
                             <select
-                              value={editableRules[selectedRuleIndex].once ? "true" : "false"}
+                              value={editingRule.once ? "true" : "false"}
                               onChange={(e) => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex] = {
-                                  ...next[selectedRuleIndex],
+                                setEditingRule({
+                                  ...editingRule,
                                   once: e.target.value === "true",
-                                };
-                                setEditableRules(next);
+                                });
                               }}
                             >
                               <option value="false">Nej</option>
@@ -828,12 +1214,12 @@
                           </div>
                           <div>
                             <div className="small">Villkor</div>
-                            {editableRules[selectedRuleIndex].conditions.map((condition, idx) => (
+                            {editingRule.conditions.map((condition, idx) => (
                               <div
                                 key={`${condition.fact}-${idx}`}
                                 className={`stack${
                                   ruleValidationErrors.length > 0 &&
-                                  hasConditionError(selectedRuleIndex, idx)
+                                  hasConditionError(editingRuleIndex, idx)
                                     ? " block-error"
                                     : ""
                                 }`}
@@ -844,13 +1230,12 @@
                                     className={
                                       ruleValidationErrors.length > 0 &&
                                       (!CONDITION_FACTS.includes(condition.fact) ||
-                                        hasConditionError(selectedRuleIndex, idx))
+                                        hasConditionError(editingRuleIndex, idx))
                                         ? "input-error"
                                         : ""
                                     }
                                     value={condition.fact}
                                     onChange={(e) => {
-                                      const next = [...editableRules];
                                       const updated = {
                                         ...condition,
                                         fact: e.target.value,
@@ -862,19 +1247,21 @@
                                         updated.fact,
                                         nextValue
                                       );
-                                      next[selectedRuleIndex].conditions = next[
-                                        selectedRuleIndex
-                                      ].conditions.map((item, cIdx) =>
-                                        cIdx === idx ? updated : item
-                                      );
-                                      setEditableRules(next);
+                                      setEditingRule((prev) => ({
+                                        ...prev,
+                                        conditions: prev.conditions.map((item, cIdx) =>
+                                          cIdx === idx ? updated : item
+                                        ),
+                                      }));
                                     }}
                                   >
-                                    {CONDITION_FACTS.map((fact) => (
-                                      <option key={fact} value={fact}>
-                                        {fact}
-                                      </option>
-                                    ))}
+                                    {withCurrentValue(CONDITION_FACTS, condition.fact).map(
+                                      (fact) => (
+                                        <option key={fact} value={fact}>
+                                          {fact}
+                                        </option>
+                                      )
+                                    )}
                                   </select>
                                 </div>
                                 <div className="form-group">
@@ -883,24 +1270,26 @@
                                     className={
                                       ruleValidationErrors.length > 0 &&
                                       (!CONDITION_OPERATORS.includes(condition.operator) ||
-                                        hasConditionError(selectedRuleIndex, idx))
+                                        hasConditionError(editingRuleIndex, idx))
                                         ? "input-error"
                                         : ""
                                     }
                                     value={condition.operator}
                                     onChange={(e) => {
-                                      const next = [...editableRules];
-                                      next[selectedRuleIndex].conditions = next[
-                                        selectedRuleIndex
-                                      ].conditions.map((item, cIdx) =>
-                                        cIdx === idx
-                                          ? { ...item, operator: e.target.value }
-                                          : item
-                                      );
-                                      setEditableRules(next);
+                                      setEditingRule((prev) => ({
+                                        ...prev,
+                                        conditions: prev.conditions.map((item, cIdx) =>
+                                          cIdx === idx
+                                            ? { ...item, operator: e.target.value }
+                                            : item
+                                        ),
+                                      }));
                                     }}
                                   >
-                                    {CONDITION_OPERATORS.map((operator) => (
+                                    {withCurrentValue(
+                                      CONDITION_OPERATORS,
+                                      condition.operator
+                                    ).map((operator) => (
                                       <option key={operator} value={operator}>
                                         {operator}
                                       </option>
@@ -918,27 +1307,26 @@
                                           condition.value === null ||
                                           condition.value === undefined ||
                                           !Number.isFinite(Number(condition.value)) ||
-                                          hasConditionError(selectedRuleIndex, idx))
+                                          hasConditionError(editingRuleIndex, idx))
                                           ? "input-error"
                                           : ""
                                       }
                                       value={condition.value ?? ""}
                                       onChange={(e) => {
-                                        const next = [...editableRules];
-                                        next[selectedRuleIndex].conditions = next[
-                                          selectedRuleIndex
-                                        ].conditions.map((item, cIdx) =>
-                                          cIdx === idx
-                                            ? {
-                                                ...item,
-                                                value: normalizeConditionValue(
-                                                  condition.fact,
-                                                  e.target.value
-                                                ),
-                                              }
-                                            : item
-                                        );
-                                        setEditableRules(next);
+                                        setEditingRule((prev) => ({
+                                          ...prev,
+                                          conditions: prev.conditions.map((item, cIdx) =>
+                                            cIdx === idx
+                                              ? {
+                                                  ...item,
+                                                  value: normalizeConditionValue(
+                                                    condition.fact,
+                                                    e.target.value
+                                                  ),
+                                                }
+                                              : item
+                                          ),
+                                        }));
                                       }}
                                     />
                                   ) : (
@@ -948,30 +1336,32 @@
                                         (condition.value === "" ||
                                           condition.value === null ||
                                           condition.value === undefined ||
-                                          hasConditionError(selectedRuleIndex, idx))
+                                          hasConditionError(editingRuleIndex, idx))
                                           ? "input-error"
                                           : ""
                                       }
                                       value={String(condition.value ?? "")}
                                       onChange={(e) => {
-                                        const next = [...editableRules];
-                                        next[selectedRuleIndex].conditions = next[
-                                          selectedRuleIndex
-                                        ].conditions.map((item, cIdx) =>
-                                          cIdx === idx
-                                            ? {
-                                                ...item,
-                                                value: normalizeConditionValue(
-                                                  condition.fact,
-                                                  e.target.value
-                                                ),
-                                              }
-                                            : item
-                                        );
-                                        setEditableRules(next);
+                                        setEditingRule((prev) => ({
+                                          ...prev,
+                                          conditions: prev.conditions.map((item, cIdx) =>
+                                            cIdx === idx
+                                              ? {
+                                                  ...item,
+                                                  value: normalizeConditionValue(
+                                                    condition.fact,
+                                                    e.target.value
+                                                  ),
+                                                }
+                                              : item
+                                          ),
+                                        }));
                                       }}
                                     >
-                                      {getConditionOptions(condition.fact).map((option) => (
+                                      {withCurrentValue(
+                                        getConditionOptions(condition.fact),
+                                        String(condition.value ?? "")
+                                      ).map((option) => (
                                         <option key={option} value={option}>
                                           {option}
                                         </option>
@@ -982,11 +1372,10 @@
                                 <button
                                   className="secondary"
                                   onClick={() => {
-                                    const next = [...editableRules];
-                                    next[selectedRuleIndex].conditions = next[
-                                      selectedRuleIndex
-                                    ].conditions.filter((_, cIdx) => cIdx !== idx);
-                                    setEditableRules(next);
+                                    setEditingRule((prev) => ({
+                                      ...prev,
+                                      conditions: prev.conditions.filter((_, cIdx) => cIdx !== idx),
+                                    }));
                                   }}
                                 >
                                   Ta bort villkor
@@ -996,16 +1385,17 @@
                             <button
                               className="secondary"
                               onClick={() => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex].conditions = [
-                                  ...next[selectedRuleIndex].conditions,
-                                  {
-                                    fact: "state.phase",
-                                    operator: "equals",
-                                    value: availablePhases[0] || "",
-                                  },
-                                ];
-                                setEditableRules(next);
+                                setEditingRule((prev) => ({
+                                  ...prev,
+                                  conditions: [
+                                    ...prev.conditions,
+                                    {
+                                      fact: "state.phase",
+                                      operator: "equals",
+                                      value: availablePhases[0] || "",
+                                    },
+                                  ],
+                                }));
                               }}
                             >
                               Lägg till villkor
@@ -1013,14 +1403,14 @@
                           </div>
                           <div>
                             <div className="small">Effekter</div>
-                            {editableRules[selectedRuleIndex].effects.map((effect, idx) => {
+                            {editingRule.effects.map((effect, idx) => {
                               const normalized = ensureEffectDefaults(effect);
                               return (
                                 <div
                                   key={`${effect.type}-${idx}`}
                                   className={`stack${
                                     ruleValidationErrors.length > 0 &&
-                                    hasEffectError(selectedRuleIndex, idx)
+                                    hasEffectError(editingRuleIndex, idx)
                                       ? " block-error"
                                       : ""
                                   }`}
@@ -1031,22 +1421,19 @@
                                       className={
                                         ruleValidationErrors.length > 0 &&
                                         (!EFFECT_TYPES.includes(normalized.type) ||
-                                          hasEffectError(selectedRuleIndex, idx))
+                                          hasEffectError(editingRuleIndex, idx))
                                           ? "input-error"
                                           : ""
                                       }
                                       value={normalized.type}
                                       onChange={(e) => {
-                                        const next = [...editableRules];
-                                        const updated = ensureEffectDefaults({
-                                          type: e.target.value,
-                                        });
-                                        next[selectedRuleIndex].effects = next[
-                                          selectedRuleIndex
-                                        ].effects.map((item, eIdx) =>
-                                          eIdx === idx ? updated : item
-                                        );
-                                        setEditableRules(next);
+                                        const updated = ensureEffectDefaults({ type: e.target.value });
+                                        setEditingRule((prev) => ({
+                                          ...prev,
+                                          effects: prev.effects.map((item, eIdx) =>
+                                            eIdx === idx ? updated : item
+                                          ),
+                                        }));
                                       }}
                                     >
                                       {EFFECT_TYPES.map((type) => (
@@ -1063,31 +1450,32 @@
                                         className={
                                           ruleValidationErrors.length > 0 &&
                                           (!normalized.phase ||
-                                            hasEffectError(selectedRuleIndex, idx))
+                                            hasEffectError(editingRuleIndex, idx))
                                             ? "input-error"
                                             : ""
                                         }
                                         value={normalized.phase || ""}
                                         onChange={(e) => {
-                                          const next = [...editableRules];
-                                          next[selectedRuleIndex].effects = next[
-                                            selectedRuleIndex
-                                          ].effects.map((item, eIdx) =>
-                                            eIdx === idx
-                                              ? { ...item, phase: e.target.value }
-                                              : item
-                                          );
-                                          setEditableRules(next);
+                                          setEditingRule((prev) => ({
+                                            ...prev,
+                                            effects: prev.effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, phase: e.target.value }
+                                                : item
+                                            ),
+                                          }));
                                         }}
                                       >
-                                        {availablePhases.length === 0 ? (
+                                        {withCurrentValue(availablePhases, normalized.phase).length === 0 ? (
                                           <option value="">Inga faser</option>
                                         ) : (
-                                          availablePhases.map((phase) => (
-                                            <option key={phase} value={phase}>
-                                              {phase}
-                                            </option>
-                                          ))
+                                          withCurrentValue(availablePhases, normalized.phase).map(
+                                            (phase) => (
+                                              <option key={phase} value={phase}>
+                                                {phase}
+                                              </option>
+                                            )
+                                          )
                                         )}
                                       </select>
                                     </div>
@@ -1100,31 +1488,32 @@
                                         className={
                                           ruleValidationErrors.length > 0 &&
                                           (!normalized.inject_id ||
-                                            hasEffectError(selectedRuleIndex, idx))
+                                            hasEffectError(editingRuleIndex, idx))
                                             ? "input-error"
                                             : ""
                                         }
                                         value={normalized.inject_id || ""}
                                         onChange={(e) => {
-                                          const next = [...editableRules];
-                                          next[selectedRuleIndex].effects = next[
-                                            selectedRuleIndex
-                                          ].effects.map((item, eIdx) =>
-                                            eIdx === idx
-                                              ? { ...item, inject_id: e.target.value }
-                                              : item
-                                          );
-                                          setEditableRules(next);
+                                          setEditingRule((prev) => ({
+                                            ...prev,
+                                            effects: prev.effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, inject_id: e.target.value }
+                                                : item
+                                            ),
+                                          }));
                                         }}
                                       >
-                                        {availableInjects.length === 0 ? (
+                                        {withCurrentValue(availableInjects, normalized.inject_id).length === 0 ? (
                                           <option value="">Inga injects</option>
                                         ) : (
-                                          availableInjects.map((inject) => (
-                                            <option key={inject} value={inject}>
-                                              {inject}
-                                            </option>
-                                          ))
+                                          withCurrentValue(availableInjects, normalized.inject_id).map(
+                                            (inject) => (
+                                              <option key={inject} value={inject}>
+                                                {inject}
+                                              </option>
+                                            )
+                                          )
                                         )}
                                       </select>
                                     </div>
@@ -1137,21 +1526,20 @@
                                         className={
                                           ruleValidationErrors.length > 0 &&
                                           (!normalized.item ||
-                                            hasEffectError(selectedRuleIndex, idx))
+                                            hasEffectError(editingRuleIndex, idx))
                                             ? "input-error"
                                             : ""
                                         }
                                         value={normalized.item || ""}
                                         onChange={(e) => {
-                                          const next = [...editableRules];
-                                          next[selectedRuleIndex].effects = next[
-                                            selectedRuleIndex
-                                          ].effects.map((item, eIdx) =>
-                                            eIdx === idx
-                                              ? { ...item, item: e.target.value }
-                                              : item
-                                          );
-                                          setEditableRules(next);
+                                          setEditingRule((prev) => ({
+                                            ...prev,
+                                            effects: prev.effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, item: e.target.value }
+                                                : item
+                                            ),
+                                          }));
                                         }}
                                       />
                                     </div>
@@ -1164,28 +1552,29 @@
                                           className={
                                             ruleValidationErrors.length > 0 &&
                                             (!METRIC_PATHS.includes(normalized.metric) ||
-                                              hasEffectError(selectedRuleIndex, idx))
+                                              hasEffectError(editingRuleIndex, idx))
                                               ? "input-error"
                                               : ""
                                           }
                                           value={normalized.metric || METRIC_PATHS[0]}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
-                                              eIdx === idx
-                                                ? { ...item, metric: e.target.value }
-                                                : item
-                                            );
-                                            setEditableRules(next);
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? { ...item, metric: e.target.value }
+                                                  : item
+                                              ),
+                                            }));
                                           }}
                                         >
-                                          {METRIC_PATHS.map((metric) => (
-                                            <option key={metric} value={metric}>
-                                              {metric}
-                                            </option>
-                                          ))}
+                                          {withCurrentValue(METRIC_PATHS, normalized.metric).map(
+                                            (metric) => (
+                                              <option key={metric} value={metric}>
+                                                {metric}
+                                              </option>
+                                            )
+                                          )}
                                         </select>
                                       </div>
                                       <div className="form-group">
@@ -1195,24 +1584,23 @@
                                           className={
                                             ruleValidationErrors.length > 0 &&
                                             (!Number.isFinite(Number(normalized.amount)) ||
-                                              hasEffectError(selectedRuleIndex, idx))
+                                              hasEffectError(editingRuleIndex, idx))
                                               ? "input-error"
                                               : ""
                                           }
                                           value={normalized.amount ?? 0}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
                                                 eIdx === idx
                                                   ? {
                                                       ...item,
                                                       amount: Number(e.target.value),
                                                     }
                                                   : item
-                                            );
-                                            setEditableRules(next);
+                                              ),
+                                            }));
                                           }}
                                         />
                                       </div>
@@ -1226,28 +1614,29 @@
                                           className={
                                             ruleValidationErrors.length > 0 &&
                                             (!FLAG_PATHS.includes(normalized.flag) ||
-                                              hasEffectError(selectedRuleIndex, idx))
+                                              hasEffectError(editingRuleIndex, idx))
                                               ? "input-error"
                                               : ""
                                           }
                                           value={normalized.flag || FLAG_PATHS[0]}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
-                                              eIdx === idx
-                                                ? { ...item, flag: e.target.value }
-                                                : item
-                                            );
-                                            setEditableRules(next);
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? { ...item, flag: e.target.value }
+                                                  : item
+                                              ),
+                                            }));
                                           }}
                                         >
-                                          {FLAG_PATHS.map((flag) => (
-                                            <option key={flag} value={flag}>
-                                              {flag}
-                                            </option>
-                                          ))}
+                                          {withCurrentValue(FLAG_PATHS, normalized.flag).map(
+                                            (flag) => (
+                                              <option key={flag} value={flag}>
+                                                {flag}
+                                              </option>
+                                            )
+                                          )}
                                         </select>
                                       </div>
                                       <div className="form-group">
@@ -1261,15 +1650,14 @@
                                           }
                                           value={normalized.value ? "true" : "false"}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
-                                              eIdx === idx
-                                                ? { ...item, value: e.target.value === "true" }
-                                                : item
-                                            );
-                                            setEditableRules(next);
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? { ...item, value: e.target.value === "true" }
+                                                  : item
+                                              ),
+                                            }));
                                           }}
                                         >
                                           <option value="true">true</option>
@@ -1286,21 +1674,20 @@
                                           className={
                                             ruleValidationErrors.length > 0 &&
                                             (!normalized.message ||
-                                              hasEffectError(selectedRuleIndex, idx))
+                                              hasEffectError(editingRuleIndex, idx))
                                               ? "input-error"
                                               : ""
                                           }
                                           value={normalized.message || ""}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
-                                              eIdx === idx
-                                                ? { ...item, message: e.target.value }
-                                                : item
-                                            );
-                                            setEditableRules(next);
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? { ...item, message: e.target.value }
+                                                  : item
+                                              ),
+                                            }));
                                           }}
                                         />
                                       </div>
@@ -1310,21 +1697,20 @@
                                           className={
                                             ruleValidationErrors.length > 0 &&
                                             (!normalized.log_type ||
-                                              hasEffectError(selectedRuleIndex, idx))
+                                              hasEffectError(editingRuleIndex, idx))
                                               ? "input-error"
                                               : ""
                                           }
                                           value={normalized.log_type || ""}
                                           onChange={(e) => {
-                                            const next = [...editableRules];
-                                            next[selectedRuleIndex].effects = next[
-                                              selectedRuleIndex
-                                            ].effects.map((item, eIdx) =>
-                                              eIdx === idx
-                                                ? { ...item, log_type: e.target.value }
-                                                : item
-                                            );
-                                            setEditableRules(next);
+                                            setEditingRule((prev) => ({
+                                              ...prev,
+                                              effects: prev.effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? { ...item, log_type: e.target.value }
+                                                  : item
+                                              ),
+                                            }));
                                           }}
                                         />
                                       </div>
@@ -1333,11 +1719,10 @@
                                   <button
                                     className="secondary"
                                     onClick={() => {
-                                      const next = [...editableRules];
-                                      next[selectedRuleIndex].effects = next[
-                                        selectedRuleIndex
-                                      ].effects.filter((_, eIdx) => eIdx !== idx);
-                                      setEditableRules(next);
+                                      setEditingRule((prev) => ({
+                                        ...prev,
+                                        effects: prev.effects.filter((_, eIdx) => eIdx !== idx),
+                                      }));
                                     }}
                                   >
                                     Ta bort effekt
@@ -1348,18 +1733,44 @@
                             <button
                               className="secondary"
                               onClick={() => {
-                                const next = [...editableRules];
-                                next[selectedRuleIndex].effects = [
-                                  ...next[selectedRuleIndex].effects,
-                                  ensureEffectDefaults({ type: "set_phase" }),
-                                ];
-                                setEditableRules(next);
+                                setEditingRule((prev) => ({
+                                  ...prev,
+                                  effects: [
+                                    ...prev.effects,
+                                    ensureEffectDefaults({ type: "set_phase" }),
+                                  ],
+                                }));
                               }}
                             >
                               Lägg till effekt
                             </button>
+                            <div className="modal-footer">
+                              <button
+                                className="secondary"
+                                onClick={() => {
+                                  setEditingRuleIndex(null);
+                                  setEditingRule(null);
+                                }}
+                              >
+                                Stäng
+                              </button>
+                              <button
+                                className="secondary"
+                                onClick={() => {
+                                  const next = [...editableRules];
+                                  next[editingRuleIndex] = editingRule;
+                                  setEditableRules(next);
+                                  setEditingRuleIndex(null);
+                                  setEditingRule(null);
+                                }}
+                              >
+                                Spara & stäng
+                              </button>
+                            </div>
                           </div>
                         </div>
+                      </div>
+                      </div>
                       </div>
                     )}
                   </div>

@@ -443,6 +443,10 @@ def build_session_report_markdown(
             "",
             *_as_bullet_lines(session.affected_systems, "- Inga sparade system."),
             "",
+            "### Verksamhetspåverkan",
+            "",
+            *_as_bullet_lines(session.business_impact, "- Ingen dokumenterad verksamhetspåverkan."),
+            "",
             "### Konsekvenser",
             "",
             *_as_bullet_lines(

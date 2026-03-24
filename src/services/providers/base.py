@@ -46,6 +46,7 @@ from src.models.session import SessionState
 from src.models.turn import Turn
 from src.services.llm_provider import LLMProvider, load_prompt_bundle
 from src.services.providers.task_shapes import (
+    EXTRACT_STATE_UPDATES_EXPECTED_SHAPE,
     GENERATE_DEBRIEF_EXPECTED_SHAPE,
     GENERATE_NARRATION_EXPECTED_SHAPE,
     GENERATE_SCENARIO_DRAFT_EXPECTED_SHAPE,

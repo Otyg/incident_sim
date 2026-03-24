@@ -125,7 +125,7 @@ button:disabled,
 
 .grid {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-columns: 1fr 1fr;
   gap: 18px;
   margin-top: 18px;
 }
@@ -438,6 +438,7 @@ pre {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   max-width: 500px;
   width: 90%;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
 }
@@ -455,6 +456,7 @@ pre {
 .modal-body {
   padding: 24px;
   flex: 1;
+  overflow-y: auto;
 }
 
 .form-group {

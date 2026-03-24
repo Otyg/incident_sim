@@ -33,6 +33,7 @@
 """Deterministic scenario rule execution from structured scenario JSON."""
 
 from copy import deepcopy
+from typing import TYPE_CHECKING
 
 from src.logging_utils import get_logger
 from src.models.scenario import (
@@ -43,6 +44,11 @@ from src.models.scenario import (
 )
 from src.models.session import ExerciseLogItem, SessionState
 from src.schemas.interpreted_action import InterpretedAction
+from src.schemas.narrator_response import NarratorResponse
+from src.services.providers.task_shapes import EXTRACT_STATE_UPDATES_EXPECTED_SHAPE
+
+if TYPE_CHECKING:
+    from src.services.providers.base import LLMProvider
 
 
 logger = get_logger(__name__)
@@ -262,6 +268,87 @@ class ScenarioEngine:
             effect.type,
         )
         return f"skipped={effect.type}"
+
+    def extract_state_updates_from_narration(
+        self, state: SessionState, narration: NarratorResponse, provider: "LLMProvider"
+    ) -> SessionState:
+        """Extract and update state fields from generated narration.
+        
+        Updates known_facts, affected_systems, business_impact, and consequences
+        based on what emerges in the situation update for the current turn.
+        """
+        updated = deepcopy(state)
+        
+        # Always add new consequences from narration
+        if narration.new_consequences:
+            updated.consequences.extend(narration.new_consequences)
+            logger.info(
+                "Added new consequences from narration count=%s",
+                len(narration.new_consequences)
+            )
+        
+        # Use LLM to extract other state fields from situation update and key points
+        extraction_prompt = f"""
+Analysera följande lägesbild och extrahera relevant information för incidenthantering.
+
+Lägesbild:
+{narration.situation_update}
+
+Nyckelpoänger:
+{chr(10).join(f"- {point}" for point in narration.key_points)}
+
+Extrahera följande information som listas i JSON-format:
+- known_facts: Fakta som har blivit kända under denna turn (nya upptäckter, bekräftelser)
+- affected_systems: System som påverkas eller nämns som drabbade
+- business_impact: Konsekvenser för verksamheten, ledning eller kommunikation
+
+Returnera endast JSON utan förklaringar.
+"""
+        
+        expected_shape = EXTRACT_STATE_UPDATES_EXPECTED_SHAPE
+        
+        try:
+            extraction_result = provider._chat_json(
+                model=provider.narration_model,  # Use narration model for consistency
+                system_prompt=provider._build_json_system_prompt(
+                    "Du är en expert på att extrahera strukturerad information från incidentrapporter.",
+                    expected_shape
+                ),
+                user_prompt=extraction_prompt,
+                provider_stage="extract_state_updates"
+            )
+            
+            # Update state fields
+            if extraction_result.get("known_facts"):
+                for fact in extraction_result["known_facts"]:
+                    if fact not in updated.known_facts:
+                        updated.known_facts.append(fact)
+            
+            if extraction_result.get("affected_systems"):
+                for system in extraction_result["affected_systems"]:
+                    if system not in updated.affected_systems:
+                        updated.affected_systems.append(system)
+            
+            if extraction_result.get("business_impact"):
+                for impact in extraction_result["business_impact"]:
+                    if impact not in updated.business_impact:
+                        updated.business_impact.append(impact)
+            
+            logger.info(
+                "Extracted state updates from narration known_facts=%s affected_systems=%s business_impact=%s",
+                len(extraction_result.get("known_facts", [])),
+                len(extraction_result.get("affected_systems", [])),
+                len(extraction_result.get("business_impact", []))
+            )
+            
+        except Exception as e:
+            # Log warning but don't fail the turn - state extraction is optional enhancement
+            logger.warning(
+                "Failed to extract state updates from narration, continuing without updates error=%s",
+                str(e)
+            )
+        
+        return updated
 
     def apply(
         self,

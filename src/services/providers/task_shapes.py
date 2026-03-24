@@ -61,6 +61,12 @@ GENERATE_NARRATION_EXPECTED_SHAPE = {
     "facilitator_notes": "string",
 }
 
+EXTRACT_STATE_UPDATES_EXPECTED_SHAPE = {
+    "known_facts": ["string"],
+    "affected_systems": ["string"],
+    "business_impact": ["string"],
+}
+
 GENERATE_DEBRIEF_EXPECTED_SHAPE = {
     "exercise_summary": "string",
     "timeline_summary": [

@@ -1250,6 +1250,9 @@ async def post_turn(
             len(response.injects),
         )
 
+        # Extract state updates from the generated narration
+        updated = engine.extract_state_updates_from_narration(updated, response, provider)
+
         session_repository.save(updated)
         turn = Turn(
             turn_number=updated.turn_number,
