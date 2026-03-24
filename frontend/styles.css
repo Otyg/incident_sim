@@ -488,6 +488,18 @@ pre {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+.form-group .input-error {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.18);
+}
+
+.block-error {
+  border: 1px solid #c0392b;
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(192, 57, 43, 0.04);
+}
+
 .modal-footer {
   padding: 16px 24px;
   border-top: 1px solid var(--border);

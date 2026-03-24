@@ -21,8 +21,71 @@
       <div id="root"></div>
     </div>
     <script type="text/babel">
-      const { useState } = React;
+      const { useEffect, useState } = React;
       const Common = window.IncidentSimCommon;
+
+      const RULE_TRIGGERS = ["session_started", "turn_processed"];
+      const RULE_PRIORITIES = ["low", "medium", "high"];
+      const CONDITION_OPERATORS = [
+        "equals",
+        "not_equals",
+        "gte",
+        "lte",
+        "contains",
+        "not_contains",
+      ];
+      const CONDITION_FACTS = [
+        "state.phase",
+        "state.no_communication_turns",
+        "state.metrics.impact_level",
+        "state.metrics.media_pressure",
+        "state.metrics.service_disruption",
+        "state.metrics.leadership_pressure",
+        "state.metrics.public_confusion",
+        "state.metrics.attack_surface",
+        "state.flags.executive_escalation",
+        "state.flags.external_comms_sent",
+        "state.flags.forensic_analysis_started",
+        "state.flags.external_access_restricted",
+        "session.turn_number",
+        "action.action_types",
+        "action.targets",
+      ];
+      const EFFECT_TYPES = [
+        "set_phase",
+        "add_active_inject",
+        "resolve_inject",
+        "append_focus_item",
+        "append_consequence",
+        "increment_metric",
+        "set_flag",
+        "append_exercise_log",
+      ];
+      const METRIC_PATHS = [
+        "state.metrics.impact_level",
+        "state.metrics.media_pressure",
+        "state.metrics.service_disruption",
+        "state.metrics.leadership_pressure",
+        "state.metrics.public_confusion",
+        "state.metrics.attack_surface",
+      ];
+      const FLAG_PATHS = [
+        "state.flags.executive_escalation",
+        "state.flags.external_comms_sent",
+        "state.flags.forensic_analysis_started",
+        "state.flags.external_access_restricted",
+      ];
+      const ACTION_TYPES = [
+        "containment",
+        "coordination",
+        "communication",
+        "escalation",
+        "analysis",
+        "recovery",
+        "monitoring",
+        "legal",
+        "business_continuity",
+      ];
 
       function AuthoringPage() {
         const [authoringSourceText, setAuthoringSourceText] = useState(
@@ -31,9 +94,155 @@
         const [authoringDraft, setAuthoringDraftState] = useState(
           Common.getAuthoringDraft()
         );
+        const [availableScenarios, setAvailableScenarios] = useState([]);
+        const [selectedScenarioId, setSelectedScenarioId] = useState(
+          Common.getSelectedScenarioId()
+        );
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
+        const [editableRules, setEditableRules] = useState([]);
+        const [selectedRuleIndex, setSelectedRuleIndex] = useState(null);
+        const [ruleValidationErrors, setRuleValidationErrors] = useState([]);
+
+        const availablePhases =
+          authoringDraft?.states?.map((state) => state.phase) || [];
+        const availableInjects =
+          authoringDraft?.inject_catalog?.map((inject) => inject.id) || [];
+        const availableTargets = (() => {
+          const targets = new Set();
+          (authoringDraft?.target_aliases || []).forEach((alias) => {
+            if (alias?.canonical) {
+              targets.add(alias.canonical);
+            }
+          });
+          (authoringDraft?.actors || []).forEach((actor) => {
+            if (actor?.name) {
+              targets.add(actor.name);
+            }
+          });
+          if (targets.size === 0) {
+            targets.add("okand");
+          }
+          return Array.from(targets);
+        })();
+
+        useEffect(() => {
+          if (authoringDraft?.executable_rules) {
+            setEditableRules(JSON.parse(JSON.stringify(authoringDraft.executable_rules)));
+            setSelectedRuleIndex(null);
+          } else {
+            setEditableRules([]);
+            setSelectedRuleIndex(null);
+          }
+          setRuleValidationErrors([]);
+        }, [authoringDraft?.id]);
+
+        useEffect(() => {
+          if (!authoringDraft) {
+            return;
+          }
+          setDraft({
+            ...authoringDraft,
+            executable_rules: editableRules,
+          });
+        }, [editableRules]);
+
+        const isNumericFact = (fact) =>
+          fact.startsWith("state.metrics.") ||
+          fact === "state.no_communication_turns" ||
+          fact === "session.turn_number";
+
+        const isBooleanFact = (fact) => fact.startsWith("state.flags.");
+
+        const getConditionOptions = (fact) => {
+          if (fact === "state.phase") {
+            return availablePhases;
+          }
+          if (fact === "action.action_types") {
+            return ACTION_TYPES;
+          }
+          if (fact === "action.targets") {
+            return availableTargets;
+          }
+          if (isBooleanFact(fact)) {
+            return ["true", "false"];
+          }
+          if (fact === "state.metrics.impact_level") {
+            return ["1", "2", "3", "4", "5"];
+          }
+          if (
+            fact === "state.metrics.media_pressure" ||
+            fact === "state.metrics.service_disruption" ||
+            fact === "state.metrics.leadership_pressure" ||
+            fact === "state.metrics.public_confusion" ||
+            fact === "state.metrics.attack_surface"
+          ) {
+            return ["0", "1", "2", "3", "4", "5"];
+          }
+          if (fact === "state.no_communication_turns" || fact === "session.turn_number") {
+            return ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+          }
+          return [];
+        };
+
+        const normalizeConditionValue = (fact, value) => {
+          if (isNumericFact(fact)) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+          if (isBooleanFact(fact)) {
+            return value === true || value === "true";
+          }
+          return value ?? "";
+        };
+
+        const ensureEffectDefaults = (effect) => {
+          const next = { ...effect };
+          if (effect.type === "set_phase") {
+            next.phase = next.phase || availablePhases[0] || "";
+          }
+          if (effect.type === "add_active_inject" || effect.type === "resolve_inject") {
+            next.inject_id = next.inject_id || availableInjects[0] || "";
+          }
+          if (effect.type === "append_focus_item" || effect.type === "append_consequence") {
+            next.item = next.item || "";
+          }
+          if (effect.type === "increment_metric") {
+            next.metric = next.metric || METRIC_PATHS[0];
+            next.amount = Number.isFinite(next.amount) ? next.amount : 1;
+          }
+          if (effect.type === "set_flag") {
+            next.flag = next.flag || FLAG_PATHS[0];
+            next.value = typeof next.value === "boolean" ? next.value : true;
+          }
+          if (effect.type === "append_exercise_log") {
+            next.message = next.message || "";
+            next.log_type = next.log_type || "scenario_rule";
+          }
+          return next;
+        };
+
+        const createBlankRule = () => ({
+          id: `rule-${Date.now()}`,
+          name: "Ny regel",
+          trigger: "turn_processed",
+          conditions: [
+            {
+              fact: "state.phase",
+              operator: "equals",
+              value: availablePhases[0] || "",
+            },
+          ],
+          effects: [
+            {
+              type: "set_phase",
+              phase: availablePhases[0] || "",
+            },
+          ],
+          priority: "medium",
+          once: false,
+        });
 
         const setDraft = (draft) => {
           setAuthoringDraftState(draft);
@@ -44,6 +253,46 @@
           setAuthoringSourceText(value);
           Common.setAuthoringSourceText(value);
         };
+
+        const refreshScenarioList = async () => {
+          const items = await Common.apiRequest("/scenarios");
+          setAvailableScenarios(items);
+          if (items.length === 0) {
+            setSelectedScenarioId("");
+            return;
+          }
+          const preferredId =
+            items.find((item) => item.id === Common.getSelectedScenarioId())?.id ||
+            items[0].id;
+          setSelectedScenarioId(preferredId);
+          Common.setSelectedScenarioId(preferredId);
+        };
+
+        const loadScenarioFromDatabase = async () => {
+          if (!selectedScenarioId) {
+            return;
+          }
+          setLoading(true);
+          setError("");
+          setStatus("Laddar scenario från databasen...");
+          try {
+            const loadedScenario = await Common.apiRequest(
+              `/scenarios/${selectedScenarioId}`
+            );
+            setDraft(loadedScenario);
+            Common.setCurrentScenarioId(loadedScenario.id);
+            setStatus(`Scenario "${loadedScenario.title}" laddat för redigering.`);
+          } catch (err) {
+            setError(Common.getErrorMessage(err));
+            setStatus("");
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          refreshScenarioList().catch(() => {});
+        }, []);
 
         const generateScenarioDraft = async () => {
           if (!authoringSourceText.trim()) {
@@ -76,6 +325,12 @@
           if (!authoringDraft) {
             return;
           }
+          const validation = validateRules(editableRules);
+          setRuleValidationErrors(validation);
+          if (validation.length > 0) {
+            setError("Reglerna innehåller fel. Åtgärda innan du sparar.");
+            return;
+          }
 
           setLoading(true);
           setError("");
@@ -84,7 +339,10 @@
           try {
             const savedScenario = await Common.apiRequest("/scenarios", {
               method: "POST",
-              body: JSON.stringify(authoringDraft),
+              body: JSON.stringify({
+                ...authoringDraft,
+                executable_rules: editableRules,
+              }),
             });
             Common.setCurrentScenarioId(savedScenario.id);
             Common.setSelectedScenarioId(savedScenario.id);
@@ -98,6 +356,162 @@
           } finally {
             setLoading(false);
           }
+        };
+
+        const validateRules = (rules) => {
+          const errors = [];
+          const seenIds = new Set();
+
+          rules.forEach((rule, ruleIndex) => {
+            if (!rule.id || !rule.id.trim()) {
+              errors.push(`Regel ${ruleIndex + 1}: saknar id.`);
+            } else if (seenIds.has(rule.id.trim())) {
+              errors.push(`Regel ${ruleIndex + 1}: duplicerat id "${rule.id}".`);
+            } else {
+              seenIds.add(rule.id.trim());
+            }
+
+            if (!rule.name || !rule.name.trim()) {
+              errors.push(`Regel ${ruleIndex + 1}: saknar namn.`);
+            }
+
+            if (!RULE_TRIGGERS.includes(rule.trigger)) {
+              errors.push(`Regel ${ruleIndex + 1}: ogiltig trigger.`);
+            }
+
+            if (!RULE_PRIORITIES.includes(rule.priority)) {
+              errors.push(`Regel ${ruleIndex + 1}: ogiltig prioritet.`);
+            }
+
+            if (!Array.isArray(rule.conditions) || rule.conditions.length === 0) {
+              errors.push(`Regel ${ruleIndex + 1}: måste ha minst ett villkor.`);
+            } else {
+              rule.conditions.forEach((condition, conditionIndex) => {
+                if (!CONDITION_FACTS.includes(condition.fact)) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, villkor ${conditionIndex + 1}: ogiltigt faktum.`
+                  );
+                }
+                if (!CONDITION_OPERATORS.includes(condition.operator)) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, villkor ${conditionIndex + 1}: ogiltig operator.`
+                  );
+                }
+                const value = condition.value;
+                if (value === "" || value === null || value === undefined) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, villkor ${conditionIndex + 1}: saknar värde.`
+                  );
+                }
+                if (
+                  isNumericFact(condition.fact) &&
+                  !Number.isFinite(Number(value))
+                ) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, villkor ${conditionIndex + 1}: värde måste vara ett tal.`
+                  );
+                }
+              });
+            }
+
+            if (!Array.isArray(rule.effects) || rule.effects.length === 0) {
+              errors.push(`Regel ${ruleIndex + 1}: måste ha minst en effekt.`);
+            } else {
+              rule.effects.forEach((effect, effectIndex) => {
+                if (!EFFECT_TYPES.includes(effect.type)) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: ogiltig typ.`
+                  );
+                  return;
+                }
+
+                if (effect.type === "set_phase" && !effect.phase) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: fas saknas.`
+                  );
+                }
+
+                if (
+                  (effect.type === "add_active_inject" ||
+                    effect.type === "resolve_inject") &&
+                  !effect.inject_id
+                ) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: inject saknas.`
+                  );
+                }
+
+                if (
+                  (effect.type === "append_focus_item" ||
+                    effect.type === "append_consequence") &&
+                  !effect.item
+                ) {
+                  errors.push(
+                    `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: text saknas.`
+                  );
+                }
+
+                if (effect.type === "increment_metric") {
+                  if (!METRIC_PATHS.includes(effect.metric)) {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: metric saknas.`
+                    );
+                  }
+                  if (!Number.isFinite(Number(effect.amount))) {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: ändring måste vara ett tal.`
+                    );
+                  }
+                }
+
+                if (effect.type === "set_flag") {
+                  if (!FLAG_PATHS.includes(effect.flag)) {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: flagga saknas.`
+                    );
+                  }
+                  if (typeof effect.value !== "boolean") {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: värde måste vara true/false.`
+                    );
+                  }
+                }
+
+                if (effect.type === "append_exercise_log") {
+                  if (!effect.message) {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: meddelande saknas.`
+                    );
+                  }
+                  if (!effect.log_type) {
+                    errors.push(
+                      `Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}: loggtyp saknas.`
+                    );
+                  }
+                }
+              });
+            }
+          });
+
+          return errors;
+        };
+
+        const hasRuleError = (rule, ruleIndex) => {
+          return ruleValidationErrors.some((item) =>
+            item.startsWith(`Regel ${ruleIndex + 1}:`)
+          );
+        };
+
+        const hasConditionError = (ruleIndex, conditionIndex) => {
+          return ruleValidationErrors.some((item) =>
+            item.startsWith(`Regel ${ruleIndex + 1}, villkor ${conditionIndex + 1}:`)
+          );
+        };
+
+        const hasEffectError = (ruleIndex, effectIndex) => {
+          return ruleValidationErrors.some((item) =>
+            item.startsWith(`Regel ${ruleIndex + 1}, effekt ${effectIndex + 1}:`)
+          );
         };
 
         return (
@@ -114,6 +528,36 @@
                 </div>
               </div>
               <div className="stack" style={{ marginTop: "20px" }}>
+                <div>
+                  <div className="small">Ladda scenario från databasen</div>
+                  <div className="stack">
+                    <select
+                      value={selectedScenarioId}
+                      onChange={(event) => {
+                        setSelectedScenarioId(event.target.value);
+                        Common.setSelectedScenarioId(event.target.value);
+                      }}
+                      disabled={loading || availableScenarios.length === 0}
+                    >
+                      {availableScenarios.length === 0 ? (
+                        <option value="">Inga sparade scenarion</option>
+                      ) : (
+                        availableScenarios.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title} ({item.id})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <button
+                      className="secondary"
+                      onClick={loadScenarioFromDatabase}
+                      disabled={loading || !selectedScenarioId}
+                    >
+                      Ladda scenario
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <div className="small">Scenario i fri text eller Markdown</div>
                   <textarea
@@ -173,6 +617,756 @@
               </article>
 
               <article className="panel alt">
+                <h2>Regel-editor</h2>
+                {!authoringDraft ? (
+                  <div className="small">Generera eller ladda ett utkast först.</div>
+                ) : (
+                  <div className="stack">
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          const next = [...editableRules, createBlankRule()];
+                          setEditableRules(next);
+                          setSelectedRuleIndex(next.length - 1);
+                        }}
+                        disabled={loading}
+                      >
+                        Lägg till regel
+                      </button>
+                    </div>
+                    {ruleValidationErrors.length > 0 && (
+                      <div className="status error">
+                        <div>Följande fel behöver rättas:</div>
+                        <div className="list">
+                          {ruleValidationErrors.map((item) => (
+                            <div key={item}>{item}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="small">Regler</div>
+                      {editableRules.length === 0 ? (
+                        <div className="small">Inga regler ännu.</div>
+                      ) : (
+                        <div className="list">
+                          {editableRules.map((rule, index) => (
+                            <div
+                              key={rule.id || index}
+                              className={`timeline-item${
+                                ruleValidationErrors.length > 0 && hasRuleError(rule, index)
+                                  ? " block-error"
+                                  : ""
+                              }`}
+                            >
+                              <div className="meta">
+                                <div className="meta-item">
+                                  <span>Id</span>
+                                  <strong>{rule.id}</strong>
+                                </div>
+                                <div className="meta-item">
+                                  <span>Trigger</span>
+                                  <strong>{rule.trigger}</strong>
+                                </div>
+                                <div className="meta-item">
+                                  <span>Prioritet</span>
+                                  <strong>{rule.priority}</strong>
+                                </div>
+                              </div>
+                              <div className="small">{rule.name}</div>
+                              <div className="actions">
+                                <button
+                                  className="secondary"
+                                  onClick={() => setSelectedRuleIndex(index)}
+                                  disabled={loading}
+                                >
+                                  Redigera
+                                </button>
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    const next = editableRules.filter((_, i) => i !== index);
+                                    setEditableRules(next);
+                                    if (selectedRuleIndex === index) {
+                                      setSelectedRuleIndex(null);
+                                    }
+                                  }}
+                                  disabled={loading}
+                                >
+                                  Ta bort
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {selectedRuleIndex !== null && editableRules[selectedRuleIndex] && (
+                      <div
+                        className={`panel${
+                          ruleValidationErrors.length > 0 &&
+                          hasRuleError(editableRules[selectedRuleIndex], selectedRuleIndex)
+                            ? " block-error"
+                            : ""
+                        }`}
+                      >
+                        <h3>Redigera regel</h3>
+                        <div className="stack">
+                          <div className="form-group">
+                            <label>Regel-id</label>
+                            <input
+                              className={
+                                ruleValidationErrors.length > 0 &&
+                                !editableRules[selectedRuleIndex].id?.trim()
+                                  ? "input-error"
+                                  : ""
+                              }
+                              value={editableRules[selectedRuleIndex].id}
+                              onChange={(e) => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex] = {
+                                  ...next[selectedRuleIndex],
+                                  id: e.target.value,
+                                };
+                                setEditableRules(next);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Namn</label>
+                            <input
+                              className={
+                                ruleValidationErrors.length > 0 &&
+                                !editableRules[selectedRuleIndex].name?.trim()
+                                  ? "input-error"
+                                  : ""
+                              }
+                              value={editableRules[selectedRuleIndex].name}
+                              onChange={(e) => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex] = {
+                                  ...next[selectedRuleIndex],
+                                  name: e.target.value,
+                                };
+                                setEditableRules(next);
+                              }}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Trigger</label>
+                            <select
+                              className={
+                                ruleValidationErrors.length > 0 &&
+                                !RULE_TRIGGERS.includes(
+                                  editableRules[selectedRuleIndex].trigger
+                                )
+                                  ? "input-error"
+                                  : ""
+                              }
+                              value={editableRules[selectedRuleIndex].trigger}
+                              onChange={(e) => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex] = {
+                                  ...next[selectedRuleIndex],
+                                  trigger: e.target.value,
+                                };
+                                setEditableRules(next);
+                              }}
+                            >
+                              {RULE_TRIGGERS.map((trigger) => (
+                                <option key={trigger} value={trigger}>
+                                  {trigger}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Prioritet</label>
+                            <select
+                              className={
+                                ruleValidationErrors.length > 0 &&
+                                !RULE_PRIORITIES.includes(
+                                  editableRules[selectedRuleIndex].priority
+                                )
+                                  ? "input-error"
+                                  : ""
+                              }
+                              value={editableRules[selectedRuleIndex].priority}
+                              onChange={(e) => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex] = {
+                                  ...next[selectedRuleIndex],
+                                  priority: e.target.value,
+                                };
+                                setEditableRules(next);
+                              }}
+                            >
+                              {RULE_PRIORITIES.map((priority) => (
+                                <option key={priority} value={priority}>
+                                  {priority}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Gäller bara en gång</label>
+                            <select
+                              value={editableRules[selectedRuleIndex].once ? "true" : "false"}
+                              onChange={(e) => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex] = {
+                                  ...next[selectedRuleIndex],
+                                  once: e.target.value === "true",
+                                };
+                                setEditableRules(next);
+                              }}
+                            >
+                              <option value="false">Nej</option>
+                              <option value="true">Ja</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="small">Villkor</div>
+                            {editableRules[selectedRuleIndex].conditions.map((condition, idx) => (
+                              <div
+                                key={`${condition.fact}-${idx}`}
+                                className={`stack${
+                                  ruleValidationErrors.length > 0 &&
+                                  hasConditionError(selectedRuleIndex, idx)
+                                    ? " block-error"
+                                    : ""
+                                }`}
+                              >
+                                <div className="form-group">
+                                  <label>Faktum</label>
+                                  <select
+                                    className={
+                                      ruleValidationErrors.length > 0 &&
+                                      (!CONDITION_FACTS.includes(condition.fact) ||
+                                        hasConditionError(selectedRuleIndex, idx))
+                                        ? "input-error"
+                                        : ""
+                                    }
+                                    value={condition.fact}
+                                    onChange={(e) => {
+                                      const next = [...editableRules];
+                                      const updated = {
+                                        ...condition,
+                                        fact: e.target.value,
+                                      };
+                                      const options = getConditionOptions(updated.fact);
+                                      const nextValue =
+                                        options.length > 0 ? options[0] : "";
+                                      updated.value = normalizeConditionValue(
+                                        updated.fact,
+                                        nextValue
+                                      );
+                                      next[selectedRuleIndex].conditions = next[
+                                        selectedRuleIndex
+                                      ].conditions.map((item, cIdx) =>
+                                        cIdx === idx ? updated : item
+                                      );
+                                      setEditableRules(next);
+                                    }}
+                                  >
+                                    {CONDITION_FACTS.map((fact) => (
+                                      <option key={fact} value={fact}>
+                                        {fact}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="form-group">
+                                  <label>Operator</label>
+                                  <select
+                                    className={
+                                      ruleValidationErrors.length > 0 &&
+                                      (!CONDITION_OPERATORS.includes(condition.operator) ||
+                                        hasConditionError(selectedRuleIndex, idx))
+                                        ? "input-error"
+                                        : ""
+                                    }
+                                    value={condition.operator}
+                                    onChange={(e) => {
+                                      const next = [...editableRules];
+                                      next[selectedRuleIndex].conditions = next[
+                                        selectedRuleIndex
+                                      ].conditions.map((item, cIdx) =>
+                                        cIdx === idx
+                                          ? { ...item, operator: e.target.value }
+                                          : item
+                                      );
+                                      setEditableRules(next);
+                                    }}
+                                  >
+                                    {CONDITION_OPERATORS.map((operator) => (
+                                      <option key={operator} value={operator}>
+                                        {operator}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="form-group">
+                                  <label>Värde</label>
+                                  {isNumericFact(condition.fact) ? (
+                                    <input
+                                      type="number"
+                                      className={
+                                        ruleValidationErrors.length > 0 &&
+                                        (condition.value === "" ||
+                                          condition.value === null ||
+                                          condition.value === undefined ||
+                                          !Number.isFinite(Number(condition.value)) ||
+                                          hasConditionError(selectedRuleIndex, idx))
+                                          ? "input-error"
+                                          : ""
+                                      }
+                                      value={condition.value ?? ""}
+                                      onChange={(e) => {
+                                        const next = [...editableRules];
+                                        next[selectedRuleIndex].conditions = next[
+                                          selectedRuleIndex
+                                        ].conditions.map((item, cIdx) =>
+                                          cIdx === idx
+                                            ? {
+                                                ...item,
+                                                value: normalizeConditionValue(
+                                                  condition.fact,
+                                                  e.target.value
+                                                ),
+                                              }
+                                            : item
+                                        );
+                                        setEditableRules(next);
+                                      }}
+                                    />
+                                  ) : (
+                                    <select
+                                      className={
+                                        ruleValidationErrors.length > 0 &&
+                                        (condition.value === "" ||
+                                          condition.value === null ||
+                                          condition.value === undefined ||
+                                          hasConditionError(selectedRuleIndex, idx))
+                                          ? "input-error"
+                                          : ""
+                                      }
+                                      value={String(condition.value ?? "")}
+                                      onChange={(e) => {
+                                        const next = [...editableRules];
+                                        next[selectedRuleIndex].conditions = next[
+                                          selectedRuleIndex
+                                        ].conditions.map((item, cIdx) =>
+                                          cIdx === idx
+                                            ? {
+                                                ...item,
+                                                value: normalizeConditionValue(
+                                                  condition.fact,
+                                                  e.target.value
+                                                ),
+                                              }
+                                            : item
+                                        );
+                                        setEditableRules(next);
+                                      }}
+                                    >
+                                      {getConditionOptions(condition.fact).map((option) => (
+                                        <option key={option} value={option}>
+                                          {option}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                                <button
+                                  className="secondary"
+                                  onClick={() => {
+                                    const next = [...editableRules];
+                                    next[selectedRuleIndex].conditions = next[
+                                      selectedRuleIndex
+                                    ].conditions.filter((_, cIdx) => cIdx !== idx);
+                                    setEditableRules(next);
+                                  }}
+                                >
+                                  Ta bort villkor
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex].conditions = [
+                                  ...next[selectedRuleIndex].conditions,
+                                  {
+                                    fact: "state.phase",
+                                    operator: "equals",
+                                    value: availablePhases[0] || "",
+                                  },
+                                ];
+                                setEditableRules(next);
+                              }}
+                            >
+                              Lägg till villkor
+                            </button>
+                          </div>
+                          <div>
+                            <div className="small">Effekter</div>
+                            {editableRules[selectedRuleIndex].effects.map((effect, idx) => {
+                              const normalized = ensureEffectDefaults(effect);
+                              return (
+                                <div
+                                  key={`${effect.type}-${idx}`}
+                                  className={`stack${
+                                    ruleValidationErrors.length > 0 &&
+                                    hasEffectError(selectedRuleIndex, idx)
+                                      ? " block-error"
+                                      : ""
+                                  }`}
+                                >
+                                  <div className="form-group">
+                                    <label>Typ</label>
+                                    <select
+                                      className={
+                                        ruleValidationErrors.length > 0 &&
+                                        (!EFFECT_TYPES.includes(normalized.type) ||
+                                          hasEffectError(selectedRuleIndex, idx))
+                                          ? "input-error"
+                                          : ""
+                                      }
+                                      value={normalized.type}
+                                      onChange={(e) => {
+                                        const next = [...editableRules];
+                                        const updated = ensureEffectDefaults({
+                                          type: e.target.value,
+                                        });
+                                        next[selectedRuleIndex].effects = next[
+                                          selectedRuleIndex
+                                        ].effects.map((item, eIdx) =>
+                                          eIdx === idx ? updated : item
+                                        );
+                                        setEditableRules(next);
+                                      }}
+                                    >
+                                      {EFFECT_TYPES.map((type) => (
+                                        <option key={type} value={type}>
+                                          {type}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {normalized.type === "set_phase" && (
+                                    <div className="form-group">
+                                      <label>Fas</label>
+                                      <select
+                                        className={
+                                          ruleValidationErrors.length > 0 &&
+                                          (!normalized.phase ||
+                                            hasEffectError(selectedRuleIndex, idx))
+                                            ? "input-error"
+                                            : ""
+                                        }
+                                        value={normalized.phase || ""}
+                                        onChange={(e) => {
+                                          const next = [...editableRules];
+                                          next[selectedRuleIndex].effects = next[
+                                            selectedRuleIndex
+                                          ].effects.map((item, eIdx) =>
+                                            eIdx === idx
+                                              ? { ...item, phase: e.target.value }
+                                              : item
+                                          );
+                                          setEditableRules(next);
+                                        }}
+                                      >
+                                        {availablePhases.length === 0 ? (
+                                          <option value="">Inga faser</option>
+                                        ) : (
+                                          availablePhases.map((phase) => (
+                                            <option key={phase} value={phase}>
+                                              {phase}
+                                            </option>
+                                          ))
+                                        )}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {(normalized.type === "add_active_inject" ||
+                                    normalized.type === "resolve_inject") && (
+                                    <div className="form-group">
+                                      <label>Inject</label>
+                                      <select
+                                        className={
+                                          ruleValidationErrors.length > 0 &&
+                                          (!normalized.inject_id ||
+                                            hasEffectError(selectedRuleIndex, idx))
+                                            ? "input-error"
+                                            : ""
+                                        }
+                                        value={normalized.inject_id || ""}
+                                        onChange={(e) => {
+                                          const next = [...editableRules];
+                                          next[selectedRuleIndex].effects = next[
+                                            selectedRuleIndex
+                                          ].effects.map((item, eIdx) =>
+                                            eIdx === idx
+                                              ? { ...item, inject_id: e.target.value }
+                                              : item
+                                          );
+                                          setEditableRules(next);
+                                        }}
+                                      >
+                                        {availableInjects.length === 0 ? (
+                                          <option value="">Inga injects</option>
+                                        ) : (
+                                          availableInjects.map((inject) => (
+                                            <option key={inject} value={inject}>
+                                              {inject}
+                                            </option>
+                                          ))
+                                        )}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {(normalized.type === "append_focus_item" ||
+                                    normalized.type === "append_consequence") && (
+                                    <div className="form-group">
+                                      <label>Text</label>
+                                      <input
+                                        className={
+                                          ruleValidationErrors.length > 0 &&
+                                          (!normalized.item ||
+                                            hasEffectError(selectedRuleIndex, idx))
+                                            ? "input-error"
+                                            : ""
+                                        }
+                                        value={normalized.item || ""}
+                                        onChange={(e) => {
+                                          const next = [...editableRules];
+                                          next[selectedRuleIndex].effects = next[
+                                            selectedRuleIndex
+                                          ].effects.map((item, eIdx) =>
+                                            eIdx === idx
+                                              ? { ...item, item: e.target.value }
+                                              : item
+                                          );
+                                          setEditableRules(next);
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                  {normalized.type === "increment_metric" && (
+                                    <>
+                                      <div className="form-group">
+                                        <label>Metric</label>
+                                        <select
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            (!METRIC_PATHS.includes(normalized.metric) ||
+                                              hasEffectError(selectedRuleIndex, idx))
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.metric || METRIC_PATHS[0]}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, metric: e.target.value }
+                                                : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        >
+                                          {METRIC_PATHS.map((metric) => (
+                                            <option key={metric} value={metric}>
+                                              {metric}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="form-group">
+                                        <label>Ändring</label>
+                                        <input
+                                          type="number"
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            (!Number.isFinite(Number(normalized.amount)) ||
+                                              hasEffectError(selectedRuleIndex, idx))
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.amount ?? 0}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                                eIdx === idx
+                                                  ? {
+                                                      ...item,
+                                                      amount: Number(e.target.value),
+                                                    }
+                                                  : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+                                  {normalized.type === "set_flag" && (
+                                    <>
+                                      <div className="form-group">
+                                        <label>Flagga</label>
+                                        <select
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            (!FLAG_PATHS.includes(normalized.flag) ||
+                                              hasEffectError(selectedRuleIndex, idx))
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.flag || FLAG_PATHS[0]}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, flag: e.target.value }
+                                                : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        >
+                                          {FLAG_PATHS.map((flag) => (
+                                            <option key={flag} value={flag}>
+                                              {flag}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="form-group">
+                                        <label>Värde</label>
+                                        <select
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            typeof normalized.value !== "boolean"
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.value ? "true" : "false"}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, value: e.target.value === "true" }
+                                                : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        >
+                                          <option value="true">true</option>
+                                          <option value="false">false</option>
+                                        </select>
+                                      </div>
+                                    </>
+                                  )}
+                                  {normalized.type === "append_exercise_log" && (
+                                    <>
+                                      <div className="form-group">
+                                        <label>Meddelande</label>
+                                        <input
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            (!normalized.message ||
+                                              hasEffectError(selectedRuleIndex, idx))
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.message || ""}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, message: e.target.value }
+                                                : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="form-group">
+                                        <label>Loggtyp</label>
+                                        <input
+                                          className={
+                                            ruleValidationErrors.length > 0 &&
+                                            (!normalized.log_type ||
+                                              hasEffectError(selectedRuleIndex, idx))
+                                              ? "input-error"
+                                              : ""
+                                          }
+                                          value={normalized.log_type || ""}
+                                          onChange={(e) => {
+                                            const next = [...editableRules];
+                                            next[selectedRuleIndex].effects = next[
+                                              selectedRuleIndex
+                                            ].effects.map((item, eIdx) =>
+                                              eIdx === idx
+                                                ? { ...item, log_type: e.target.value }
+                                                : item
+                                            );
+                                            setEditableRules(next);
+                                          }}
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+                                  <button
+                                    className="secondary"
+                                    onClick={() => {
+                                      const next = [...editableRules];
+                                      next[selectedRuleIndex].effects = next[
+                                        selectedRuleIndex
+                                      ].effects.filter((_, eIdx) => eIdx !== idx);
+                                      setEditableRules(next);
+                                    }}
+                                  >
+                                    Ta bort effekt
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            <button
+                              className="secondary"
+                              onClick={() => {
+                                const next = [...editableRules];
+                                next[selectedRuleIndex].effects = [
+                                  ...next[selectedRuleIndex].effects,
+                                  ensureEffectDefaults({ type: "set_phase" }),
+                                ];
+                                setEditableRules(next);
+                              }}
+                            >
+                              Lägg till effekt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+
+              <article className="panel">
                 <h2>JSON-granskning</h2>
                 {authoringDraft ? (
                   <pre>{JSON.stringify(authoringDraft, null, 2)}</pre>
