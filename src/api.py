@@ -43,7 +43,7 @@ from datetime import datetime
 from urllib.parse import quote
 from pathlib import Path
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -105,7 +105,33 @@ TURN_RETRY_BACKOFF_SECONDS = [2, 4, 8, 16]
 scenario_engine = ScenarioEngine()
 action_enricher = ScenarioActionEnricher()
 
+
+# Frontend file serving routes (must come before request models)
+@app.get("/frontend/{file_path:path}", include_in_schema=False)
+async def serve_frontend_direct(file_path: str) -> FileResponse:
+    """Serve frontend files when accessed directly."""
+    file = FRONTEND_DIR / file_path
+    logger.info(f"serve_frontend_direct: file_path={file_path}, full_path={file}, exists={file.exists()}")
+    if not file.exists() or not file.is_file():
+        logger.error(f"Frontend file not found: {file}")
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file)
+
+
+@app.get("/incident_sim/frontend/{file_path:path}", include_in_schema=False)
+async def serve_frontend_proxied(file_path: str) -> FileResponse:
+    """Serve frontend files when accessed through reverse proxy."""
+    file = FRONTEND_DIR / file_path
+    logger.info(f"serve_frontend_proxied: file_path={file_path}, full_path={file}, exists={file.exists()}")
+    if not file.exists() or not file.is_file():
+        logger.error(f"Frontend file not found: {file}")
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file)
+
+
+# Mount static files as fallback
 app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+app.mount("/incident_sim/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend_proxied")
 
 
 class CreateSessionRequest(BaseModel):
@@ -344,42 +370,114 @@ async def health() -> dict:
 
 
 @app.get("/", include_in_schema=False)
-async def frontend() -> RedirectResponse:
+async def frontend(request: Request) -> RedirectResponse:
     """Redirect the browser client root to the setup page.
 
     Returns:
-        RedirectResponse: Redirect to the frontend setup page.
+        RedirectResponse: Redirect to the frontend setup page, respecting root_path.
     """
 
-    return RedirectResponse(url="/setup", status_code=307)
+    root_path = request.app.root_path or ""
+    return RedirectResponse(url=f"{root_path}/setup", status_code=307)
 
 
 @app.get("/setup", include_in_schema=False)
-async def frontend_setup() -> FileResponse:
+async def frontend_setup(request: Request) -> HTMLResponse:
     """Serve the scenario setup page for the browser client."""
 
-    return FileResponse(FRONTEND_SETUP)
+    with open(FRONTEND_SETUP, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    root_path = request.app.root_path or ""
+    logger.info(f"frontend_setup: root_path={root_path}")
+    base_path_script = f"window.INCIDENT_SIM_BASE_PATH = '{root_path}';" if root_path else "window.INCIDENT_SIM_BASE_PATH = '';"
+    
+    # Rewrite static asset paths to include root_path
+    static_prefix = f"{root_path}/frontend" if root_path else "/frontend"
+    logger.info(f"frontend_setup: static_prefix={static_prefix}")
+    
+    html_content = html_content.replace('href="/frontend/', f'href="{static_prefix}/')
+    html_content = html_content.replace('src="/frontend/', f'src="{static_prefix}/')
+    
+    # Inject BASE_PATH script before common.js
+    html_content = html_content.replace(
+        f'<script src="{static_prefix}/common.js"></script>',
+        f'<script>{base_path_script}</script>\n    <script src="{static_prefix}/common.js"></script>'
+    )
+    
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/authoring", include_in_schema=False)
-async def frontend_authoring() -> FileResponse:
+async def frontend_authoring(request: Request) -> HTMLResponse:
     """Serve the scenario authoring page for the browser client."""
 
-    return FileResponse(FRONTEND_AUTHORING)
+    with open(FRONTEND_AUTHORING, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    root_path = request.app.root_path or ""
+    base_path_script = f"window.INCIDENT_SIM_BASE_PATH = '{root_path}';" if root_path else "window.INCIDENT_SIM_BASE_PATH = '';"
+    
+    # Rewrite static asset paths to include root_path
+    static_prefix = f"{root_path}/frontend" if root_path else "/frontend"
+    html_content = html_content.replace('href="/frontend/', f'href="{static_prefix}/')
+    html_content = html_content.replace('src="/frontend/', f'src="{static_prefix}/')
+    
+    # Inject BASE_PATH script before common.js
+    html_content = html_content.replace(
+        f'<script src="{static_prefix}/common.js"></script>',
+        f'<script>{base_path_script}</script>\n    <script src="{static_prefix}/common.js"></script>'
+    )
+    
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/session", include_in_schema=False)
-async def frontend_session() -> FileResponse:
+async def frontend_session(request: Request) -> HTMLResponse:
     """Serve the active session page for the browser client."""
 
-    return FileResponse(FRONTEND_SESSION)
+    with open(FRONTEND_SESSION, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    root_path = request.app.root_path or ""
+    base_path_script = f"window.INCIDENT_SIM_BASE_PATH = '{root_path}';" if root_path else "window.INCIDENT_SIM_BASE_PATH = '';"
+    
+    # Rewrite static asset paths to include root_path
+    static_prefix = f"{root_path}/frontend" if root_path else "/frontend"
+    html_content = html_content.replace('href="/frontend/', f'href="{static_prefix}/')
+    html_content = html_content.replace('src="/frontend/', f'src="{static_prefix}/')
+    
+    # Inject BASE_PATH script before common.js
+    html_content = html_content.replace(
+        f'<script src="{static_prefix}/common.js"></script>',
+        f'<script>{base_path_script}</script>\n    <script src="{static_prefix}/common.js"></script>'
+    )
+    
+    return HTMLResponse(content=html_content)
 
 
 @app.get("/report", include_in_schema=False)
-async def frontend_report() -> FileResponse:
+async def frontend_report(request: Request) -> HTMLResponse:
     """Serve the printable report page for completed sessions."""
 
-    return FileResponse(FRONTEND_REPORT)
+    with open(FRONTEND_REPORT, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    
+    root_path = request.app.root_path or ""
+    base_path_script = f"window.INCIDENT_SIM_BASE_PATH = '{root_path}';" if root_path else "window.INCIDENT_SIM_BASE_PATH = '';"
+    
+    # Rewrite static asset paths to include root_path
+    static_prefix = f"{root_path}/frontend" if root_path else "/frontend"
+    html_content = html_content.replace('href="/frontend/', f'href="{static_prefix}/')
+    html_content = html_content.replace('src="/frontend/', f'src="{static_prefix}/')
+    
+    # Inject BASE_PATH script before common.js
+    html_content = html_content.replace(
+        f'<script src="{static_prefix}/common.js"></script>',
+        f'<script>{base_path_script}</script>\n    <script src="{static_prefix}/common.js"></script>'
+    )
+    
+    return HTMLResponse(content=html_content)
 
 
 def _get_session_report_markdown(session_id: str) -> tuple[SessionState, str]:

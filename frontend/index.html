@@ -2,13 +2,13 @@
 <html lang="sv">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="refresh" content="0; url=/setup" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Incident Exercise Prototype</title>
   </head>
   <body>
     <script>
-      window.location.replace("/setup");
+      const basePath = window.location.pathname.split("/")[1] === "incident_sim" ? "/incident_sim" : "";
+      window.location.replace(basePath + "/setup");
     </script>
     <p>Öppnar scenariohanteringen...</p>
   </body>

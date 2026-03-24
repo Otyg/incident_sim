@@ -1,4 +1,9 @@
 (function () {
+  // Get base path from injected variable (set by server in HTML)
+  // Falls back to detection from URL if not set
+  const BASE_PATH = window.INCIDENT_SIM_BASE_PATH !== undefined ? window.INCIDENT_SIM_BASE_PATH : 
+                    (window.location.pathname.split("/")[1] === "incident_sim" ? "/incident_sim" : "");
+  
   const TURN_RETRY_DELAYS_MS = [2000, 4000, 8000, 16000];
   const STORAGE_KEYS = {
     selectedScenarioId: "incident_sim.selectedScenarioId",
@@ -63,8 +68,9 @@
 
   async function apiRequest(path, options = {}) {
     const { headers: optionHeaders = {}, ...restOptions } = options;
+    const fullPath = BASE_PATH + path;
 
-    const response = await fetch(path, {
+    const response = await fetch(fullPath, {
       ...restOptions,
       headers: {
         "Content-Type": "application/json",

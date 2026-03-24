@@ -32,5 +32,11 @@
 
 """ASGI entrypoint for local development and production serving."""
 
+import os
 from src.api import app
+
+# Configure root path for reverse proxy setups (e.g., nginx with /incident_sim/ prefix)
+root_path = os.environ.get("ASGI_ROOT_PATH", "")
+if root_path:
+    app.root_path = root_path
 
