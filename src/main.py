@@ -32,3 +32,5 @@
 
 """ASGI entrypoint for local development and production serving."""
 
+from src.api import app
+
