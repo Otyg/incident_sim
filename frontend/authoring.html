@@ -111,6 +111,7 @@
         const [editableStates, setEditableStates] = useState([]);
         const [editingStateIndex, setEditingStateIndex] = useState(null);
         const [editingState, setEditingState] = useState(null);
+        const [editableNarrationBasePrompt, setEditableNarrationBasePrompt] = useState(null);
         const [ruleValidationErrors, setRuleValidationErrors] = useState([]);
 
         const availablePhases =
@@ -140,6 +141,7 @@
             setEditableRules(JSON.parse(JSON.stringify(authoringDraft.executable_rules)));
             setEditableInjects(JSON.parse(JSON.stringify(authoringDraft.inject_catalog || [])));
             setEditableStates(JSON.parse(JSON.stringify(authoringDraft.states || [])));
+            setEditableNarrationBasePrompt(JSON.parse(JSON.stringify(authoringDraft.narration_base_prompt || null)));
             setSelectedRuleIndex(null);
             setEditingRuleIndex(null);
             setEditingInjectIndex(null);
@@ -148,6 +150,7 @@
             setEditableRules([]);
             setEditableInjects([]);
             setEditableStates([]);
+            setEditableNarrationBasePrompt(null);
             setSelectedRuleIndex(null);
             setEditingRuleIndex(null);
             setEditingInjectIndex(null);
@@ -292,6 +295,13 @@
           },
         });
 
+        const createBlankNarrationBasePrompt = () => ({
+          base: "",
+          audience: [],
+          training_goals: [],
+          assumptions: [],
+        });
+
         const setDraft = (draft) => {
           setAuthoringDraftState(draft);
           Common.setAuthoringDraft(draft);
@@ -390,6 +400,7 @@
               body: JSON.stringify({
                 ...authoringDraft,
                 executable_rules: editableRules,
+                narration_base_prompt: editableNarrationBasePrompt,
               }),
             });
             Common.setCurrentScenarioId(savedScenario.id);
@@ -669,22 +680,22 @@
                   <div className="small">Generera eller ladda ett utkast först.</div>
                 ) : (
                   <div className="stack">
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          const next = [...editableStates, createBlankState()];
-                          setEditableStates(next);
-                          setEditingStateIndex(next.length - 1);
-                          setEditingState(JSON.parse(JSON.stringify(next[next.length - 1])));
-                        }}
-                        disabled={loading}
-                      >
-                        Lägg till fas
-                      </button>
-                    </div>
                     <div>
-                      <div className="small">Faser</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div className="small">Faser</div>
+                        <button
+                          className="small secondary"
+                          onClick={() => {
+                            const next = [...editableStates, createBlankState()];
+                            setEditableStates(next);
+                            setEditingStateIndex(next.length - 1);
+                            setEditingState(JSON.parse(JSON.stringify(next[next.length - 1])));
+                          }}
+                          disabled={loading}
+                        >
+                          +
+                        </button>
+                      </div>
                       {editableStates.length === 0 ? (
                         <div className="small">Inga faser ännu.</div>
                       ) : (
@@ -705,19 +716,20 @@
                                   <strong>{state.title}</strong>
                                 </div>
                               </div>
+                              <div className="small">{state.description}</div>
                               <div className="actions">
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     setEditingStateIndex(index);
                                     setEditingState(JSON.parse(JSON.stringify(state)));
                                   }}
                                   disabled={loading}
                                 >
-                                  Redigera
+                                  ✎
                                 </button>
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     const next = editableStates.filter((_, i) => i !== index);
                                     setEditableStates(next);
@@ -728,7 +740,7 @@
                                   }}
                                   disabled={loading}
                                 >
-                                  Ta bort
+                                  🗑
                                 </button>
                               </div>
                             </div>
@@ -890,22 +902,22 @@
                   <div className="small">Generera eller ladda ett utkast först.</div>
                 ) : (
                   <div className="stack">
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          const next = [...editableInjects, createBlankInject()];
-                          setEditableInjects(next);
-                          setEditingInjectIndex(next.length - 1);
-                          setEditingInject(JSON.parse(JSON.stringify(next[next.length - 1])));
-                        }}
-                        disabled={loading}
-                      >
-                        Lägg till inject
-                      </button>
-                    </div>
                     <div>
-                      <div className="small">Injects</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div className="small">Injects</div>
+                        <button
+                          className="small secondary"
+                          onClick={() => {
+                            const next = [...editableInjects, createBlankInject()];
+                            setEditableInjects(next);
+                            setEditingInjectIndex(next.length - 1);
+                            setEditingInject(JSON.parse(JSON.stringify(next[next.length - 1])));
+                          }}
+                          disabled={loading}
+                        >
+                          +
+                        </button>
+                      </div>
                       {editableInjects.length === 0 ? (
                         <div className="small">Inga injects ännu.</div>
                       ) : (
@@ -922,19 +934,20 @@
                                   <strong>{inject.title}</strong>
                                 </div>
                               </div>
+                              <div className="small">{inject.description}</div>
                               <div className="actions">
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     setEditingInjectIndex(index);
                                     setEditingInject(JSON.parse(JSON.stringify(inject)));
                                   }}
                                   disabled={loading}
                                 >
-                                  Redigera
+                                  ✎
                                 </button>
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     const next = editableInjects.filter((_, i) => i !== index);
                                     setEditableInjects(next);
@@ -945,7 +958,7 @@
                                   }}
                                   disabled={loading}
                                 >
-                                  Ta bort
+                                  🗑
                                 </button>
                               </div>
                             </div>
@@ -1024,19 +1037,6 @@
                   <div className="small">Generera eller ladda ett utkast först.</div>
                 ) : (
                   <div className="stack">
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          const next = [...editableRules, createBlankRule()];
-                          setEditableRules(next);
-                          setSelectedRuleIndex(next.length - 1);
-                        }}
-                        disabled={loading}
-                      >
-                        Lägg till regel
-                      </button>
-                    </div>
                     {ruleValidationErrors.length > 0 && (
                       <div className="status error">
                         <div>Följande fel behöver rättas:</div>
@@ -1048,7 +1048,20 @@
                       </div>
                     )}
                     <div>
-                      <div className="small">Regler</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div className="small">Regler</div>
+                        <button
+                          className="small secondary"
+                          onClick={() => {
+                            const next = [...editableRules, createBlankRule()];
+                            setEditableRules(next);
+                            setSelectedRuleIndex(next.length - 1);
+                          }}
+                          disabled={loading}
+                        >
+                          +
+                        </button>
+                      </div>
                       {editableRules.length === 0 ? (
                         <div className="small">Inga regler ännu.</div>
                       ) : (
@@ -1079,17 +1092,17 @@
                               <div className="small">{rule.name}</div>
                               <div className="actions">
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     setEditingRuleIndex(index);
                                     setEditingRule(JSON.parse(JSON.stringify(rule)));
                                   }}
                                   disabled={loading}
                                 >
-                                  Redigera
+                                  ✎
                                 </button>
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     const next = editableRules.filter((_, i) => i !== index);
                                     setEditableRules(next);
@@ -1099,7 +1112,7 @@
                                   }}
                                   disabled={loading}
                                 >
-                                  Ta bort
+                                  🗑
                                 </button>
                               </div>
                             </div>
@@ -1370,7 +1383,7 @@
                                   )}
                                 </div>
                                 <button
-                                  className="secondary"
+                                  className="secondary icon"
                                   onClick={() => {
                                     setEditingRule((prev) => ({
                                       ...prev,
@@ -1378,7 +1391,7 @@
                                     }));
                                   }}
                                 >
-                                  Ta bort villkor
+                                  🗑 villkor
                                 </button>
                               </div>
                             ))}
@@ -1717,7 +1730,7 @@
                                     </>
                                   )}
                                   <button
-                                    className="secondary"
+                                    className="secondary icon"
                                     onClick={() => {
                                       setEditingRule((prev) => ({
                                         ...prev,
@@ -1725,7 +1738,7 @@
                                       }));
                                     }}
                                   >
-                                    Ta bort effekt
+                                    🗑 effekt
                                   </button>
                                 </div>
                               );
@@ -1778,12 +1791,249 @@
               </article>
 
               <article className="panel">
-                <h2>JSON-granskning</h2>
-                {authoringDraft ? (
-                  <pre>{JSON.stringify(authoringDraft, null, 2)}</pre>
+                <h2>Narration Base Prompt</h2>
+                {!authoringDraft ? (
+                  <div className="small">Generera eller ladda ett utkast först.</div>
                 ) : (
-                  <div className="small">
-                    Validerad JSON visas här när utkastet har genererats.
+                  <div className="stack">
+                    {!editableNarrationBasePrompt ? (
+                      <div className="actions">
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setEditableNarrationBasePrompt(createBlankNarrationBasePrompt());
+                          }}
+                          disabled={loading}
+                        >
+                          Skapa narration base prompt
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="stack">
+                        <div>
+                          <div className="small">Base (kontext och situationsbeskrivning)</div>
+                          <textarea
+                            value={editableNarrationBasePrompt.base}
+                            onChange={(event) => {
+                              setEditableNarrationBasePrompt({
+                                ...editableNarrationBasePrompt,
+                                base: event.target.value,
+                              });
+                            }}
+                            placeholder="Beskriv övningens kontext och situation..."
+                            style={{ minHeight: "100px" }}
+                          />
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div className="small">Audience (målgrupper)</div>
+                            <button
+                              className="small secondary"
+                              onClick={() => {
+                                const newItem = prompt("Ny audience:");
+                                if (newItem !== null && newItem.trim()) {
+                                  setEditableNarrationBasePrompt({
+                                    ...editableNarrationBasePrompt,
+                                    audience: [...editableNarrationBasePrompt.audience, newItem],
+                                  });
+                                }
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                          {editableNarrationBasePrompt.audience.length === 0 ? (
+                            <div className="small">Ingen audience tillagd ännu.</div>
+                          ) : (
+                            <div className="list">
+                              {editableNarrationBasePrompt.audience.map((item, index) => (
+                                <div key={index} className="list-item">
+                                  <div>{item}</div>
+                                  <div className="actions">
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newAudience = [...editableNarrationBasePrompt.audience];
+                                        const edited = prompt("Redigera audience:", item);
+                                        if (edited !== null) {
+                                          newAudience[index] = edited;
+                                          setEditableNarrationBasePrompt({
+                                            ...editableNarrationBasePrompt,
+                                            audience: newAudience,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newAudience = editableNarrationBasePrompt.audience.filter((_, i) => i !== index);
+                                        setEditableNarrationBasePrompt({
+                                          ...editableNarrationBasePrompt,
+                                          audience: newAudience,
+                                        });
+                                      }}
+                                    >
+                                      🗑
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div className="small">Training Goals (lärandemål)</div>
+                            <button
+                              className="small secondary"
+                              onClick={() => {
+                                const newItem = prompt("Nytt lärandemål:");
+                                if (newItem !== null && newItem.trim()) {
+                                  setEditableNarrationBasePrompt({
+                                    ...editableNarrationBasePrompt,
+                                    training_goals: [...editableNarrationBasePrompt.training_goals, newItem],
+                                  });
+                                }
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                          {editableNarrationBasePrompt.training_goals.length === 0 ? (
+                            <div className="small">Inget lärandemål tillagt ännu.</div>
+                          ) : (
+                            <div className="list">
+                              {editableNarrationBasePrompt.training_goals.map((item, index) => (
+                                <div key={index} className="list-item">
+                                  <div>{item}</div>
+                                  <div className="actions">
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newGoals = [...editableNarrationBasePrompt.training_goals];
+                                        const edited = prompt("Redigera lärandemål:", item);
+                                        if (edited !== null) {
+                                          newGoals[index] = edited;
+                                          setEditableNarrationBasePrompt({
+                                            ...editableNarrationBasePrompt,
+                                            training_goals: newGoals,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newGoals = editableNarrationBasePrompt.training_goals.filter((_, i) => i !== index);
+                                        setEditableNarrationBasePrompt({
+                                          ...editableNarrationBasePrompt,
+                                          training_goals: newGoals,
+                                        });
+                                      }}
+                                    >
+                                      🗑
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <div className="small">Assumptions (antaganden)</div>
+                            <button
+                              className="small secondary"
+                              onClick={() => {
+                                const newItem = prompt("Nytt antagande:");
+                                if (newItem !== null && newItem.trim()) {
+                                  setEditableNarrationBasePrompt({
+                                    ...editableNarrationBasePrompt,
+                                    assumptions: [...editableNarrationBasePrompt.assumptions, newItem],
+                                  });
+                                }
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                          {editableNarrationBasePrompt.assumptions.length === 0 ? (
+                            <div className="small">Inget antagande tillagt ännu.</div>
+                          ) : (
+                            <div className="list">
+                              {editableNarrationBasePrompt.assumptions.map((item, index) => (
+                                <div key={index} className="list-item">
+                                  <div>{item}</div>
+                                  <div className="actions">
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newAssumptions = [...editableNarrationBasePrompt.assumptions];
+                                        const edited = prompt("Redigera antagande:", item);
+                                        if (edited !== null) {
+                                          newAssumptions[index] = edited;
+                                          setEditableNarrationBasePrompt({
+                                            ...editableNarrationBasePrompt,
+                                            assumptions: newAssumptions,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
+                                      className="secondary icon"
+                                      onClick={() => {
+                                        const newAssumptions = editableNarrationBasePrompt.assumptions.filter((_, i) => i !== index);
+                                        setEditableNarrationBasePrompt({
+                                          ...editableNarrationBasePrompt,
+                                          assumptions: newAssumptions,
+                                        });
+                                      }}
+                                    >
+                                      🗑
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="actions">
+                          <button
+                            onClick={() => {
+                              const newDraft = {
+                                ...authoringDraft,
+                                narration_base_prompt: editableNarrationBasePrompt,
+                              };
+                              setDraft(newDraft);
+                              setStatus("Narration base prompt sparad");
+                            }}
+                            disabled={loading}
+                          >
+                            Spara
+                          </button>
+                          <button
+                            className="secondary"
+                            onClick={() => {
+                              setEditableNarrationBasePrompt(null);
+                            }}
+                            disabled={loading}
+                          >
+                            Avbryt
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </article>

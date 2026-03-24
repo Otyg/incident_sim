@@ -56,6 +56,17 @@ button:disabled,
   pointer-events: none;
 }
 
+button.small {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+button.icon {
+  font-size: 16px;
+  padding: 4px 8px;
+  min-width: 32px;
+}
+
 .page {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
@@ -121,6 +132,46 @@ button:disabled,
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 20px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.input-row input {
+  flex: 1;
+}
+
+.list-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-soft);
+  border-radius: 8px;
+}
+
+.list-item > div:first-child {
+  flex: 1;
+  word-break: break-word;
+}
+
+.list-item .actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+button.icon {
+  font-size: 16px;
+  padding: 4px 8px;
+  min-width: 32px;
 }
 
 .grid {
