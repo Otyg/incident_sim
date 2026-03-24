@@ -159,9 +159,7 @@ def test_scenario_validation_accepts_prompt_instructions_text_and_items():
             "items": ["Använd korta operativa formuleringar."],
         },
         "by_audience": {
-            "krisledning": {
-                "items": ["Lyft beslutspunkter som kräver ledningsmandat."]
-            }
+            "krisledning": {"items": ["Lyft beslutspunkter som kräver ledningsmandat."]}
         },
     }
 
@@ -205,9 +203,51 @@ def test_scenario_validation_accepts_prompt_instructions_items_only():
 
 def test_scenario_validation_rejects_empty_prompt_instruction_set():
     payload = sample_scenario_dict()
-    payload["prompt_instructions"] = {
-        "default": {"text": "   ", "items": ["   "]}
+    payload["prompt_instructions"] = {"default": {"text": "   ", "items": ["   "]}}
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_accepts_prompt_profiles_narration_base_and_by_phase():
+    payload = sample_scenario_dict()
+    payload["prompt_profiles"] = {
+        "narration": {
+            "base": {"items": ["Sätt en tydlig kontext i första meningen."]},
+            "by_phase": {
+                "containment": {"items": ["Betona riskreducering i containment."]}
+            },
+        }
     }
+    payload["prompt_instructions"] = {
+        "default": {"items": ["Legacy-instruktion för fallback."]}
+    }
+
+    scenario = Scenario(**payload)
+
+    assert scenario.prompt_profiles is not None
+    assert scenario.resolve_narration_prompt_lines("krisledning", "containment") == [
+        "Sätt en tydlig kontext i första meningen.",
+        "Betona riskreducering i containment.",
+        "Legacy-instruktion för fallback.",
+    ]
+
+
+def test_scenario_validation_rejects_prompt_profiles_with_unknown_phase():
+    payload = sample_scenario_dict()
+    payload["prompt_profiles"] = {
+        "narration": {
+            "by_phase": {"nonexistent-phase": {"items": ["Ogiltig fasreferens."]}}
+        }
+    }
+
+    with pytest.raises(ValidationError):
+        Scenario(**payload)
+
+
+def test_scenario_validation_rejects_empty_prompt_profiles_block():
+    payload = sample_scenario_dict()
+    payload["prompt_profiles"] = {"narration": {}}
 
     with pytest.raises(ValidationError):
         Scenario(**payload)
@@ -252,9 +292,7 @@ def test_scenario_validation_rejects_unknown_inject_constraint_reference():
             "title": "Inject A",
             "description": "Test A",
             "severity": 3,
-            "trigger_constraints": {
-                "blocked_if_triggered_any": ["inject-missing"]
-            },
+            "trigger_constraints": {"blocked_if_triggered_any": ["inject-missing"]},
         }
     ]
 

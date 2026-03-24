@@ -78,12 +78,27 @@ def test_scenario_schema_includes_prompt_instruction_definitions():
     instruction_set_schema = schema["$defs"]["PromptInstructionSet"]
 
     assert prompt_instructions_schema["$ref"] == "#/$defs/PromptInstructionsConfig"
-    assert "narration- och debrief-promptarna" in config_schema["properties"][
-        "default"
-    ]["description"]
-    assert "promptinstruktioner" in instruction_set_schema["properties"]["text"][
-        "description"
-    ]
+    assert (
+        "narration- och debrief-promptarna"
+        in config_schema["properties"]["default"]["description"]
+    )
+    assert (
+        "promptinstruktioner"
+        in instruction_set_schema["properties"]["text"]["description"]
+    )
+
+
+def test_scenario_schema_includes_prompt_profiles_definition():
+    schema = json.loads(SCENARIO_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    prompt_profiles_schema = schema["properties"]["prompt_profiles"]
+    narration_profile_schema = schema["$defs"]["NarrationPromptProfile"]
+
+    assert prompt_profiles_schema["$ref"] == "#/$defs/PromptProfilesConfig"
+    assert (
+        "Basinstruktioner för narration"
+        in narration_profile_schema["properties"]["base"]["description"]
+    )
 
 
 def test_scenario_schema_includes_inject_trigger_constraints_definition():
@@ -96,6 +111,7 @@ def test_scenario_schema_includes_inject_trigger_constraints_definition():
         inject_definition["properties"]["trigger_constraints"]["$ref"]
         == "#/$defs/InjectTriggerConstraints"
     )
-    assert "blockerar detta inject" in trigger_constraints["properties"][
-        "blocked_if_triggered_any"
-    ]["description"]
+    assert (
+        "blockerar detta inject"
+        in trigger_constraints["properties"]["blocked_if_triggered_any"]["description"]
+    )

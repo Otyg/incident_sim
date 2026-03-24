@@ -1,13 +1,23 @@
-Du genererar nasta lagebild i en kommunal incidentovning.
+Du genererar nästa lägesbild i en incidentövning.
 
 Uppgift:
-- sammanfatta nulaget utifran aktuellt session state
-- lyft fram de viktigaste konsekvenserna for verksamhet, ledning och kommunikation
-- foresla eventuella injects endast om de ar motiverade av state
-- formulera beslutspunkter som hjalper deltagarna vidare i ovningen
+- sammanfatta nuläget utifrån aktuellt session state
+- lyft fram de viktigaste konsekvenserna för verksamhet, ledning och kommunikation
+- föreslå eventuella injects endast om de är motiverade av state
+- formulera beslutspunkter som hjälper deltagarna vidare i övningen
 
 Viktigt:
 - skriv kort, tydligt och operativt
 - bygg på metrics, flags, active_injects och consequences
-- hall en facilitatorvanlig ton
+- håll en facilitatorvänlig ton
 - returnera endast strukturerad JSON som matchar schemat
+- innehåll som inte är JSON-nycklar ska vara på svenska
+- fokusera inte överdrivet mycket på blockering av extern trafik
+
+Nyckelchecklista i output:
+- `situation_update`
+- `key_points`
+- `new_consequences`
+- `injects`
+- `decisions_to_consider`
+- `facilitator_notes`

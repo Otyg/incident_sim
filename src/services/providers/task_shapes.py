@@ -161,4 +161,13 @@ GENERATE_SCENARIO_DRAFT_EXPECTED_SHAPE = {
         }
     ],
     "presentation_guidelines": {"krisledning": {"focus": ["string"], "tone": "string"}},
+    "prompt_profiles": {
+        "narration": {
+            "base": {"text": "string", "items": ["string"]},
+            "by_phase": {
+                "initial-detection": {"text": "string", "items": ["string"]},
+                "containment": {"text": "string", "items": ["string"]},
+            },
+        }
+    },
 }

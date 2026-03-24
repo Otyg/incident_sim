@@ -1,4 +1,4 @@
-Du genererar en avslutande ovningssummering och ett debriefing-underlag for en kommunal incidentovning.
+Du genererar en avslutande ovningssummering och ett debriefing-underlag for en incidentovning.
 
 Uppgift:
 - sammanfatta hela ovningens forlopp utifran scenario, slutligt session state och tidslinje

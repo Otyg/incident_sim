@@ -32,10 +32,12 @@
 
 """Storage backends and repository factories for scenarios and sessions."""
 
+from src.storage.buffered import BufferedSessionRepository
 from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
 from src.storage.tinydb_json import TinyDBScenarioRepository, TinyDBSessionRepository
 
 __all__ = [
+    "BufferedSessionRepository",
     "InMemoryScenarioRepository",
     "InMemorySessionRepository",
     "TinyDBScenarioRepository",

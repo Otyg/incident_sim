@@ -99,12 +99,27 @@ class StructuredLLMProvider(LLMProvider, ABC):
 
     @staticmethod
     def _resolve_prompt_addendum(scenario: Scenario | None, audience: str) -> str:
-        """Resolve ordered scenario instructions into a prompt addendum string."""
+        """Resolve ordered legacy scenario instructions into a prompt addendum string."""
 
         if scenario is None:
             return ""
 
         lines = scenario.resolve_prompt_instruction_lines(audience)
+        if not lines:
+            return ""
+
+        return "\n".join(f"- {line}" for line in lines)
+
+    @staticmethod
+    def _resolve_narration_prompt_addendum(
+        scenario: Scenario | None, audience: str, phase: str
+    ) -> str:
+        """Resolve narration-specific scenario instructions into an addendum string."""
+
+        if scenario is None:
+            return ""
+
+        lines = scenario.resolve_narration_prompt_lines(audience, phase)
         if not lines:
             return ""
 
@@ -132,7 +147,9 @@ class StructuredLLMProvider(LLMProvider, ABC):
             system_prompt=self._build_json_system_prompt(
                 self.narration_prompt,
                 GENERATE_NARRATION_EXPECTED_SHAPE,
-                addendum=self._resolve_prompt_addendum(scenario, state.audience),
+                addendum=self._resolve_narration_prompt_addendum(
+                    scenario, state.audience, state.phase
+                ),
             ),
             user_prompt=f"Session state:\n{state.model_dump_json()}",
             provider_stage="generate_narration",

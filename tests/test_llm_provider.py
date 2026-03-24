@@ -771,7 +771,9 @@ def test_ollama_provider_appends_scenario_prompt_instructions_to_narration(
         staticmethod(lambda host, headers: FakeClient()),
     )
 
-    scenario_payload = MockLLMProvider().generate_scenario_draft("# Scenario", "markdown")
+    scenario_payload = MockLLMProvider().generate_scenario_draft(
+        "# Scenario", "markdown"
+    )
     scenario_payload["original_text"] = "# Scenario"
     scenario_payload["prompt_instructions"] = {
         "default": {"items": ["Namnge alltid påverkad miljö i situation_update."]},
@@ -788,11 +790,61 @@ def test_ollama_provider_appends_scenario_prompt_instructions_to_narration(
 
     assert payload["key_points"] == ["A", "B"]
     assert "Scenario-specific instructions:" in captured["system_prompt"]
-    assert "Namnge alltid påverkad miljö i situation_update." in captured[
-        "system_prompt"
-    ]
+    assert (
+        "Namnge alltid påverkad miljö i situation_update." in captured["system_prompt"]
+    )
     assert "Lyft beslutsbehov för ledningsnivån." in captured["system_prompt"]
     assert "Return only a single JSON object" in captured["system_prompt"]
+
+
+def test_ollama_provider_appends_prompt_profiles_to_narration(monkeypatch):
+    captured = {}
+
+    class FakeClient:
+        def chat(self, *, model, messages, format, stream):
+            captured["system_prompt"] = messages[0]["content"]
+            return {
+                "message": {
+                    "content": (
+                        '{"situation_update":"Tillrackligt lang narrationsuppdatering for validering i testfallet.",'
+                        '"key_points":["A","B"],"new_consequences":[],"injects":[],'
+                        '"decisions_to_consider":[],"facilitator_notes":"Notering."}'
+                    )
+                }
+            }
+
+    monkeypatch.setattr(
+        OllamaProvider,
+        "_create_client",
+        staticmethod(lambda host, headers: FakeClient()),
+    )
+
+    scenario_payload = MockLLMProvider().generate_scenario_draft(
+        "# Scenario", "markdown"
+    )
+    scenario_payload["original_text"] = "# Scenario"
+    scenario_payload["prompt_profiles"] = {
+        "narration": {
+            "base": {"items": ["Baseprofil för narration."]},
+            "by_phase": {
+                "initial-detection": {"items": ["Fasprofil för initial-detection."]}
+            },
+        }
+    }
+    scenario_payload["prompt_instructions"] = {
+        "default": {"items": ["Legacy fallback-instruktion."]}
+    }
+    scenario = validate_scenario(scenario_payload)
+
+    payload = OllamaProvider({"model": "llama3.2"}).generate_narration(
+        make_state(),
+        scenario=scenario,
+    )
+
+    assert payload["key_points"] == ["A", "B"]
+    assert "Baseprofil för narration." in captured["system_prompt"]
+    assert "Fasprofil för initial-detection." in captured["system_prompt"]
+    assert "Legacy fallback-instruktion." in captured["system_prompt"]
 
 
 def test_openrouter_provider_appends_scenario_prompt_instructions_to_debrief(
@@ -822,7 +874,9 @@ def test_openrouter_provider_appends_scenario_prompt_instructions_to_debrief(
 
     monkeypatch.setattr(OpenRouterProvider, "_post_json", fake_post_json)
 
-    scenario_payload = MockLLMProvider().generate_scenario_draft("# Scenario", "markdown")
+    scenario_payload = MockLLMProvider().generate_scenario_draft(
+        "# Scenario", "markdown"
+    )
     scenario_payload["original_text"] = "# Scenario"
     scenario_payload["prompt_instructions"] = {
         "default": {"text": "Beskriv miljokontext explicit i summeringen."},
@@ -841,6 +895,50 @@ def test_openrouter_provider_appends_scenario_prompt_instructions_to_debrief(
     assert "Beskriv miljokontext explicit i summeringen." in captured["system_prompt"]
     assert "Betona riskacceptans och mandatfrågor." in captured["system_prompt"]
     assert "Expected shape:" in captured["system_prompt"]
+
+
+def test_openrouter_provider_does_not_apply_prompt_profiles_to_debrief(monkeypatch):
+    captured = {}
+
+    def fake_post_json(self, payload):
+        captured["system_prompt"] = payload["messages"][0]["content"]
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"exercise_summary":"Sammanfattning av ovningen.",'
+                            '"timeline_summary":[{"turn_number":1,"summary":"Steg 1","outcome":"Utfall 1"}],'
+                            '"strengths":["Styrka 1","Styrka 2"],'
+                            '"development_areas":["Omrade 1","Omrade 2"],'
+                            '"debrief_questions":["Fraga 1","Fraga 2","Fraga 3"],'
+                            '"recommended_follow_ups":["Uppfoljning 1"],'
+                            '"facilitator_notes":"Notering."}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenRouterProvider, "_post_json", fake_post_json)
+
+    scenario_payload = MockLLMProvider().generate_scenario_draft(
+        "# Scenario", "markdown"
+    )
+    scenario_payload["original_text"] = "# Scenario"
+    scenario_payload["prompt_profiles"] = {
+        "narration": {"base": {"items": ["Ska inte påverka debrief."]}}
+    }
+    scenario = validate_scenario(scenario_payload)
+
+    debrief = validate_debrief(
+        OpenRouterProvider(
+            {"api_key": "secret-token", "model": "openai/gpt-4.1-mini"}
+        ).generate_debrief(scenario, make_state(), [])
+    )
+
+    assert debrief.strengths == ["Styrka 1", "Styrka 2"]
+    assert "Ska inte påverka debrief." not in captured["system_prompt"]
 
 
 def test_ollama_provider_does_not_append_scenario_prompt_instructions_to_interpret_action(

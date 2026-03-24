@@ -758,6 +758,46 @@
         }
       ]
     },
+    "NarrationPromptProfile": {
+      "type": "object",
+      "title": "NarrationPromptProfile",
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/PromptInstructionSet",
+          "description": "Basinstruktioner för narration som gäller oavsett fas."
+        },
+        "by_phase": {
+          "type": "object",
+          "title": "By Phase",
+          "description": "Fas-specifika narration-instruktioner som adderas efter base.",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/PromptInstructionSet"
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["base"]
+        },
+        {
+          "required": ["by_phase"]
+        }
+      ]
+    },
+    "PromptProfilesConfig": {
+      "type": "object",
+      "title": "PromptProfilesConfig",
+      "additionalProperties": false,
+      "properties": {
+        "narration": {
+          "$ref": "#/$defs/NarrationPromptProfile",
+          "description": "Scenariospecifik promptprofil för narration."
+        }
+      },
+      "required": ["narration"]
+    },
     "ExecutableRuleCondition": {
       "type": "object",
       "title": "ExecutableRuleCondition",
@@ -1118,6 +1158,10 @@
     "prompt_instructions": {
       "$ref": "#/$defs/PromptInstructionsConfig",
       "description": "Valfria scenariospecifika tilläggsinstruktioner som adderas till narration- och debrief-promptarna."
+    },
+    "prompt_profiles": {
+      "$ref": "#/$defs/PromptProfilesConfig",
+      "description": "Valfria stage-specifika promptprofiler. I v1 används narration med base och by_phase."
     }
   },
   "required": [

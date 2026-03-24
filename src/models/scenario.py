@@ -607,7 +607,9 @@ class PromptInstructionSet(BaseModel):
 
         lines: list[str] = []
         if self.text:
-            lines.extend(line.strip() for line in self.text.splitlines() if line.strip())
+            lines.extend(
+                line.strip() for line in self.text.splitlines() if line.strip()
+            )
         lines.extend(self.items)
         return lines
 
@@ -648,6 +650,48 @@ class PromptInstructionsConfig(BaseModel):
         if audience_specific is not None:
             lines.extend(audience_specific.to_lines())
         return lines
+
+
+class NarrationPromptProfile(BaseModel):
+    """Narration-specific scenario prompt profile with base and phase overrides."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: PromptInstructionSet | None = Field(
+        default=None,
+        description="Basinstruktioner för narration som gäller oavsett fas.",
+    )
+    by_phase: dict[str, PromptInstructionSet] = Field(
+        default_factory=dict,
+        description="Fas-specifika narration-instruktioner som adderas efter base.",
+    )
+
+    @model_validator(mode="after")
+    def require_any_source(self) -> "NarrationPromptProfile":
+        """Require at least one prompt source."""
+
+        if self.base is None and not self.by_phase:
+            raise ValueError("NarrationPromptProfile must define base or by_phase")
+        return self
+
+
+class PromptProfilesConfig(BaseModel):
+    """Scenario-level prompt profiles grouped by LLM stage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    narration: NarrationPromptProfile | None = Field(
+        default=None,
+        description="Scenariospecifik promptprofil för narration.",
+    )
+
+    @model_validator(mode="after")
+    def require_any_profile(self) -> "PromptProfilesConfig":
+        """Require at least one configured profile."""
+
+        if self.narration is None:
+            raise ValueError("prompt_profiles must define at least one profile")
+        return self
 
 
 class Scenario(BaseModel):
@@ -741,6 +785,13 @@ class Scenario(BaseModel):
             "narration- och debrief-promptarna."
         ),
     )
+    prompt_profiles: PromptProfilesConfig | None = Field(
+        default=None,
+        description=(
+            "Valfria stage-specifika promptprofiler. I v1 används narration med "
+            "base och by_phase."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -807,6 +858,16 @@ class Scenario(BaseModel):
                         f"Executable rule {rule.id} references undefined phase {effect.phase}"
                     )
 
+        narration_profile = (
+            self.prompt_profiles.narration if self.prompt_profiles is not None else None
+        )
+        if narration_profile is not None:
+            for profile_phase in narration_profile.by_phase:
+                if profile_phase not in phase_ids:
+                    raise ValueError(
+                        f"prompt_profiles.narration.by_phase references undefined phase {profile_phase}"
+                    )
+
         return self
 
     def resolve_prompt_instruction_lines(self, audience: Audience) -> list[str]:
@@ -816,10 +877,31 @@ class Scenario(BaseModel):
             return []
         return self.prompt_instructions.resolve_lines_for_audience(audience)
 
+    def resolve_narration_prompt_lines(
+        self, audience: Audience, phase: str
+    ) -> list[str]:
+        """Resolve narration prompt lines from prompt_profiles and legacy fallback."""
+
+        lines: list[str] = []
+        narration_profile = (
+            self.prompt_profiles.narration if self.prompt_profiles is not None else None
+        )
+        if narration_profile is not None:
+            if narration_profile.base is not None:
+                lines.extend(narration_profile.base.to_lines())
+            phase_specific = narration_profile.by_phase.get(phase)
+            if phase_specific is not None:
+                lines.extend(phase_specific.to_lines())
+
+        lines.extend(self.resolve_prompt_instruction_lines(audience))
+        return lines
+
     def get_inject_definition(self, inject_id: str) -> InjectDefinition | None:
         """Return the inject definition with matching id, if available."""
 
-        return next((inject for inject in self.inject_catalog if inject.id == inject_id), None)
+        return next(
+            (inject for inject in self.inject_catalog if inject.id == inject_id), None
+        )
 
     def resolve_blocking_inject(
         self, target_inject_id: str, triggered_injects: list[str]

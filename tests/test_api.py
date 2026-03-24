@@ -1336,7 +1336,9 @@ def test_manual_inject_trigger_reactivates_resolved_inject(monkeypatch):
 
 def test_manual_inject_trigger_returns_409_when_blocked_by_constraint(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
-    request_json("POST", "/scenarios", datadriven_scenario_payload_with_inject_constraints())
+    request_json(
+        "POST", "/scenarios", datadriven_scenario_payload_with_inject_constraints()
+    )
     _, session = request_json(
         "POST",
         "/sessions",
@@ -1609,7 +1611,9 @@ def test_post_turn_passes_scenario_context_to_generate_narration(monkeypatch):
             ]
             return super().generate_narration(state, scenario=scenario)
 
-    request_json("POST", "/scenarios", sample_scenario_payload_with_prompt_instructions())
+    request_json(
+        "POST", "/scenarios", sample_scenario_payload_with_prompt_instructions()
+    )
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: ScenarioAwareProvider())
     _, session = request_json(
         "POST",
@@ -1637,7 +1641,9 @@ def test_complete_session_passes_scenario_context_to_generate_debrief(monkeypatc
             ]
             return super().generate_debrief(scenario, state, timeline)
 
-    request_json("POST", "/scenarios", sample_scenario_payload_with_prompt_instructions())
+    request_json(
+        "POST", "/scenarios", sample_scenario_payload_with_prompt_instructions()
+    )
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: ScenarioAwareProvider())
     _, session = request_json(
         "POST",

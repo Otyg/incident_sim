@@ -181,3 +181,10 @@ class InMemorySessionRepository:
         self._items.clear()
         self._timelines.clear()
         self._reports.clear()
+
+    def remove(self, session_id: str) -> None:
+        """Remove a single session and its related timeline/report."""
+
+        self._items.pop(session_id, None)
+        self._timelines.pop(session_id, None)
+        self._reports.pop(session_id, None)

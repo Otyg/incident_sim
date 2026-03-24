@@ -39,6 +39,7 @@ import yaml
 
 from src.logging_utils import get_logger
 from src.storage.in_memory import InMemoryScenarioRepository, InMemorySessionRepository
+from src.storage.buffered import BufferedSessionRepository
 from src.storage.tinydb_json import (
     DEFAULT_DB_PATH,
     TinyDBScenarioRepository,
@@ -152,7 +153,13 @@ def create_storage_repositories() -> tuple[object, object]:
             "Initializing storage repositories with backend=tinydb path=%s",
             db_path or DEFAULT_DB_PATH,
         )
-        return TinyDBScenarioRepository(db_path), TinyDBSessionRepository(db_path)
+        return (
+            TinyDBScenarioRepository(db_path),
+            BufferedSessionRepository(
+                active_repo=InMemorySessionRepository(),
+                archive_repo=TinyDBSessionRepository(db_path),
+            ),
+        )
 
     logger.error("Unsupported storage backend requested: %s", backend)
     raise StorageConfigurationError(f"Unsupported storage backend: {backend}")
