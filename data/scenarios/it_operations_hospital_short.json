@@ -467,10 +467,16 @@
       "hantera kommunikation internt vid misstänkt läckage av patientuppgifter"
     ],
     "assumptions": [
-      "IT-drift/operations kommunicerar enbart med incident manager",
-      "Incident manager beslutar om vad som kommuniceras när till övriga organisationen",
-      "Incident manager kommer fråga IT-Drift om rekommenderade åtgärder",
-      "Angriparen har infiltrerat systemet via en CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek."
+      "IT-drift/operations kommunicerar i första hand med incident manager",
+      "Representanter för krisledning/stab kan kontakta IT-drift direkt för avrapportering",
+      "Incident manager och/eller stab beslutar om vad som kommuniceras och när till övriga organisationen eller externa parter",
+      "Incident manager kan fråga IT-Drift om rekommenderade åtgärder",
+      "Beslutsmandat om åtgärder som kan påverka verksamheten ligger hos incident manager", 
+      "IT-drift rekommenderar och utför åtgärder kopplade till IT-miljön efter godkännande om åtgärden kan påverka verksamheten negativt",
+      "Angriparen har infiltrerat systemet via en CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek.",
+      "Angriparen exfiltrerar data via planterad kod på en enskild maskin",
+      "Angriparen har endast tillgång till den information i datalake som användaren på den angripna maskinen har",
+      "Angriparen har inte angripit ytterligare maskiner eller försökt eskalera behörigheterna på den angripna maskinen"
     ]
   }
 }
