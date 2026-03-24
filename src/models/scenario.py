@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any, Literal, get_args
 
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
 from src.schemas.interpreted_action import ActionType
@@ -652,6 +652,23 @@ class PromptInstructionsConfig(BaseModel):
         return lines
 
 
+class NarrationBasePrompt(BaseModel):
+    """Structured base prompt for narration containing scenario context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: str = Field(
+        description="Core context and situation description for the exercise."
+    )
+    audience: list[str] = Field(description="Target audiences for the exercise.")
+    training_goals: list[str] = Field(
+        description="Learning objectives and goals of the exercise."
+    )
+    assumptions: list[str] = Field(
+        description="Assumptions and limitations that apply to the scenario."
+    )
+
+
 class NarrationPromptProfile(BaseModel):
     """Narration-specific scenario prompt profile with base and phase overrides."""
 
@@ -778,6 +795,10 @@ class Scenario(BaseModel):
     presentation_guidelines: dict[str, PresentationGuideline] = Field(
         description="Hur scenariot bör presenteras för respektive målgrupp."
     )
+    narration_base_prompt: NarrationBasePrompt | None = Field(
+        default=None,
+        description="Structured base prompt for narration containing scenario context, audience, goals, and assumptions.",
+    )
     prompt_instructions: PromptInstructionsConfig | None = Field(
         default=None,
         description=(
@@ -880,18 +901,38 @@ class Scenario(BaseModel):
     def resolve_narration_prompt_lines(
         self, audience: Audience, phase: str
     ) -> list[str]:
-        """Resolve narration prompt lines from prompt_profiles and legacy fallback."""
+        """Resolve narration prompt lines from narration_base_prompt and legacy fallback."""
 
         lines: list[str] = []
-        narration_profile = (
-            self.prompt_profiles.narration if self.prompt_profiles is not None else None
-        )
-        if narration_profile is not None:
-            if narration_profile.base is not None:
-                lines.extend(narration_profile.base.to_lines())
-            phase_specific = narration_profile.by_phase.get(phase)
-            if phase_specific is not None:
-                lines.extend(phase_specific.to_lines())
+
+        # Use new narration_base_prompt if available
+        if self.narration_base_prompt is not None:
+            lines.append(f"Base:\n{self.narration_base_prompt.base}")
+            lines.append(
+                "Audience:\n"
+                + "\n".join(f"- {a}" for a in self.narration_base_prompt.audience)
+            )
+            lines.append(
+                "Training goals:\n"
+                + "\n".join(f"- {g}" for g in self.narration_base_prompt.training_goals)
+            )
+            lines.append(
+                "Assumptions:\n"
+                + "\n".join(f"- {a}" for a in self.narration_base_prompt.assumptions)
+            )
+        else:
+            # Fallback to legacy prompt_profiles
+            narration_profile = (
+                self.prompt_profiles.narration
+                if self.prompt_profiles is not None
+                else None
+            )
+            if narration_profile is not None:
+                if narration_profile.base is not None:
+                    lines.extend(narration_profile.base.to_lines())
+                phase_specific = narration_profile.by_phase.get(phase)
+                if phase_specific is not None:
+                    lines.extend(phase_specific.to_lines())
 
         lines.extend(self.resolve_prompt_instruction_lines(audience))
         return lines

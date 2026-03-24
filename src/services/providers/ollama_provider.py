@@ -42,7 +42,6 @@ from typing import Any
 
 from src.logging_utils import get_logger
 from src.services.llm_provider import (
-    LLMProviderError,
     ProviderConfigurationError,
     ProviderResponseFormatError,
     ProviderUpstreamError,

@@ -22,13 +22,16 @@ Regler:
 - `append_exercise_log` kräver `message` och valfritt `log_type`
 - håll rules[] kortfattade och använd dem bara som dokumentation om det behovs
 - presentation_guidelines ska finnas för varje audience i scenariot
-- försök alltid fylla i lämpliga promptar i `prompt_profiles.narration` när källtexten ger tillräcklig kontext
-- `prompt_profiles.narration.base` bör sätta scenariokontexten (miljö, lägesbild, övergripande fakta) och anpassa narrativet till övningens målgrupp(er)
+- försök alltid fylla i `narration_base_prompt` när källtexten ger tillräcklig kontext
+- `narration_base_prompt.base` bör sätta scenariokontexten (miljö, lägesbild, övergripande fakta)
+- `narration_base_prompt.audience` bör matcha scenariots audiences
+- `narration_base_prompt.training_goals` bör matcha scenariots training_goals
+- `narration_base_prompt.assumptions` bör inkludera viktiga antaganden från background.assumptions och andra källor
 - promptinstruktionerna ska tydligt ange att syftet är att driva spelet framåt genom att beskriva hur miljön i övningen påverkas av deltagarnas åtgärder
-- om promptstyrning är motiverad ska du inkludera `prompt_profiles` med narration-profil
-- `prompt_profiles.narration` kan innehålla `base` och/eller `by_phase`
+- om promptstyrning är motiverad ska du inkludera `narration_base_prompt`
+- `prompt_profiles.narration` kan fortfarande användas för fas-specifik styrning om det behövs
 - `prompt_profiles.narration.by_phase` måste använda samma nycklar som förekommer i `states[].phase`
-- om källtexten inte motiverar fas-specifik promptstyrning: skapa endast `prompt_profiles.narration.base` eller utelämna `prompt_profiles`
+- om källtexten inte motiverar fas-specifik promptstyrning: skapa endast `narration_base_prompt` eller utelämna `prompt_profiles`
 - original_text ska inte genereras av modellen; det satts av backend efteråt
 
 Prioriteringar:
@@ -48,6 +51,7 @@ Formatkonventioner:
 När källtexten antyder beslutspunkter som "stäng extern åtkomst", "begär lägesbild", "starta teknisk analys" eller "kommunicera externt", får du skapa enkla matchers, aliases, hints och executable_rules om det tydligt hjälper scenariomotorn.
 
 Nyckelchecklista i output (när relevant):
+- `narration_base_prompt`
 - `prompt_profiles`
 - `prompt_profiles.narration.base`
 - `prompt_profiles.narration.by_phase`

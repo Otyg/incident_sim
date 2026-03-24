@@ -6,8 +6,7 @@
   "description": "En tabletop-övning som simulerar en misstänkt dataexfiltration från ett sjukhus datalake, där deltagarna övar på att identifiera, hantera och eskalera säkerhetsincidenter under osäkerhet.",
   "audiences": [
     "krisledning",
-    "it-ledning",
-    "kommunikation"
+    "it-ledning"
   ],
   "training_goals": [
     "identifiera när ett prestandaproblem kan vara en säkerhetsincident",
@@ -15,7 +14,7 @@
     "bedöma påverkan på vårdverksamhet, informationssäkerhet och drift",
     "fatta beslut om isolering, logginsamling, begränsning och eskalering",
     "samverka mellan drift, säkerhet, laboratorieverksamhet, applikationsförvaltning och ledning",
-    "hantera kommunikation internt och externt vid misstänkt läckage av patientuppgifter"
+    "hantera kommunikation internt vid misstänkt läckage av patientuppgifter"
   ],
   "difficulty": "medium",
   "timebox_minutes": 60,
@@ -452,77 +451,26 @@
         "Samordning med säkerhetsfunktion"
       ],
       "tone": "Tekniskt noggrant, faktabaserat, fokuserat på praktiska åtgärder"
-    },
-    "kommunikation": {
-      "focus": [
-        "Samordning av intern och extern kommunikation",
-        "Meddelanden till berörda parter",
-        "Hantering av mediafrågor"
-      ],
-      "tone": "Professionell, översiktlig, tydlig och sammanhängande"
     }
   },
-  "prompt_profiles": {
-    "narration": {
-      "base": {
-        "text": "Denna övning utspelar sig i ett akutsjukhus med en central datalake som hanterar känsliga patientuppgifter. En misstänkt säkerhetsincident med tecken på dataexfiltration har uppstått. Fokus ligger på att identifiera incidenten, samordna beslut och kommunikation under osäkerhet.",
-        "items": [
-          "Patientuppgifter",
-          "Datalake",
-          "Dataexfiltration",
-          "Osäkerhet"
-        ]
-      },
-      "by_phase": {
-        "initial-detection": {
-          "text": "Fokusera på att identifiera om det är driftproblem eller säkerhetsincident. Samla information från alla tillgängliga källor.",
-          "items": [
-            "Prestandaproblem",
-            "Övervakningsdata",
-            "Inga planerade förändringar"
-          ]
-        },
-        "early-symptoms": {
-          "text": "Bedöm om utgående trafik mot extern adressrymd indikerar en säkerhetsincident. Diskutera hur ni skapar en gemensam lägesbild.",
-          "items": [
-            "Utgående trafik",
-            "Krypterad trafik",
-            "Ingen känd partner"
-          ]
-        },
-        "safety-indication": {
-          "text": "Bekräfta misstanke om dataexfiltration. Bedöm om personuppgifter har påverkats och vilka åtgärder som krävs.",
-          "items": [
-            "Patientrelaterade datamängder",
-            "Dataöverföringar",
-            "Loggfragmenterad"
-          ]
-        },
-        "operational-uncertainty": {
-          "text": "Väg av mellan att isolera miljön och bevara drift. Kartlägg beroenden till verksamheten.",
-          "items": [
-            "Isolering riskerar",
-            "Verksamhetsberoenden",
-            "Sekundära processer"
-          ]
-        },
-        "expanding-impact": {
-          "text": "Vilka roller måste in för att hantera kommunikation och juridisk bedömning? Vilka uppgifter måste prioriteras?",
-          "items": [
-            "Dataskydd",
-            "Juridik",
-            "Kommunikation"
-          ]
-        },
-        "decision-point": {
-          "text": "Fatta beslut om nätverksblockering, servicekonton och eskaleringsvägar. Dokumentera beslutsprocessen.",
-          "items": [
-            "Nätverksisolation",
-            "Servicekonton",
-            "Dokumentation"
-          ]
-        }
-      }
-    }
+  "narration_base_prompt": {
+    "base": "Denna övning utspelar sig i ett akutsjukhus med en central datalake som hanterar känsliga patientuppgifter. En misstänkt säkerhetsincident med tecken på dataexfiltration har uppstått. Fokus ligger på att identifiera incidenten, samordna beslut och kommunikation under osäkerhet.",
+    "audience": [
+      "IT-operations"
+    ],
+    "training_goals": [
+      "identifiera när ett prestandaproblem kan vara en säkerhetsincident",
+      "skapa en gemensam lägesbild under osäkerhet",
+      "bedöma påverkan på vårdverksamhet, informationssäkerhet och drift",
+      "fatta beslut om isolering, logginsamling, begränsning och eskalering",
+      "samverka mellan drift, säkerhet, laboratorieverksamhet, applikationsförvaltning och ledning",
+      "hantera kommunikation internt vid misstänkt läckage av patientuppgifter"
+    ],
+    "assumptions": [
+      "IT-drift/operations kommunicerar enbart med incident manager",
+      "Incident manager beslutar om vad som kommuniceras när till övriga organisationen",
+      "Incident manager kommer fråga IT-Drift om rekommenderade åtgärder",
+      "Angriparen har infiltrerat systemet via en CRAM-fil med genomikdata som utnyttjat en sårbarhet i ett underliggande bibliotek."
+    ]
   }
 }

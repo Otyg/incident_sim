@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from tinydb import Query, TinyDB
 

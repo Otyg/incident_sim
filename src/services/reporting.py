@@ -445,7 +445,9 @@ def build_session_report_markdown(
             "",
             "### Verksamhetspåverkan",
             "",
-            *_as_bullet_lines(session.business_impact, "- Ingen dokumenterad verksamhetspåverkan."),
+            *_as_bullet_lines(
+                session.business_impact, "- Ingen dokumenterad verksamhetspåverkan."
+            ),
             "",
             "### Konsekvenser",
             "",

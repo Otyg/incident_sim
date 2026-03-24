@@ -1251,7 +1251,9 @@ async def post_turn(
         )
 
         # Extract state updates from the generated narration
-        updated = scenario_engine.extract_state_updates_from_narration(updated, response, provider)
+        updated = scenario_engine.extract_state_updates_from_narration(
+            updated, response, provider
+        )
 
         session_repository.save(updated)
         turn = Turn(

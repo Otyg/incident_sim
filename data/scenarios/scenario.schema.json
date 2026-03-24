@@ -758,6 +758,47 @@
         }
       ]
     },
+    "NarrationBasePrompt": {
+      "type": "object",
+      "title": "NarrationBasePrompt",
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Base",
+          "description": "Core context and situation description for the exercise."
+        },
+        "audience": {
+          "type": "array",
+          "title": "Audience",
+          "description": "Target audiences for the exercise.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "training_goals": {
+          "type": "array",
+          "title": "Training Goals",
+          "description": "Learning objectives and goals of the exercise.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "title": "Assumptions",
+          "description": "Assumptions and limitations that apply to the scenario.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": ["base", "audience", "training_goals", "assumptions"]
+    },
     "NarrationPromptProfile": {
       "type": "object",
       "title": "NarrationPromptProfile",
@@ -1154,6 +1195,10 @@
       "additionalProperties": {
         "$ref": "#/$defs/PresentationGuideline"
       }
+    },
+    "narration_base_prompt": {
+      "$ref": "#/$defs/NarrationBasePrompt",
+      "description": "Structured base prompt for narration containing scenario context, audience, goals, and assumptions."
     },
     "prompt_instructions": {
       "$ref": "#/$defs/PromptInstructionsConfig",
