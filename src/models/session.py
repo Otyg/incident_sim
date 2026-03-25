@@ -94,6 +94,7 @@ class SessionState(BaseModel):
     exercise_leader: str | None = None
     secretary: str | None = None
     participating_unit: str | None = None
+    facilitator_notes: str | None = None
     known_facts: List[NonEmptyStr] = Field(default_factory=list)
     unknowns: List[NonEmptyStr] = Field(default_factory=list)
     affected_systems: List[NonEmptyStr] = Field(default_factory=list)

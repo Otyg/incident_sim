@@ -455,6 +455,24 @@ def build_session_report_markdown(
                 session.consequences, "- Inga dokumenterade konsekvenser."
             ),
             "",
+        ]
+    )
+
+    # Add facilitator notes if present
+    if session.facilitator_notes:
+        lines.extend(
+            [
+                "### Övningsledarens anteckningar",
+                "",
+                _escape_markdown_text(session.facilitator_notes),
+                "",
+                "---",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
             "## Debrief-underlag",
             "",
             "### Styrkor",

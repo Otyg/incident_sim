@@ -718,6 +718,42 @@ def test_create_session_with_partial_metadata(monkeypatch):
     assert session_state["started_at"] is not None
 
 
+def test_update_facilitator_notes_during_session(monkeypatch):
+    monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
+    scenario = sample_scenario_payload()
+    request_json("POST", "/scenarios", scenario)
+
+    create_status, create_body = request_json(
+        "POST",
+        "/sessions",
+        {
+            "scenario_id": "scenario-001",
+            "audience": "krisledning",
+            "exercise_leader": "Anna Bergström",
+        },
+    )
+
+    session_id = create_body["session_state"]["session_id"]
+    
+    # Update facilitator notes
+    notes_text = "Observerade att incidentteamet reagerade snabbt på notisen."
+    update_status, update_body = request_json(
+        "POST",
+        f"/sessions/{session_id}/facilitator-notes",
+        {"facilitator_notes": notes_text},
+    )
+
+    assert update_status == 200
+    assert update_body["facilitator_notes"] == notes_text
+
+    # Verify notes persist when retrieving session
+    get_status, get_body = request_json(
+        "GET", f"/sessions/{session_id}"
+    )
+    assert get_status == 200
+    assert get_body["facilitator_notes"] == notes_text
+
+
 def test_post_turn_returns_basic_turn_response(monkeypatch):
     monkeypatch.setattr(api_module, "get_llm_provider", lambda: MockLLMProvider())
 

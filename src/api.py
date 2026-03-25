@@ -143,6 +143,7 @@ class CreateSessionRequest(BaseModel):
         exercise_leader: Name of the exercise leader (optional).
         secretary: Name of the secretary (optional).
         participating_unit: Name of the participating unit/department (optional).
+        facilitator_notes: Notes taken by the facilitator during the session (optional).
     """
 
     scenario_id: str = Field(min_length=1)
@@ -150,6 +151,7 @@ class CreateSessionRequest(BaseModel):
     exercise_leader: str | None = None
     secretary: str | None = None
     participating_unit: str | None = None
+    facilitator_notes: str | None = None
 
 
 class TurnRequest(BaseModel):
@@ -209,6 +211,7 @@ def build_session_state(
     exercise_leader: str | None = None,
     secretary: str | None = None,
     participating_unit: str | None = None,
+    facilitator_notes: str | None = None,
 ) -> SessionState:
     """Create the initial session state for a stored scenario.
 
@@ -219,6 +222,7 @@ def build_session_state(
         exercise_leader: Name of the exercise leader (optional).
         secretary: Name of the secretary (optional).
         participating_unit: Name of the participating unit/department (optional).
+        facilitator_notes: Notes taken by the facilitator (optional).
 
     Returns:
         SessionState: Initialized session state ready to be saved.
@@ -238,6 +242,7 @@ def build_session_state(
         exercise_leader=exercise_leader,
         secretary=secretary,
         participating_unit=participating_unit,
+        facilitator_notes=facilitator_notes,
         known_facts=list(initial_state.known_facts or []),
         unknowns=list(initial_state.unknowns or []),
         affected_systems=list(initial_state.affected_systems or []),
@@ -745,6 +750,7 @@ async def create_session(request: CreateSessionRequest) -> CreateSessionResponse
         exercise_leader=request.exercise_leader,
         secretary=request.secretary,
         participating_unit=request.participating_unit,
+        facilitator_notes=request.facilitator_notes,
     )
     state = scenario_engine.apply(
         scenario=scenario,
@@ -1203,6 +1209,60 @@ async def complete_session(session_id: str) -> CompleteSessionResponse:
             exc_info=True,
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+class UpdateFacilitatorNotesRequest(BaseModel):
+    """Request body for updating facilitator notes during a session."""
+
+    facilitator_notes: str | None = Field(default=None, min_length=0)
+
+
+@app.post("/sessions/{session_id}/facilitator-notes", response_model=SessionState)
+async def update_facilitator_notes(
+    session_id: str, request: UpdateFacilitatorNotesRequest
+) -> SessionState:
+    """Update facilitator notes for an active session.
+
+    Args:
+        session_id: Identifier of the session to update.
+        request: Payload containing the new facilitator notes.
+
+    Returns:
+        SessionState: Updated session state with new facilitator notes.
+
+    Raises:
+        HTTPException: If the session is missing or not active.
+    """
+
+    state = session_repository.get(session_id)
+    if not state:
+        logger.warning(
+            "Facilitator notes update failed because session was missing session_id=%s",
+            session_id,
+        )
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if state.status != "active":
+        logger.warning(
+            "Facilitator notes update failed because session is not active session_id=%s status=%s",
+            session_id,
+            state.status,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Session must be active to update facilitator notes",
+        )
+
+    updated_state = state.model_copy(update={"facilitator_notes": request.facilitator_notes})
+    session_repository.save(updated_state)
+
+    logger.info(
+        "Facilitator notes updated session_id=%s notes_length=%s",
+        session_id,
+        len(request.facilitator_notes or ""),
+    )
+
+    return updated_state
 
 
 @app.post("/sessions/{session_id}/turns", response_model=Turn)

@@ -33,11 +33,13 @@
         );
         const [debrief, setDebriefState] = useState(Common.getStoredDebrief());
         const [participantInput, setParticipantInput] = useState("");
+        const [facilitatorNotes, setFacilitatorNotesState] = useState("");
         const [selectedManualPhase, setSelectedManualPhase] = useState("");
         const [selectedManualInjectId, setSelectedManualInjectId] = useState("");
         const [loading, setLoading] = useState(false);
         const [status, setStatus] = useState("");
         const [error, setError] = useState("");
+        const [notesLoading, setNotesLoading] = useState(false);
 
         const currentTurnScenarioEvents = Common.getCurrentTurnScenarioEvents(session);
         const sessionEventLog = Common.getSessionEventLog(session);
@@ -53,6 +55,42 @@
         const setDebrief = (nextDebrief) => {
           setDebriefState(nextDebrief);
           Common.setStoredDebrief(nextDebrief);
+        };
+
+        const setFacilitatorNotes = (notes) => {
+          setFacilitatorNotesState(notes);
+        };
+
+        const saveFacilitatorNotes = async (notes) => {
+          if (!session) {
+            return;
+          }
+
+          setNotesLoading(true);
+          try {
+            const updated = await Common.apiRequest(
+              `/sessions/${session.session_id}/facilitator-notes`,
+              {
+                method: "POST",
+                body: JSON.stringify({ facilitator_notes: notes }),
+              }
+            );
+            setSession(updated);
+          } catch (err) {
+            console.error("Kunde inte spara anteckningar:", err);
+          } finally {
+            setNotesLoading(false);
+          }
+        };
+
+        const handleFacilitatorNotesChange = (e) => {
+          const newNotes = e.target.value;
+          setFacilitatorNotes(newNotes);
+          // Auto-save after a short delay
+          clearTimeout(window.notesAutoSaveTimeout);
+          window.notesAutoSaveTimeout = setTimeout(() => {
+            saveFacilitatorNotes(newNotes);
+          }, 1000);
         };
 
         const loadTimeline = async (sessionId) => {
@@ -93,6 +131,7 @@
               Common.getPreferredManualInjectId(loadedScenario, loadedSession)
             );
             setLatestNarration(restoredNarration);
+            setFacilitatorNotes(loadedSession.facilitator_notes || "");
             Common.setCurrentScenarioId(loadedScenario.id);
             setStatus(`Session ${loadedSession.session_id} är laddad.`);
           } catch (err) {
@@ -396,6 +435,20 @@
                     </button>
                   </div>
                 </form>
+
+                <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--color-border)" }}>
+                  <h3 style={{ marginBottom: "8px", fontSize: "0.9rem" }}>Övningsledarens anteckningar</h3>
+                  <textarea
+                    value={facilitatorNotes}
+                    onChange={handleFacilitatorNotesChange}
+                    disabled={!session || session?.status !== "active" || notesLoading}
+                    placeholder="Anteckningar som sparas under sessionen och inkluderas i rapporten..."
+                    rows={4}
+                    style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}
+                  />
+                  {notesLoading && <div className="small" style={{ marginTop: "4px", color: "var(--color-info)" }}>Sparar...</div>}
+                </div>
+
                 {session && (
                   <div className="stack" style={{ marginTop: "16px" }}>
                     {availableScenarioPhases.length > 1 && (

@@ -47,6 +47,9 @@
         const [participatingUnit, setParticipatingUnit] = useState(
           localStorage.getItem("participatingUnit") || ""
         );
+        const [facilitatorNotes, setFacilitatorNotes] = useState(
+          localStorage.getItem("facilitatorNotes") || ""
+        );
 
         const refreshScenarioList = async (options = {}) => {
           const items = await Common.apiRequest("/scenarios");
@@ -167,6 +170,7 @@
           localStorage.setItem("exerciseLeader", exerciseLeader);
           localStorage.setItem("secretary", secretary);
           localStorage.setItem("participatingUnit", participatingUnit);
+          localStorage.setItem("facilitatorNotes", facilitatorNotes || "");
 
           setShowMetadataDialog(false);
           setLoading(true);
@@ -182,6 +186,7 @@
                 exercise_leader: exerciseLeader || null,
                 secretary: secretary || null,
                 participating_unit: participatingUnit || null,
+                facilitator_notes: facilitatorNotes || null,
               }),
             });
             Common.setCurrentScenarioId(scenario.id);
@@ -235,6 +240,17 @@
                         onChange={(e) => setParticipatingUnit(e.target.value)}
                         placeholder="Namn på enhet eller avdelning"
                       />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="facilitatorNotes">Övningsledarens anteckningar</label>
+                      <textarea
+                        id="facilitatorNotes"
+                        value={facilitatorNotes}
+                        onChange={(e) => setFacilitatorNotes(e.target.value)}
+                        placeholder="Skriv anteckningar här som kommer med i rapporten..."
+                        rows={4}
+                      />
+                      <small className="form-hint">Dessa anteckningar tas med i den slutgiltiga rapporten.</small>
                     </div>
                   </div>
                   <div className="modal-footer">
